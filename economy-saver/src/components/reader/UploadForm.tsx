@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { UPLOAD_FAILED } from "@/components/ui/words";
+import { MAX_DOCUMENT_LABEL } from "@/lib/document-limit";
 import { FORM_FETCH_HEADER } from "@/lib/form-fetch";
 
 type Line = { name: string; result: string; refused?: boolean };
@@ -44,7 +45,7 @@ export function UploadForm() {
   }
   return <form onSubmit={submit} method="post" action="/api/upload" encType="multipart/form-data" aria-busy={busy}>
     <label className="ui-field">Documents<input type="file" name="document" required multiple accept="image/jpeg,image/png,image/webp,application/pdf" disabled={busy} /></label>
-    <p className="ui-hint">JPEG, PNG, WebP or PDF · up to 6 MiB each · choose as many as you like</p>
+    <p className="ui-hint">JPEG, PNG, WebP or PDF · up to {MAX_DOCUMENT_LABEL} each · choose as many as you like</p>
     <div className="ui-row"><button className="ui-button primary" disabled={busy}>{busy ? "Uploading…" : "Upload and read"}</button><Link className="reader-check" href="/to-check">To check</Link></div>
     <UploadLines lines={lines} />
   </form>;

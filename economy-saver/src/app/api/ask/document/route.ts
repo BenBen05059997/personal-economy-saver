@@ -10,7 +10,7 @@ import { readDocumentInBackground } from "@/db/reader-background";
 import { BAD_FIELDS, text } from "@/lib/door";
 import { NO_STORE } from "@/lib/form-fetch";
 import { readUpload } from "@/lib/reader/accept";
-import { QUESTION_MAX } from "@/lib/schema/turn";
+import { QUESTION_MAX } from "@/lib/question-limit";
 import { ReaderError } from "@/lib/reader/settings";
 import { currentHouseholdId, HOUSEHOLD_SESSION_REQUIRED, householdRequest } from "@/lib/session";
 import { Uuid } from "@/lib/stable-id";

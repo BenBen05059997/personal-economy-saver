@@ -8,6 +8,7 @@
 // invoices (a household whose home currency is USD has no conversion to price, so its payouts are empty), withdrawal fees,
 // refunds, custom PayPal rates, and any currency other than JPY and USD.
 import { convertMinor, minorMoney, percentText, plural } from "./format";
+import { pluralWord } from "@/lib/plural";
 import { addDays } from "./dates";
 import type { Currency } from "@/lib/catalogue/types";
 
@@ -167,7 +168,7 @@ export function foreignCostWords(costs: FxCosts): { charges: string | null; payo
   const charges = parts.length === 0 ? null : `In the last 12 months, paying in another currency cost you ${parts.join(" and ")}.`;
   const p = costs.payoutTotals;
   const payouts = p.count === 0 ? null
-    : `In the last 12 months, ${p.count} paid ${p.count === 1 ? "invoice" : "invoices"} cost ${money(p.costMinor)} to receive and convert through PayPal: ${money(p.receiveFeeMinor)} in fees to receive and ${money(p.markupMinor)} in the conversion rate, out of ${money(p.grossMinor)}. ${money(p.landedMinor)} reached your bank. This uses PayPal's published business rates (${percentText(PAYPAL_RATES.receiveBp)}% + ${percentText(PAYPAL_RATES.crossBorderBp)}% + $0.30 to receive, then ${percentText(PAYPAL_RATES.conversionBp)}% over the base rate to convert).`;
+    : `In the last 12 months, ${p.count} paid ${pluralWord(p.count, "invoice")} cost ${money(p.costMinor)} to receive and convert through PayPal: ${money(p.receiveFeeMinor)} in fees to receive and ${money(p.markupMinor)} in the conversion rate, out of ${money(p.grossMinor)}. ${money(p.landedMinor)} reached your bank. This uses PayPal's published business rates (${percentText(PAYPAL_RATES.receiveBp)}% + ${percentText(PAYPAL_RATES.crossBorderBp)}% + $0.30 to receive, then ${percentText(PAYPAL_RATES.conversionBp)}% over the base rate to convert).`;
   const unknown = t.unknownCount > 0 ? `${plural(t.unknownCount, "purchase")} in another currency ${t.unknownCount === 1 ? "has" : "have"} no cost yet. ${FX_WORDS.unknown}` : null;
   return { charges, payouts, unknown };
 }

@@ -2,10 +2,6 @@
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import * as schema from "@/db/schema";
 import { loadMoneyState } from "@/db/household";
 import { loadIncome } from "@/db/income";
@@ -20,16 +16,15 @@ import { StackedColumns } from "@/components/views/forms/StackedColumns";
 import { Strip } from "@/components/views/forms/Strip";
 import { clientPaceView, incomeMonthsView } from "@/lib/views/v/income";
 import { reads } from "../fixtures/view-reads";
+import { createChecks, openDb } from "../fixtures/harness";
+import { DEMO_DATE } from "@/db/clock";
 
-let passed = 0;
-async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
-const TODAY = "2026-11-14", RANGE = { from: "2026-06-01", to: "2026-11-30" };
+const { check, tally } = createChecks();
+const RANGE = { from: "2026-06-01", to: "2026-11-30" };
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
 
     // A fixture household: two clients; USD invoices with and without a rate, a yen one, a member's request and a payment read from a connected PayPal.
     const [house] = await db.insert(schema.households).values({ name: "Fixture", homeCurrency: "JPY" }).returning();
@@ -56,7 +51,7 @@ async function main() {
     });
 
     await check("per-month totals per client; average and lowest over the completed months; the unrated client named and not counted", () => {
-      const found = incomeByMonth(rows, TODAY, 3);
+      const found = incomeByMonth(rows, DEMO_DATE, 3);
       assert.deepEqual(found.months.map(m => [m.month, m.total, m.current]), [["2026-09", 150_000, false], ["2026-10", 110_000, false], ["2026-11", 30_000, true]]);
       assert.deepEqual(found.months[1].byClient, { [alpha.id]: 80_000, [bravo.id]: 30_000 });
       assert.deepEqual(found.clients.map(c => [c.name, c.total]), [["Alpha Studio", 260_000], ["Bravo Co", 30_000]]);
@@ -66,18 +61,18 @@ async function main() {
     });
 
     await check("the view stacks by client with Average and Lowest month lines, a table, and says the unrated payment is not counted", () => {
-      const result = incomeMonthsView({ months: 3 }, { state: { today: TODAY, homeCurrency: "JPY", clients: [{ id: alpha.id }, { id: bravo.id }] } as never, income: rows }) as ViewResult<"stacked_columns">;
+      const result = incomeMonthsView({ months: 3 }, { state: { today: DEMO_DATE, homeCurrency: "JPY", clients: [{ id: alpha.id }, { id: bravo.id }] } as never, income: rows }) as ViewResult<"stacked_columns">;
       assert.deepEqual(result.data!.segments.map(s => s.legend), ["Alpha Studio", "Bravo Co"]);
       assert.deepEqual(result.data!.refs, [{ label: "Average", minor: 130_000 }, { label: "Lowest month", minor: 110_000 }]);
       assert.deepEqual(result.data!.columns.map(c => c.parts), [[150_000, 0], [80_000, 30_000], [30_000, 0]]);
       assert.deepEqual(result.table!.head, ["Month", "Alpha Studio", "Bravo Co", "Total"]);
       assert.match(result.line!, /Bravo Co paid at a rate that is not known, so that payment is not counted\./);
-      reads(result, TODAY);
+      reads(result, DEMO_DATE);
     });
 
     // Ben's sample.
     const ben = await seedBen(db, { isDemo: true });
-    const state = await loadMoneyState(db, ben, TODAY);
+    const state = await loadMoneyState(db, ben, DEMO_DATE);
     const income = await loadIncome(db, ben, RANGE);
     const ctx = { state, income };
     const result = resolveView("income_months", {}, ctx) as ViewResult<"stacked_columns">;
@@ -172,7 +167,7 @@ async function main() {
   } finally {
     await pg.close();
   }
-  console.log(`\n${passed} checks passed`);
+  console.log(`\n${tally.passed} checks passed`);
 }
 
 export const done = main();

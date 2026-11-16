@@ -1,9 +1,9 @@
+// Reminders (D65): the digest, a household's reminder settings and devices, the daily send by email and push, the delivery history, test
+// sends and linked spaces. PGlite and a fake transport. Also runs notify-transport-test.ts (the digest text, the email and the push
+// encryption). Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/notify-test.ts
 import assert from "node:assert/strict";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, openDb } from "./fixtures/harness";
 import { countKind, deleteKind } from "@/db/data-kinds";
 import { dueHouseholds } from "@/db/daily";
 import { changeStandingRule } from "@/db/rules";
@@ -14,12 +14,11 @@ import { reminderDigest } from "@/lib/notify/digest";
 import { reminderView, runReminders, saveReminderSettings, sendTestReminder, subscribeReminder } from "@/db/reminders";
 import * as s from "@/db/schema";
 import { runNotifyTransportChecks } from "./notify-transport-test";
+import { DEMO_DATE } from "@/db/clock";
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema: s });
-  let passed = 0;
-  async function check(name: string, run: () => Promise<void> | void) { await run(); passed++; console.log("✓ " + name); }
+  const { pg, db } = await openDb();
+  const { check, tally } = createChecks();
 
   const keys = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
   const publicKey = Buffer.from(await crypto.subtle.exportKey("raw", keys.publicKey)).toString("base64url");
@@ -41,8 +40,7 @@ async function main() {
   };
   try {
     await runNotifyTransportChecks(check);
-    await migrate(db, { migrationsFolder: "./drizzle" });
-    const today = "2026-11-14";
+    const today = DEMO_DATE;
     const morning = new Date(today + "T00:00:00Z"); // 09:00 Tokyo
     const [household] = await db.insert(s.households).values({ homeCurrency: "JPY", name: "Fictional reminders", dailyRanOn: today }).returning();
     const hid = household.id;
@@ -128,7 +126,7 @@ async function main() {
       assert.equal((await history()).length, 2, "a test doesn't claim a daily reminder");
     });
 
-    await check("delivery history expires after 30 days, scoped to the household", async () => {
+    await check("delivery history older than its retention window is removed and costs no send", async () => {
       const before = sends.length;
       await db.update(s.reminders).set({ createdAt: new Date("2026-10-01T00:00:00Z") }).where(and(eq(s.reminders.householdId, hid), eq(s.reminders.memberId, owner.id)));
       await runReminders(db, hid, new Date("2026-12-01T00:00:00Z"), transport);
@@ -194,7 +192,7 @@ async function main() {
     }
     await pg.close();
   }
-  console.log("reminders: " + passed + " checks passed");
+  console.log("reminders: " + tally.passed + " checks passed");
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

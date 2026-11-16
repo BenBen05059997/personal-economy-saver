@@ -11,7 +11,7 @@ import { canvases, conversationTurns, households, memories, spaces } from "./sch
 import { RecipeSchema } from "@/lib/canvas/schema";
 import { MEMORY_LIMIT, MemoryItem, hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
 import { ConversationTurn, DEVICE_MEMORY_SOURCE_LABEL, TURN_VERSION } from "@/lib/schema/turn";
-import { MAX_PINS } from "@/lib/canvas/schema";
+import { MAX_PINS, TITLE_MAX } from "@/lib/canvas/schema";
 import { DeviceBriefSchema, type DeviceBrief } from "@/lib/schema/device-brief";
 
 export const MOVABLE = ["memory", "canvases", "journal"] as const;
@@ -41,7 +41,7 @@ export async function requireCloud(db: Db, householdId: string, kind: Movable): 
 
 /** A pin as it travels between the cloud and the device: the layout and its order, nothing else. */
 const PinItem = z.object({
-  id: z.string().uuid(), title: z.string().trim().min(1).max(80), recipe: RecipeSchema,
+  id: z.string().uuid(), title: z.string().trim().min(1).max(TITLE_MAX), recipe: RecipeSchema,
   spaceId: z.string().uuid().optional(), position: z.number().int().min(0), createdAt: z.string().datetime(),
 }).strict();
 type PinItem = z.infer<typeof PinItem>;

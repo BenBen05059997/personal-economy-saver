@@ -3,11 +3,6 @@
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
-import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { termOf } from "@/lib/money/terms";
@@ -19,9 +14,9 @@ import { VIEW_META } from "@/lib/views/catalogue";
 import { loadViewContext } from "@/lib/views/load";
 import { resolveView } from "@/lib/views/resolve";
 import type { ViewContext, ViewId } from "@/lib/views/types";
+import { createChecks, openDb } from "../fixtures/harness";
 
-let passed = 0;
-async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createChecks();
 const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
 /** Ben has no pots: the views that take one draw this pot, with a tax bill to meet, added to his state. */
 const FIXTURE_POT = { id: "pot-fixture", name: "Tax", saved: 10_000, target: 60_000, targetDate: "2027-03-31", startedOn: "2026-11-01", fillPct: 20 };
@@ -39,10 +34,8 @@ const defaultArgs = (view: ViewId, ctx: ViewContext): Record<string, unknown> =>
 };
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const hid = await seedBen(db, { isDemo: true });
     const all = Object.keys(VIEW_META) as ViewId[];
     const needs = [...new Set(all.flatMap(view => VIEW_META[view].needs))];
@@ -99,7 +92,7 @@ async function main() {
   } finally {
     await pg.close();
   }
-  console.log(`\n${passed} checks passed`);
+  console.log(`\n${tally.passed} checks passed`);
 }
 
 export const done = main();

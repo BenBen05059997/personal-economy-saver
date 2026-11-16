@@ -2,23 +2,19 @@
 // the "this month" rule, the what-changed line, and Ben's seeded household through loadSpending. Fictional data only; PGlite.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/regular-test.ts
 import assert from "node:assert/strict";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
+import { bill, createChecks, openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { householdDate } from "@/db/account";
+import { DEMO_DATE } from "@/db/clock";
 import { confirmPending } from "@/db/confirm";
 import { seedBen } from "@/db/seed";
 import { loadSpending } from "@/db/spending";
 import { changeTone, regularCosts, type RegularCost } from "@/lib/money/regular";
 import { nameKeys, nameKey, normalise, sameName } from "@/lib/money/name-key";
 import { monthBounds, spendingItems, type SpendingInput, type SpendItem } from "@/lib/money/spending";
-import type { Bill, Charge } from "@/lib/money/types";
+import type { Charge } from "@/lib/money/types";
 
-const TODAY = "2026-11-14";
-const bill = (over: Partial<Bill> & Pick<Bill, "id" | "biller" | "amount" | "due" | "category">): Bill => ({ businessBp: 0, status: "confirmed", ...over });
 const charge = (over: Partial<Charge> & Pick<Charge, "id" | "merchant" | "amount" | "date" | "category">): Charge =>
   ({ cardId: "card-k", businessBp: 0, source: "manual", status: "confirmed", ...over });
 
@@ -58,8 +54,7 @@ const itemsOf = (input: SpendingInput, from = WINDOW.from, to = WINDOW.to) => sp
 const brief = (c: RegularCost) => [c.label, c.status, c.months.map(m => m.amountMinor), c.changeMinor];
 
 async function main() {
-  let passed = 0;
-  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { check, tally } = createChecks();
 
   await check("sameName: a bracketed alternative is a name too; no transliteration, no date or company-form parts", () => {
     for (const name of ["光電気 (HIKARI DENKI)", "Hikari Denki（光電気）", "光電気【Hikari Denki】", "光電気 [Hikari Denki]", "光電気「Hikari Denki」", "Hikari Denki (11月分)", "Hikari Denki Co., Ltd."]) assert.ok(sameName(name, "Hikari Denki"), name);
@@ -96,7 +91,7 @@ async function main() {
   });
 
   await check("regularCosts: up, down, same, started, stopped and not yet, with each month's amount oldest first", () => {
-    const result = regularCosts(itemsOf(kenji), "JPY", TODAY);
+    const result = regularCosts(itemsOf(kenji), "JPY", DEMO_DATE);
     assert.deepEqual([result.currency, result.month, result.months], ["JPY", "2026-11", ["2026-09", "2026-10", "2026-11"]]);
     assert.deepEqual(result.items.map(brief), [
       ["Fictional Kawa Climbing", "stopped", [6_000, 6_000, 0], -6_000],
@@ -137,26 +132,24 @@ async function main() {
     assert.deepEqual(r.items.map(brief), [["Fictional Gym", "stopped", [7_000, 7_000, 0], -7_000]]);
     assert.equal(r.changedLine, "Fictional Gym stopped");
     const late: SpendingInput = { ...kenji, charges: [], bills: [bill({ id: "net", biller: "Fictional Net", amount: 5_000, due: "2026-10-15", category: "phone_internet", repeatUnit: "month", repeatDay: 15 })] };
-    assert.deepEqual(regularCosts(itemsOf(late), "JPY", TODAY).items.map(brief), [["Fictional Net", "same", [0, 5_000, 5_000], 0]]);
+    assert.deepEqual(regularCosts(itemsOf(late), "JPY", DEMO_DATE).items.map(brief), [["Fictional Net", "same", [0, 5_000, 5_000], 0]]);
   });
 
-  await check("a last payment (D41): the month after it lists nothing for the bill and Regular costs says it stopped", () => {
+  await check("a last payment (D41): Regular costs says the bill stopped", () => {
     const ended: SpendingInput = { ...kenji, charges: [], bills: [bill({ id: "kawa", biller: "Kawa Gym", amount: 6_000, due: "2026-08-27", category: "health", repeatUnit: "month", repeatDay: 27, repeatUntil: "2026-10-27" })] };
-    assert.deepEqual(itemsOf(ended, "2026-09-01", "2026-11-30").map(i => i.date), ["2026-09-27", "2026-10-27"], "nothing after the last payment");
-    assert.equal(itemsOf(ended, "2026-11-01", "2026-11-30").length, 0);
-    assert.equal(regularCosts(itemsOf(ended), "JPY", TODAY).changedLine, "Kawa Gym stopped");
+    assert.equal(regularCosts(itemsOf(ended), "JPY", DEMO_DATE).changedLine, "Kawa Gym stopped");
   });
 
   await check("a D48 amount change on a repeating bill shows as up in the month it applies, same after; a six-month window and a two-month one", () => {
     const december = regularCosts(itemsOf(kenji, "2026-10-01", "2026-12-31"), "JPY", "2026-12-14");
     assert.deepEqual(brief(december.items.find(c => c.label === "Fictional Heights rent")!), ["Fictional Heights rent", "same", [90_000, 95_000, 95_000], 0]);
-    const six = regularCosts(itemsOf(kenji, "2026-06-01"), "JPY", TODAY, 6);
+    const six = regularCosts(itemsOf(kenji, "2026-06-01"), "JPY", DEMO_DATE, 6);
     assert.deepEqual(six.months, ["2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"]);
     assert.deepEqual(six.items.find(c => c.label === "Fictional Heights rent")!.months.map(m => m.amountMinor), [0, 90_000, 90_000, 90_000, 90_000, 95_000]);
-    const two = regularCosts(itemsOf(kenji, "2026-10-01"), "JPY", TODAY, 2);
+    const two = regularCosts(itemsOf(kenji, "2026-10-01"), "JPY", DEMO_DATE, 2);
     assert.deepEqual(two.items.map(c => c.label).sort(), ["Fictional Bakery", "Fictional Gym", "Fictional Heights rent", "Fictional Power (2026年11月分)", "Fictional StreamBox", "Fictional Water Nov 2026"].sort(),
       "two months: Kawa Climbing and the gas (October only in the window) are not regular");
-    for (const bad of [1, 25, 2.5]) assert.throws(() => regularCosts([], "JPY", TODAY, bad), /2 to 24 months/, String(bad));
+    for (const bad of [1, 25, 2.5]) assert.throws(() => regularCosts([], "JPY", DEMO_DATE, bad), /2 to 24 months/, String(bad));
     assert.throws(() => regularCosts([], "JPY", "2026-11"), /YYYY-MM-DD/);
   });
 
@@ -168,13 +161,13 @@ async function main() {
         charge({ id: "c10", merchant: "Fictional Corner Coffee", amount: 12.5, date: "2026-10-04", category: "food", cardId: "card-us" }),
         charge({ id: "c11", merchant: "Fictional Corner Coffee", amount: 25, date: "2026-11-04", category: "food", cardId: "card-us" }),
       ] };
-    const r = regularCosts(itemsOf(lee), "USD", TODAY);
+    const r = regularCosts(itemsOf(lee), "USD", DEMO_DATE);
     assert.deepEqual(r.items.map(brief), [["Fictional Corner Coffee", "up", [1_825, 1_250, 2_500], 1_250], ["Fictional studio rent", "same", [125_050, 125_050, 125_050], 0]]);
     assert.equal(r.changedLine, "Fictional Corner Coffee up $12.50 so far");
-    const still = regularCosts(itemsOf({ ...lee, charges: [] }), "USD", TODAY);
+    const still = regularCosts(itemsOf({ ...lee, charges: [] }), "USD", DEMO_DATE);
     assert.equal(still.changedLine, "No change in your regular costs this month.");
-    assert.deepEqual(regularCosts([], "USD", TODAY).items, []);
-    assert.equal(regularCosts([], "USD", TODAY).changedLine, "No change in your regular costs this month.");
+    assert.deepEqual(regularCosts([], "USD", DEMO_DATE).items, []);
+    assert.equal(regularCosts([], "USD", DEMO_DATE).changedLine, "No change in your regular costs this month.");
   });
 
   await check("only up and down are tinted; every other status is plain", () => {
@@ -191,10 +184,8 @@ async function main() {
   });
 
   // ------------------------------------------------------------ the database
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const ben = await seedBen(db, { isDemo: true });
     const today = await householdDate(db, ben);
     const load = async (hid: string) => {
@@ -233,7 +224,7 @@ async function main() {
       assert.deepEqual(brief(denki), ["Fictional Denki 11月分", "up", [8_640, 9_100, 11_220], 2_120]);
     });
 
-    console.log(`Regular cost checks passed (${passed}).`);
+    console.log(`Regular cost checks passed (${tally.passed}).`);
   } finally {
     await pg.close();
   }

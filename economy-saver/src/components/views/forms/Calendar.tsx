@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { dayLabel, longDay } from "@/lib/money/format";
+import { dayLabel, longDay, WEEKDAYS } from "@/lib/money/format";
 import type { ViewResult } from "@/lib/views/types";
 import { WAITS_IN_TO_CHECK } from "@/lib/views/words";
 import { CASES } from "@/lib/money/terms";
@@ -9,7 +9,6 @@ import "./calendar.css";
 
 /** A pending line in a cell, in short words ("Hikari Denki ¥11,220 · to check"); the readout and the table keep the full sentence. */
 const cellWords = (item: string) => item.endsWith(` ${WAITS_IN_TO_CHECK}`) ? `${item.slice(0, -WAITS_IN_TO_CHECK.length - 1)} · to check` : item;
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 /** The shade of a day's cell: how much goes out against the heaviest day, as a share of the yellow (the amounts are the engine's; this only picks a tint). */
 const shade = (out: number, max: number) => out <= 0 || max <= 0 ? 0 : Math.round(16 + 64 * Math.sqrt(out / max));
 

@@ -2,11 +2,6 @@
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
-import * as schema from "@/db/schema";
 import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
 import { fact } from "@/lib/money/facts";
@@ -17,23 +12,21 @@ import { resolveView } from "@/lib/views/resolve";
 import { ViewError, type ViewResult } from "@/lib/views/types";
 import { StepLine } from "@/components/views/forms/StepLine";
 import { reads } from "../fixtures/view-reads";
+import { createChecks, openDb } from "../fixtures/harness";
+import { DEMO_DATE } from "@/db/clock";
 
-let passed = 0;
-async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
-const TODAY = "2026-11-14";
+const { check, tally } = createChecks();
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const ben = await seedBen(db, { isDemo: true });
-    const base = await loadMoneyState(db, ben, TODAY);
+    const base = await loadMoneyState(db, ben, DEMO_DATE);
     const tax: Pot = { id: "pot-tax", name: "Tax", saved: 10_000, fillPct: 20 };
     const bill = (over: Partial<Bill> = {}): Bill => ({ id: "tax-1", biller: "Resident tax", amount: 40_000, due: "2026-12-20", category: "government_tax", businessBp: 0, status: "confirmed", ...over });
     const world = (bills: Bill[], pots: Pot[] = [tax]): MoneyState => ({ ...base, pots, bills: [...base.bills, ...bills] });
     const ctxOf = (s: MoneyState) => ({ state: s });
-    const first = fillShare(180_000, 2000), second = fillShare(120_000, 2000), at = (iso: string) => Math.round((Date.parse(iso) - Date.parse(TODAY)) / 86_400_000);
+    const first = fillShare(180_000, 2000), second = fillShare(120_000, 2000), at = (iso: string) => Math.round((Date.parse(iso) - Date.parse(DEMO_DATE)) / 86_400_000);
 
     await check("the pot steps by fillShare on Nov 22 and Nov 25; the bills line steps to ¥40,000 on Dec 20; it is covered", () => {
       assert.deepEqual([first, second], [36_000, 24_000]);
@@ -69,12 +62,12 @@ async function main() {
 
     await check("tax_ahead reads clean short and pending; short carries the short amount, the day and the bill due that day", () => {
       const short = resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([bill({ amount: 100_000 })]))) as ViewResult;
-      reads(short, TODAY);
+      reads(short, DEMO_DATE);
       const facts = short.facts!, due = facts.find(f => f.name === "bill_amount")!;
       assert.equal(facts.find(f => f.name === "tax_ahead")!.value, 30_000);
       assert.equal(facts.find(f => f.name === "tax_short_on")!.value, "2026-12-20");
       assert.deepEqual([due.value, due.about, due.period], [100_000, { type: "bill", id: "tax-1", name: "Resident tax" }, { on: "2026-12-20" }]);
-      reads(resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([bill({ status: "pending", amount: 500_000 })]))) as ViewResult, TODAY);
+      reads(resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([bill({ status: "pending", amount: 500_000 })]))) as ViewResult, DEMO_DATE);
     });
 
     await check("a pending tax bill is named and not counted", () => {
@@ -107,7 +100,7 @@ async function main() {
   } finally {
     await pg.close();
   }
-  console.log(`\n${passed} checks passed`);
+  console.log(`\n${tally.passed} checks passed`);
 }
 
 export const done = main();

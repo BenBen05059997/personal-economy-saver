@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Places } from "@/db/place";
+import { MEMORY_SPACES } from "@/lib/links";
 import { ConfirmRemove } from "@/components/ui/ConfirmRemove";
 import { deleteDeviceSpace, type DeviceKind } from "@/lib/store/device";
 
@@ -11,7 +12,7 @@ export function DeleteSpace({ householdId, places, id, name }: { householdId: st
   const [problem, setProblem] = useState("");
   const kinds = DEVICE_KINDS.filter(kind => places[kind] === "device");
   return <>
-    <ConfirmRemove kind="space" id={id} label={name} returnTo="/memory?tab=spaces"
+    <ConfirmRemove kind="space" id={id} label={name} returnTo={MEMORY_SPACES}
       note="Its thread, notes, pinned canvases and brief are removed. Attached documents stay."
       onDone={kinds.length === 0 ? undefined : async () => {
         try { await deleteDeviceSpace(householdId, id, kinds); }

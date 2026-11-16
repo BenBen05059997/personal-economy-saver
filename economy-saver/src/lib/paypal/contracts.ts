@@ -20,7 +20,7 @@ export type CaptureOrder = (orderId: string, payee: string) => Promise<{ capture
  * What PayPal answered when the sandbox test card paid an order: the order, its status, and the first capture and its status
  * (null when PayPal gave none). The invoice is never marked paid from this; only the verified completed-payment event does.
  */
-export type TestCardPayment = { orderId: string; orderStatus: string; captureId: string | null; captureStatus: string | null };
+type TestCardPayment = { orderId: string; orderStatus: string; captureId: string | null; captureStatus: string | null };
 export type PayWithTestCard = (o: OrderRequest) => Promise<TestCardPayment>;
 
 export type ConnectionView = { state: "demo" | "none" | "pending" | "connected"; email: string | null; detail: string | null };

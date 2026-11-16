@@ -1,6 +1,7 @@
 "use client";
 
 import { AllowanceHint } from "@/components/ui/AllowanceHint";
+import { QUESTION_MAX } from "@/lib/question-limit";
 import type { FormEvent, KeyboardEvent, RefObject } from "react";
 
 const iconProps = { width: 16, height: 16, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true } as const;
@@ -26,7 +27,7 @@ export function AskComposer({
   return <form id={panel ? "ask-panel-question" : "ask"} className="ask-form ask-composer" onSubmit={onSubmit}>
     <label className="ask-composer-label" htmlFor={textId}>Ask a question</label>
     <div className="ask-box">
-      <textarea id={textId} ref={field} maxLength={320} rows={2} value={text} required disabled={panel && unavailable !== null} placeholder={PLACEHOLDER}
+      <textarea id={textId} ref={field} maxLength={QUESTION_MAX} rows={2} value={text} required disabled={panel && unavailable !== null} placeholder={PLACEHOLDER}
         onKeyDown={enterAsks} onChange={event => onText(event.target.value)} />
       <button type="button" className="ask-mic" aria-label={listening ? "Stop listening" : "Use microphone"}
         disabled={busy || !deviceReady || (panel && unavailable !== null)} onClick={onMic}>

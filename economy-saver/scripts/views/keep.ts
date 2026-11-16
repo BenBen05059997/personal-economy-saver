@@ -18,9 +18,9 @@ import { bufferMonthsView, moneyFlowView, savingsRateView } from "@/lib/views/v/
 import { resolveView } from "@/lib/views/resolve";
 import type { ViewContext, ViewResult } from "@/lib/views/types";
 import { reads } from "../fixtures/view-reads";
+import { createSyncChecks } from "../fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createSyncChecks();
 const f = (minor: number) => minorMoney(minor, "JPY");
 const row = (id: string, clientId: string | null, clientName: string, paidOn: string, homeMinor: number | null): IncomeRow => ({ id, clientId, clientName, paidOn, sentOn: null, homeMinor });
 const income: IncomeRow[] = [
@@ -179,4 +179,4 @@ check("money_flow, savings_rate and buffer_months read clean on the fixture, and
   assert.ok(flowView.facts!.some(f => f.name === "paid_in" && f.period !== null && "from" in f.period));
 });
 
-console.log(`keep: ${passed} passed`);
+console.log(`keep: ${tally.passed} passed`);

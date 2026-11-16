@@ -12,7 +12,7 @@ import type { LinkPreview } from "@/lib/money/varies";
 import type { Extracted, Whose } from "@/lib/reader/extract";
 import { CanvasError, resolveRecipe, type CanvasContext, type ResolvedBlock } from "@/lib/canvas/resolve";
 import type { Recipe } from "@/lib/canvas/schema";
-import { storedId } from "@/lib/money/repeat";
+import { storedId } from "@/lib/money/name-key";
 import { addDays, daysBetween } from "@/lib/money/dates";
 
 /** The fixed words of a file attached in Ask (D61). Code writes all of them; no model words the card. */
@@ -44,7 +44,7 @@ export type DocumentCardItem = {
 };
 
 /** What a confirmed item shows instead of "Added.": one line and the pages it can be found on. */
-export type SavedCard = { words: string; links: { label: string; href: string }[] };
+type SavedCard = { words: string; links: { label: string; href: string }[] };
 
 export type DocumentCard = {
   documentId: string;

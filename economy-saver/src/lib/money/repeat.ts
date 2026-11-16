@@ -6,6 +6,7 @@ import { z } from "zod";
 import type { Currency } from "@/lib/catalogue/types";
 import { addDays, dateIn } from "./dates";
 import { dayLabel, minorPerUnit } from "./format";
+import { storedId } from "./name-key";
 import { estimatedFields, gapEstimate, nameHistory } from "./gaps";
 import type { Bill, CancelNotice, RealBill, RepeatUnit, StoredBill } from "./types";
 
@@ -180,9 +181,6 @@ function unlinkedHistory(bills: StoredBill[], bill: StoredBill, unit: number) {
  * series without an amount of its own each occurrence is estimated from earlier linked bills or matching one-offs, if available.
  * `currency` (the home currency) is needed exactly when there is such a bill: the estimate is rounded to its minor unit.
  */
-/** The stored bill an occurrence belongs to: the occurrences of a repeating bill have the id "<stored id>@<date>"; a one-off has no "@". */
-export const storedId = (id: string): string => id.split("@")[0];
-
 export function expandBills(bills: StoredBill[], today: string, through: string, currency?: Currency): Bill[] {
   const unit = estimateUnit(bills, currency);
   const real = realBillsBySeries(bills, unit);

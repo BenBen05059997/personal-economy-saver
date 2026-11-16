@@ -6,11 +6,9 @@ import { fact } from "@/lib/money/facts";
 import { readFileSync } from "node:fs";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, openDb, stubStylesheets } from "./fixtures/harness";
 import { TableBlock } from "@/components/canvas/blocks";
+import { DEMO_DATE } from "@/db/clock";
 import * as schema from "@/db/schema";
 import { savePot } from "@/db/pots";
 import { seedBen } from "@/db/seed";
@@ -38,13 +36,11 @@ import type { MoneyState } from "@/lib/money/types";
 import { WhatIfError, whatIf } from "@/lib/money/whatif";
 import { addDays } from "@/lib/money/dates";
 
-const TODAY = "2026-11-14";
-
 // A small hand-worked household (fictional): ¥100,000 cash, rent ¥70,000 on Nov 20, a ¥5,000 bill on Nov 25, and one $400 invoice
 // (¥60,000 at 150) from Maple Studio, sent today. Maple has paid in 5, 9 and 12 days: usually Nov 23, at slowest Nov 26.
 //   usual: 100,000 → Nov 20 30,000 (low) → Nov 23 90,000 → Nov 25 85,000.   late: Nov 20 30,000 → Nov 25 25,000 (low) → Nov 26 85,000.
 const small: MoneyState = {
-  today: TODAY, homeCurrency: "JPY", fxPerUsd: 150, paypal: 40_000, bank: 60_000,
+  today: DEMO_DATE, homeCurrency: "JPY", fxPerUsd: 150, paypal: 40_000, bank: 60_000,
   bills: [
     { id: "rent@2026-11-20", biller: "Fictional rent", amount: 70_000, due: "2026-11-20", category: "housing", businessBp: 0, status: "confirmed", repeatUnit: "month", repeatDay: 20, startsOn: "2026-06-20", startAmount: 70_000 },
     { id: "rent@2026-12-20", biller: "Fictional rent", amount: 70_000, due: "2026-12-20", category: "housing", businessBp: 0, status: "confirmed", repeatUnit: "month", repeatDay: 20, startsOn: "2026-06-20", startAmount: 70_000 },
@@ -56,7 +52,7 @@ const small: MoneyState = {
   ],
   cards: [], charges: [], statements: [],
   clients: [{ id: "maple", name: "Maple Studio", email: "ap@maple.example", termsDays: 7, daysToPay: [5, 9, 12] }],
-  invoices: [{ id: "inv-1", clientId: "maple", number: "1", item: "Posters", amountUsd: 400, status: "sent", hasLink: true, sentOn: TODAY, dueOn: "2026-11-21" }],
+  invoices: [{ id: "inv-1", clientId: "maple", number: "1", item: "Posters", amountUsd: 400, status: "sent", hasLink: true, sentOn: DEMO_DATE, dueOn: "2026-11-21" }],
   pots: [], pendingPots: [], cancelNotices: [], balanceUpdates: [],
   split: { members: [{ id: "m1", name: "Mina", shareBp: 10_000 }], since: null, settledThrough: null, settledAt: null, bills: [], charges: [] },
 };
@@ -67,14 +63,11 @@ const deepFreeze = <T,>(value: T): T => {
 };
 const cashMinor = (n: number) => n; // JPY: minor units are yen
 
-// The canvas imports stylesheets; the test only renders markup, so a stylesheet loads as nothing (a CSS module as its own class names).
-const extensions = require.extensions as unknown as Record<string, (module: { exports: unknown }) => void>;
-extensions[".css"] = module => { module.exports = new Proxy({}, { get: (_, key) => String(key) }); };
+stubStylesheets();
 
 async function main() {
   const { Canvas } = await import("@/components/canvas/Canvas");
-  let passed = 0;
-  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { check, tally } = createChecks();
 
   // ------------------------------------------------------------ the what-if, by hand
   await check("canvas redraw uses the shared session message for 401 and keeps other refusals", async () => {
@@ -120,7 +113,7 @@ async function main() {
     assert.equal(whatIf(small, [{ kind: "client_late", clientId: "maple", days: 40 }]).clients[0].lateDays, 40);
     // exactly 1 more day on the usual case moves the arrival from Nov 23 to Nov 24: the low stays ¥30,000
     assert.equal(lowOf(whatIf(small, [{ kind: "client_late", clientId: "maple", days: 1 }]), "expected").amount, 30_000);
-    // Without any change the field is absent: the engine is untouched (Ben's numbers are proved by the other suites).
+    // Without any change the field is absent: the engine is untouched.
     assert.equal("lateDays" in small.clients[0], false);
   });
 
@@ -182,7 +175,7 @@ async function main() {
     for (const change of [
       { kind: "client_late", clientId: "nobody", days: 3 }, { kind: "remove_bill", billId: "nothing" }, { kind: "change_bill", billId: "nothing", amountMinor: 5 },
       { kind: "remove_bill", billId: "phone@2026-11-25" }, { kind: "add_cost", name: "x", amountMinor: 5, date: "2026-11-13" },
-      { kind: "add_cost", name: "x", amountMinor: 5, date: "2029-01-01" }, { kind: "add_income", name: "x", amountMinor: 5, date: TODAY },
+      { kind: "add_cost", name: "x", amountMinor: 5, date: "2029-01-01" }, { kind: "add_income", name: "x", amountMinor: 5, date: DEMO_DATE },
     ] as Change[]) assert.throws(() => whatIf(small, [change]), error => error instanceof WhatIfError && /your records|dated|two years/.test(error.message), JSON.stringify(change));
   });
 
@@ -234,10 +227,8 @@ async function main() {
   });
 
   // ------------------------------------------------------------ the database
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     const context = await loadCanvasContext(db, a, { blocks: [] });
     const { state } = context;
@@ -443,7 +434,7 @@ async function main() {
 
     await check("This month against last month: totals, the comparison and the table of changes are the month view's", () => {
       const resolved = resolveRecipe(starters[2].recipe, context);
-      const october = monthByCategory(context.spending, TODAY, "2026-10"), november = monthByCategory(context.spending, TODAY, "2026-11");
+      const october = monthByCategory(context.spending, DEMO_DATE, "2026-10"), november = monthByCategory(context.spending, DEMO_DATE, "2026-11");
       const numbers = resolved.filter(r => r.type === "number").map(r => (r as Extract<ResolvedBlock, { type: "number" }>).data);
       assert.deepEqual(numbers.map(n => n.value), [minorMoney(october.totalMinor, "JPY"), minorMoney(november.totalMinor, "JPY")]);
       assert.deepEqual(numbers.map(n => n.label), ["October", "November"]);
@@ -477,7 +468,7 @@ async function main() {
     await check("Regular costs, month totals, by category and the spending search are the engine's own", () => {
       const resolved = resolveRecipe(starters[3].recipe, context);
       const items = spendingItems(context.spending, monthBounds(monthsBack("2026-11", 3)).first, monthBounds("2026-11").last);
-      const regular = regularCosts(items, "JPY", TODAY, 3);
+      const regular = regularCosts(items, "JPY", DEMO_DATE, 3);
       const table = block(resolved, "table").data;
       assert.equal(table.rows.length, regular.items.length);
       assert.equal(table.caption, regular.changedLine);
@@ -491,7 +482,7 @@ async function main() {
         { type: "table", query: { q: "events", days: 14, scenario: { case: "late", changes: [{ kind: "add_cost", name: "Fictional lamp", amountMinor: 10_000, date: "2026-11-16" }] } } },
       ] };
       const [month, search, progress, events] = resolveRecipe(more, context) as Extract<ResolvedBlock, { type: "table" | "progress" }>[];
-      const november = monthByCategory(context.spending, TODAY, "2026-11");
+      const november = monthByCategory(context.spending, DEMO_DATE, "2026-11");
       assert.deepEqual((month as Extract<ResolvedBlock, { type: "table" }>).data.foot, ["Total", minorMoney(november.totalMinor, "JPY")]);
       assert.equal((month as Extract<ResolvedBlock, { type: "table" }>).data.rows.length, november.categories.length);
       const found = (search as Extract<ResolvedBlock, { type: "table" }>).data;
@@ -523,7 +514,7 @@ async function main() {
         state: { ...state, split: { members, since: "2026-11-01", settledThrough: null, settledAt: null, charges: [], bills: [{ id: "sh", biller: "Fictional internet", amountMinor: 10_000, due: "2026-11-05", paidBy: "aki", createdAt: "2026-11-01T00:00:00Z", repeatUnit: null, repeatDay: null, repeatUntil: null, nextAmountMinor: null, nextAmountFrom: null }] } },
         spending: { ...context.spending, split: { members }, bills: context.spending.bills.map(bill => (owned.has(bill.id) ? { ...bill, ownerId: "aki" } : bill)) },
       };
-      const view = monthByCategory(two.spending, TODAY, "2026-11");
+      const view = monthByCategory(two.spending, DEMO_DATE, "2026-11");
       const data = block(resolveRecipe(recipe, two), "by_person").data;
       assert.equal(data.empty, null);
       assert.ok(view.byMember.find(m => m.id === "aki")!.minor > 0 && view.sharedMinor > 0);
@@ -533,7 +524,7 @@ async function main() {
       view.categories.forEach((category, i) => {
         assert.equal(data.table.rows[i].cells.at(-1), minorMoney(category.totalMinor, "JPY"));
       });
-      assert.equal(data.owes, splitSummary(two.state.split, splitBalance(two.state.split, TODAY), "JPY"));
+      assert.equal(data.owes, splitSummary(two.state.split, splitBalance(two.state.split, DEMO_DATE), "JPY"));
       assert.equal(data.owes, "Ben owes Aki ¥5,000.");
       assert.match(canvasSummary(resolveRecipe(recipe, two)), /"type":"by_person"/);
       // It draws as ranked bars with a segment per person (Shared first), the same figures as the table, and the owes line under it.
@@ -641,14 +632,14 @@ async function main() {
       assert.equal(JSON.stringify(resolveRecipe(recipe, withFx)), JSON.stringify(resolveRecipe(recipe, await loadCanvasContext(db, a, recipe))), "the same numbers twice");
       // Ben's seed has no foreign card charge (Fontly Cloud is typed in by hand, qa/README AE): the $24 charge billed ¥3,710 at 150 costs ¥110.
       const fontly = { ...withFx, foreignCosts: foreignCosts({
-        today: TODAY, homeCurrency: "JPY", rates: [{ date: "2026-01-01", perUsd: 150 }], cards: [{ id: "c1", label: "Card A", currency: "JPY", foreignFeeBp: null }], invoices: [],
+        today: DEMO_DATE, homeCurrency: "JPY", rates: [{ date: "2026-01-01", perUsd: 150 }], cards: [{ id: "c1", label: "Card A", currency: "JPY", foreignFeeBp: null }], invoices: [],
         charges: [{ id: "x1", cardId: "c1", merchant: "Fontly Cloud", date: "2026-11-10", amountMinor: 3710, original: { amountMinor: 2400, currency: "USD" }, fxEstimated: false }],
       }) };
       const [fn, ft] = resolveRecipe(recipe, fontly);
       if (fn.type === "number") assert.equal(fn.data.value, jpy(110));
       if (ft.type === "table") { assert.equal(ft.data.rows.length, 1); assert.equal(ft.data.rows[0].cells[0], "Card A"); assert.equal(ft.data.rows[0].cells[1], jpy(110)); assert.deepEqual(ft.data.foot, ["Total", jpy(110), ""]); }
       // A household with no foreign activity: the empty words and a zero number.
-      const quiet = { ...withFx, foreignCosts: foreignCosts({ today: TODAY, homeCurrency: "JPY", rates: [], cards: [], charges: [], invoices: [] }) };
+      const quiet = { ...withFx, foreignCosts: foreignCosts({ today: DEMO_DATE, homeCurrency: "JPY", rates: [], cards: [], charges: [], invoices: [] }) };
       const [zero, none] = resolveRecipe(recipe, quiet);
       if (zero.type === "number") assert.equal(zero.data.value, jpy(0));
       if (none.type === "table") { assert.equal(none.data.rows.length, 0); assert.equal(none.data.foot, null); assert.equal(none.data.caption, null); assert.match(none.data.empty!, /No payouts or card purchases/); }
@@ -706,7 +697,7 @@ async function main() {
       assert.ok(!summary.includes("Private"), "the model wrote those words; they are not fed back as a source");
     });
 
-    console.log(`Canvas checks passed (${passed}).`);
+    console.log(`Canvas checks passed (${tally.passed}).`);
   } finally {
     await pg.close();
   }

@@ -7,10 +7,9 @@
 import type { Currency } from "@/lib/catalogue/types";
 import type { CategoryKey } from "./categories";
 import { dayLabel, minorMoney, minorPerUnit, plural } from "./format";
-import { sameName } from "./name-key";
+import { sameName, storedId } from "./name-key";
 import { low, series, WINDOW_DAYS } from "./runway";
 import type { Bill, GapBasis, MoneyState, RealBill, RepeatUnit } from "./types";
-import { storedId } from "./repeat";
 import { daysBetween } from "./dates";
 
 /** The two phrases every face uses for a missing value. */

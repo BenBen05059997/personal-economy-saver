@@ -4,11 +4,9 @@ import assert from "node:assert/strict";
 import { openSuggestions, runPass } from "@/db/suggestions";
 import { setStandingRule } from "@/db/rules";
 import { execFileSync } from "node:child_process";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq, inArray } from "drizzle-orm";
+import { anthropicReply, chatReply } from "./ai-fake";
+import { createChecks, openDb, saveEnv } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { looksLikeApiKey } from "@/lib/ai/key-text";
 import { aiConnection } from "@/db/ai-key";
@@ -61,10 +59,7 @@ import { addDays } from "@/lib/money/dates";
 type Block = Record<string, unknown>;
 const text = (value: string): Block => ({ type: "text", text: value });
 const toolUse = (id: string, name: string, input: unknown): Block => ({ type: "tool_use", id, name, input });
-const reply = (stop_reason: string, content: Block[]) => Response.json({
-  id: "msg_fixture", type: "message", role: "assistant", model: "fixture-text", content, stop_reason, stop_sequence: null,
-  usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 3, cache_creation_input_tokens: 4 },
-});
+const reply = (stop_reason: string, content: Block[]) => anthropicReply(stop_reason, content, { usage: { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 3, cache_creation_input_tokens: 4 } });
 
 /** Bodies as the tests read them: the system blocks joined, the cache marks gone. `wires` keeps the body exactly as sent. */
 function plain(wire: any): Body { // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -108,11 +103,7 @@ type ChatBody = { model: string; max_tokens?: number; max_completion_tokens?: nu
   tools?: { type: string; function: { name: string; description: string; parameters: Record<string, unknown> } }[];
   messages: { role: string; content?: string | Block[] | null; tool_calls?: { id: string; type: string; function: { name: string; arguments: string } }[]; tool_call_id?: string }[] };
 const chatCall = (id: string, name: string, args: unknown) => ({ id, type: "function", function: { name, arguments: typeof args === "string" ? args : JSON.stringify(args) } });
-const chat = (finish_reason: string, content: string | null, tool_calls?: unknown[]) => Response.json({
-  id: "chatcmpl-fixture", object: "chat.completion", created: 1, model: "fixture-text",
-  choices: [{ index: 0, finish_reason, message: { role: "assistant", content, ...(tool_calls && { tool_calls }) } }],
-  usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-});
+const chat = (finish_reason: string, content: string | null, tool_calls?: unknown[]) => chatReply(finish_reason, { content, ...(tool_calls && { tool_calls }) });
 function chatTransport(script: ((bodies: ChatBody[]) => Response)[] | ((bodies: ChatBody[]) => Response)) {
   const bodies: ChatBody[] = [];
   const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -135,16 +126,13 @@ const KEY = "sk-ant-fictional-" + "a".repeat(40);
 const APP = new URL("http://127.0.0.1:3123");
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
-  const saved = Object.fromEntries(AI_NAMES.map(name => [name, process.env[name]]));
+  const { pg, db } = await openDb();
+  const restoreEnv = saveEnv(AI_NAMES);
   const budgetProbe = process.argv.includes("--ask-budget-check");
   if (!budgetProbe) delete process.env.ASK_BUDGET_MS;
-  let passed = 0;
+  const { check, tally } = createChecks();
   const realInfo = console.info;
-  async function check(name: string, run: () => Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     process.env.AI_PROTOCOL = "anthropic";
     process.env.AI_API_KEY = KEY;
     process.env.AI_TEXT_MODEL = "fixture-text";
@@ -2316,12 +2304,10 @@ async function main() {
       assert.ok(searched.facts.some(f => (f.name === "bill_amount" || f.name === "charge_amount") && typeof f.value === "number"), "each matching item's amount is a fact");
     });
 
-    console.log(`Agent checks passed (${passed}).`);
+    console.log(`Agent checks passed (${tally.passed}).`);
   } finally {
     console.info = realInfo;
-    for (const [name, value] of Object.entries(saved)) {
-      if (value === undefined) delete process.env[name]; else process.env[name] = value;
-    }
+    restoreEnv();
     await pg.close();
   }
 }

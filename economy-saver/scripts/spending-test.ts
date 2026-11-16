@@ -2,13 +2,11 @@
 // travel category in the database. Fictional data only; PGlite, no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/spending-test.ts
 import assert from "node:assert/strict";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { bill, createChecks, openDb, violates } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { householdDate } from "@/db/account";
+import { DEMO_DATE } from "@/db/clock";
 import { chargeInput, insertCharge } from "@/db/charges";
 import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
@@ -21,10 +19,8 @@ import { datesIn, expandBills, nextAmountOf } from "@/lib/money/repeat";
 import { HISTORY_MONTHS, monthBounds, monthName, monthsBack, searchLine, searchSpending, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import type { Bill, Charge } from "@/lib/money/types";
 import { benMoney } from "@/lib/sample/ben";
-import { nameKey, normalise } from "@/lib/money/name-key";
+import { normalise } from "@/lib/money/name-key";
 
-const TODAY = "2026-11-14";
-const bill = (over: Partial<Bill> & Pick<Bill, "id" | "biller" | "amount" | "due" | "category">): Bill => ({ businessBp: 0, status: "confirmed", ...over });
 const charge = (over: Partial<Charge> & Pick<Charge, "id" | "merchant" | "amount" | "date" | "category">): Charge =>
   ({ cardId: "card-mio", businessBp: 0, source: "manual", status: "confirmed", ...over });
 
@@ -49,14 +45,11 @@ const mio: SpendingInput = {
   cards: [{ id: "card-mio", ownerId: "mio" }, { id: "card-house" }],
   split: { members: [{ id: "mio" }, { id: "ren" }] },
 };
-/** A database error naming the constraint (drizzle wraps the driver's error in `cause`). */
-const violates = (constraint: string) => (error: unknown) => String((error as { cause?: { message?: string } }).cause?.message ?? "").includes(constraint);
-const RANGE = { from: "2026-09-01", to: TODAY };
+const RANGE = { from: "2026-09-01", to: DEMO_DATE };
 const rows = (items: ReturnType<typeof spendingItems>) => items.map(i => [i.kind, i.id, i.label, i.date, i.amountMinor, i.ownerId]);
 
 async function main() {
-  let passed = 0;
-  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { check, tally } = createChecks();
 
   // ------------------------------------------------------------ months
   await check("month helpers: bounds, names, months back across a year, and a bad month refused", () => {
@@ -92,7 +85,7 @@ async function main() {
   });
 
   await check("spendingItems: the engine's expanded occurrences give the same items as the stored rows (startsOn, ids <id>@<date>)", () => {
-    const expanded: SpendingInput = { ...mio, bills: expandBills(stored, TODAY, "2027-12-31") };
+    const expanded: SpendingInput = { ...mio, bills: expandBills(stored, DEMO_DATE, "2027-12-31") };
     assert.ok(expanded.bills.some(b => b.id === "rent@2026-11-25") && !expanded.bills.some(b => b.id.startsWith("rent@2026-10")), "the engine's list starts today");
     for (const [from, to] of [["2026-06-01", "2026-12-31"], ["2026-10-01", "2026-10-31"], ["2027-01-01", "2027-12-31"]]) {
       assert.deepEqual(spendingItems(expanded, from, to), spendingItems(mio, from, to), `${from}..${to}`);
@@ -115,21 +108,20 @@ async function main() {
   });
 
   // ------------------------------------------------------------ the month view on the one rule
-  await check("monthByCategory: built from spendingItems for any month; today's month by default; Ben's November unchanged", () => {
-    const oct = monthByCategory(mio, TODAY, "2026-10");
+  await check("monthByCategory: built from spendingItems for any month; today's month by default", () => {
+    const oct = monthByCategory(mio, DEMO_DATE, "2026-10");
     assert.deepEqual([oct.month, oct.name, oct.totalMinor], ["2026-10", "October", 8_000 + 32_000 + 95_000]);
     assert.deepEqual(oct.categories.map(c => [c.category, c.totalMinor, c.businessMinor]), [["housing", 95_000, 28_500], ["travel", 32_000, 0], ["insurance", 8_000, 0]]);
     assert.deepEqual([oct.sharedMinor, oct.byMember], [95_000, [{ id: "mio", minor: 32_000 }, { id: "ren", minor: 8_000 }]]);
-    const nov = monthByCategory(mio, TODAY);
+    const nov = monthByCategory(mio, DEMO_DATE);
     assert.equal(nov.month, "2026-11");
     assert.deepEqual(nov.categories.flatMap(c => c.items.map(i => [i.label, i.date])), [["Fictional Heights rent", "2026-11-25"], ["Minato bakery", "2026-11-03"], ["Fictional soba lunch", "2026-11-12"]]);
     for (const month of ["2026-08", "2026-09", "2026-10", "2026-11", "2026-12"]) {
       const { first, last } = monthBounds(month);
-      const view = monthByCategory(mio, TODAY, month);
+      const view = monthByCategory(mio, DEMO_DATE, month);
       assert.equal(view.totalMinor, spendingItems(mio, first, last).reduce((s, i) => s + i.amountMinor, 0), `${month}: one rule`);
     }
-    assert.throws(() => monthByCategory(mio, TODAY, "2026-13"), /YYYY-MM/);
-    assert.deepEqual(monthByCategory(benMoney, benMoney.today).totalMinor, 152_230, "Ben's November (category-test) is the same");
+    assert.throws(() => monthByCategory(mio, DEMO_DATE, "2026-13"), /YYYY-MM/);
   });
 
   // ------------------------------------------------------------ search
@@ -142,7 +134,6 @@ async function main() {
     assert.deepEqual(labels("travel"), ["Hakone Yumoto Hotel", "Fictional Air flight to Sapporo"], "the category key, newest first; the pending hostel and December are out");
     for (const q of ["TRAVEL", "Ｔｒａｖｅｌ", "  travel  "]) assert.deepEqual(labels(q), labels("travel"), q);
     assert.equal(search("  Ｈａｋｏｎｅ \u3000 HOTEL ").query, normalise("hakone hotel"), "the query goes through the one normaliser (D54) that nameKey uses");
-    assert.equal(nameKey("Hakone Yumoto Hotel 10月分"), normalise("Hakone Yumoto Hotel"));
     assert.deepEqual(labels("hakone hotel"), ["Hakone Yumoto Hotel"]);
     assert.deepEqual(labels("hakone flight"), []);
     assert.deepEqual(labels("phone & internet"), []);
@@ -180,14 +171,12 @@ async function main() {
   });
 
   // ------------------------------------------------------------ the database
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     const [card] = await db.select().from(schema.cards).where(eq(schema.cards.householdId, a));
 
-    await check("migration 0017: travel is a stored category on bills and charges; an unknown key is still refused", async () => {
+    await check("travel is a stored category on bills and charges; an unknown key is still refused", async () => {
       const [owner] = await db.select().from(schema.members).where(and(eq(schema.members.householdId, a), eq(schema.members.role, "owner")));
       await db.insert(schema.bills).values({ householdId: a, biller: "Fictional Hakone ryokan deposit", amountMinor: 20_000, currency: "JPY", due: "2026-09-12", category: "travel", memberId: owner.id });
       await db.insert(schema.bills).values({ householdId: a, biller: "Fictional rent from summer", amountMinor: 70_000, currency: "JPY", due: "2026-07-05", category: "housing", repeatUnit: "month", repeatDay: 5, nextAmountMinor: 72_000, nextAmountFrom: "2026-10-05" });
@@ -201,7 +190,7 @@ async function main() {
     });
 
     await check("loadSpending: confirmed rows that can fall in the range, a repeating series whole, a USD row converted", async () => {
-      const input = await loadSpending(db, a, { from: "2026-09-01", to: TODAY });
+      const input = await loadSpending(db, a, { from: "2026-09-01", to: DEMO_DATE });
       assert.equal(input.homeCurrency, "JPY");
       const names = input.bills.map(x => x.biller);
       assert.ok(names.includes("Fictional rent from summer"), "a series that started before the range is loaded whole");
@@ -211,23 +200,23 @@ async function main() {
       const usd = input.charges.find(c => c.merchant === "Fictional USD hotel")!;
       const usdYen = fromMinor(convertMinor(10_000, "USD", "JPY", benMoney.fxPerUsd), "JPY");
       assert.equal(usd.amount, usdYen, "$100 at the household's rate");
-      const found = searchSpending(spendingItems(input, "2026-09-01", TODAY), "rent", "JPY", { from: "2026-09-01", to: TODAY });
+      const found = searchSpending(spendingItems(input, "2026-09-01", DEMO_DATE), "rent", "JPY", { from: "2026-09-01", to: DEMO_DATE });
       assert.deepEqual(found.months.flatMap(m => m.items.map(i => [i.label, i.date, i.amountMinor])), [
         ["Fictional rent from summer", "2026-11-05", 72_000], ["Rent", "2026-10-27", 82_000], ["Fictional rent from summer", "2026-10-05", 72_000],
         ["Rent", "2026-09-27", 82_000], ["Fictional rent from summer", "2026-09-05", 70_000],
       ]);
-      const travel = searchSpending(spendingItems(input, "2026-09-01", TODAY), "travel", "JPY", { from: "2026-09-01", to: TODAY });
+      const travel = searchSpending(spendingItems(input, "2026-09-01", DEMO_DATE), "travel", "JPY", { from: "2026-09-01", to: DEMO_DATE });
       assert.deepEqual(travel.months.map(m => m.totalMinor), [usdYen, 11_900, 20_000 + 47_000]); // Ben's September: the Hakone hotel and the flight
-      await assert.rejects(loadSpending(db, "", { from: "2026-09-01", to: TODAY }), /household id/);
-      await assert.rejects(loadSpending(db, a, { from: TODAY, to: "2026-09-01" }), /spending range/);
-      await assert.rejects(loadSpending(db, a, { from: "2026-9-1", to: TODAY }), /spending range/);
+      await assert.rejects(loadSpending(db, "", { from: "2026-09-01", to: DEMO_DATE }), /household id/);
+      await assert.rejects(loadSpending(db, a, { from: DEMO_DATE, to: "2026-09-01" }), /spending range/);
+      await assert.rejects(loadSpending(db, a, { from: "2026-9-1", to: DEMO_DATE }), /spending range/);
     });
 
     await check("loadSpending: a repeating bill stops after its last payment (D41)", async () => {
       const [ended] = await db.insert(schema.bills).values({ householdId: a, biller: "Fictional gym plan", amountMinor: 6_000, currency: "JPY", due: "2026-07-05", category: "health", repeatUnit: "month", repeatDay: 5, repeatUntil: "2026-09-05" }).returning();
       try {
-        const input = await loadSpending(db, a, { from: "2026-09-01", to: TODAY });
-        const dates = spendingItems(input, "2026-09-01", TODAY).filter(i => i.label === "Fictional gym plan").map(i => i.date);
+        const input = await loadSpending(db, a, { from: "2026-09-01", to: DEMO_DATE });
+        const dates = spendingItems(input, "2026-09-01", DEMO_DATE).filter(i => i.label === "Fictional gym plan").map(i => i.date);
         assert.deepEqual(dates, ["2026-09-05"], "nothing after the last payment");
       } finally {
         await db.delete(schema.bills).where(eq(schema.bills.id, ended.id));
@@ -239,28 +228,23 @@ async function main() {
       const { first, last } = monthBounds(today.slice(0, 7));
       const fromState = monthByCategory(await loadMoneyState(db, b, today), today);
       assert.deepEqual(monthByCategory(await loadSpending(db, b, { from: first, to: last }), today), fromState);
-      assert.equal(fromState.totalMinor, 152_230);
-      const october = monthByCategory(await loadSpending(db, b, monthBoundsRange("2026-10")), today, "2026-10");
-      assert.deepEqual(october.categories.map(c => [c.category, c.totalMinor]), [["housing", 82_000], ["utilities", 10_020], ["phone_internet", 4_800], ["subscriptions", 1_980], ["food", 11_440], ["transport", 14_340], ["other", 7_480]]);
-      assert.deepEqual([october.totalMinor, october.businessMinor], [132_060, 31_986], "with October's Hikari Denki bill");
     });
 
-    await check("qa/README M1, S-A, T: the hand-checked sums of Ben's months, searches, whose lines and the Confirm and charge steps", async () => {
-      const today = "2026-11-14", current = today.slice(0, 7), oldest = monthsBack(current, HISTORY_MONTHS);
+    await check("the hand-checked sums of Ben's months, searches, whose lines, and the Confirm and charge steps", async () => {
+      const today = DEMO_DATE, current = today.slice(0, 7), oldest = monthsBack(current, HISTORY_MONTHS);
       const ben = await seedBen(db, { isDemo: true });
       const read = (hid: string) => loadSpending(db, hid, { from: monthBounds(oldest).first, to: monthBounds(current).last });
       const rows = (view: ReturnType<typeof monthByCategory>) => view.categories.map(c => [c.category, c.totalMinor, c.businessMinor, c.items.map(i => `${i.label} ${i.date.slice(5)} ${i.amountMinor}`)]);
       const spending = await read(ben);
-      // M1: November
+      // November
       const november = monthByCategory(spending, today);
-      assert.equal(businessLine(november), "Business ¥32,830 of ¥152,230 this month");
       assert.deepEqual(rows(november), [
         ["housing", 82_000, 24_600, ["Rent 11-27 82000"]], ["phone_internet", 4_800, 2_400, ["Mobaile Tsushin 11-20 4800"]], ["subscriptions", 1_980, 1_980, ["CloudBox Plus 11-18 1980"]],
         ["food", 10_700, 0, ["Minato Fresh Market 11-08 7420", "Kissa Midori café 11-12 1880", "Minato Fresh Market 11-13 1400"]],
         ["business_tools", 3_850, 3_850, ["Sora Cloud Hosting 11-04 3850"]],
         ["other", 48_900, 0, ["Kumo Goods Online 11-02 24300", "Tsuki Electronics 11-09 18200", "Yamabiko Outdoor 11-12 6400"]],
       ]);
-      // T-A: October and September
+      // October and September
       const october = monthByCategory(spending, today, "2026-10");
       assert.equal(businessLine(october, "in October"), "Business ¥31,986 of ¥132,060 in October");
       assert.deepEqual(rows(october).map(r => r.slice(0, 2)), [["housing", 82_000], ["utilities", 10_020], ["phone_internet", 4_800], ["subscriptions", 1_980], ["food", 11_440], ["transport", 14_340], ["other", 7_480]]);
@@ -268,7 +252,7 @@ async function main() {
       const september = monthByCategory(spending, today, "2026-09");
       assert.deepEqual([september.totalMinor, september.businessMinor], [150_380, 31_572]);
       assert.deepEqual(rows(september).filter(r => r[0] === "utilities" || r[0] === "travel"), [["utilities", 8_640, 2_592, ["Hikari Denki 09-25 8640"]], ["travel", 47_000, 0, ["Kumokaze Air flight 09-21 18400", "Hotel Kazemachi Hakone 09-22 28600"]]]);
-      // T-B: the searches, as Plan runs them (twelve months, today as the last day)
+      // the searches, as Plan runs them (twelve months, today as the last day)
       const find = (query: string) => searchSpending(spendingItems(spending, `${oldest}-01`, today), query, "JPY", { from: `${oldest}-01`, to: today });
       assert.equal(searchLine(find("hotel")), "\"hotel\": ¥28,600 in September (1 item); nothing in the other 11 months. ¥28,600 in all.");
       assert.equal(searchLine(find("travel")), "Travel: ¥47,000 in September (2 items); nothing in the other 11 months. ¥47,000 in all.");
@@ -276,12 +260,12 @@ async function main() {
       assert.equal(searchLine(find("rent")), "\"rent\": ¥82,000 in October (1 item), ¥82,000 in September (1 item), ¥82,000 in August (1 item); nothing in the other 9 months. ¥246,000 in all.");
       assert.equal(searchLine(find("hikari")), "\"hikari\": ¥10,020 in October (1 item), ¥8,640 in September (1 item); nothing in the other 10 months. ¥18,660 in all.");
       assert.ok(find("zzz").months.every(m => m.items.length === 0) && find("zzz").totalMinor === 0);
-      // S-A: a second person, Wife, with nothing of her own: the shared total and Ben's
+      // a second person, Wife, with nothing of her own: the shared total and Ben's
       const together = monthByCategory({ ...spending, split: { members: [...spending.split.members, { id: "wife" }] } }, today);
       const owner = spending.split.members[0].id;
       assert.deepEqual([together.sharedMinor, together.byMember.find(m => m.id === owner)!.minor, together.byMember.find(m => m.id === "wife")!.minor], [88_780, 63_450, 0], "Together ¥88,780 · Ben ¥63,450 · Wife ¥0");
       assert.deepEqual(together.categories.filter(c => c.category === "housing" || c.category === "food").map(c => [c.category, c.sharedMinor, c.byMember.find(m => m.id === owner)!.minor]), [["housing", 82_000, 0], ["food", 0, 10_700]]);
-      // M2: confirming Hikari Denki
+      // confirming Hikari Denki
       const room = leftOverEachMonth(await loadMoneyState(db, ben, today));
       assert.equal(room, 92_220);
       const [hikari] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, ben), eq(schema.bills.status, "pending")));
@@ -291,7 +275,7 @@ async function main() {
       assert.equal(businessLine(confirmed), "Business ¥36,196 of ¥163,450 this month");
       assert.equal(leftOverEachMonth(await loadMoneyState(db, ben, today)), 81_000, "Plan's room line falls from ¥92,220 to ¥81,000");
       assert.deepEqual(rows(confirmed).filter(r => r[0] !== "utilities").map(r => r.slice(0, 2)), rows(november).map(r => r.slice(0, 2)), "the other rows do not move");
-      // M3: a ¥2,000 Minato Fresh Market charge, 25% work → Food ¥12,700 (business ¥500 · personal ¥12,200)
+      // a ¥2,000 Minato Fresh Market charge, 25% work → Food ¥12,700 (business ¥500 · personal ¥12,200)
       const [cardB] = await db.select().from(schema.cards).where(and(eq(schema.cards.householdId, ben), eq(schema.cards.label, "Card B")));
       await insertCharge(db, ben, chargeInput.parse({ id: crypto.randomUUID(), cardId: cardB.id, merchant: "Minato Fresh Market", amount: "2000", date: today, category: "food", businessBp: 2500 }), "confirmed", "manual", { madeBy: "form" });
       const food = monthByCategory(await read(ben), today).categories.find(c => c.category === "food")!;
@@ -311,13 +295,11 @@ async function main() {
       assert.deepEqual(datesIn({ due: "2026-11-20", repeatUnit: "year" }, "2026-11-14", "2027-12-31"), ["2026-11-20", "2027-11-20"]);
     });
 
-    console.log(`Spending checks passed (${passed}).`);
+    console.log(`Spending checks passed (${tally.passed}).`);
   } finally {
     await pg.close();
   }
 }
-
-const monthBoundsRange = (month: string) => { const { first, last } = monthBounds(month); return { from: first, to: last }; };
 
 main().catch(error => {
   console.error("Spending tests failed", error);

@@ -1,6 +1,6 @@
 // The buttons that end an Ask answer (D60): where the person can see what the answer used or did. The words are ours, never the model's.
 import { findingAction } from "@/lib/money/suggestion-types";
-import { storedId } from "@/lib/money/repeat";
+import { storedId } from "@/lib/money/name-key";
 export type SeeIt = { href: string; label: string };
 export const SEE_IT_MAX = 3;
 

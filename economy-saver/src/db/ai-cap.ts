@@ -9,7 +9,9 @@ import { households } from "./schema";
 export const DAILY_QUESTIONS = 30;
 export const DAILY_DOCUMENTS = 10;
 
-export const QUESTIONS_USED_UP = `You’ve asked ${DAILY_QUESTIONS} questions today on fipa’s AI model. Ask again tomorrow, or add your own AI key in Settings → Your AI model.`;
+/** The words for a household past its daily questions; `verb` is "asked" for a question, "used" for the voice fill that shares the count. */
+export const questionsUsedUp = (verb: "asked" | "used") => `You’ve ${verb} ${DAILY_QUESTIONS} questions today on fipa’s AI model. Ask again tomorrow, or add your own AI key in Settings → Your AI model.`;
+export const QUESTIONS_USED_UP = questionsUsedUp("asked");
 export const DOCUMENTS_USED_UP = `You’ve had ${DAILY_DOCUMENTS} documents read today on fipa’s AI model. Try again tomorrow, or add your own AI key in Settings → Your AI model.`;
 /** The failed state of a forwarded or retried document that the cap stopped; the person retries it from To check. */
 export const DOCUMENT_NOT_READ = `Not read: today’s AI limit of ${DAILY_DOCUMENTS} documents on fipa’s AI model is used. Try again tomorrow, or add your own AI key in Settings → Your AI model.`;

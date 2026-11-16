@@ -9,9 +9,9 @@ import { RankedBars } from "@/components/views/forms/RankedBars";
 import { monthByCategoryView } from "@/lib/views/v/month-by-category";
 import { ViewError, type ViewResult } from "@/lib/views/types";
 import { reads } from "../fixtures/view-reads";
+import { createSyncChecks } from "../fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createSyncChecks();
 const ctx = { state: benMoney, spending: benMoney };
 const resolve = (args: Parameters<typeof monthByCategoryView>[0], c = ctx) => monthByCategoryView(args, c) as ViewResult<"ranked_bars">;
 const category = resolve({});
@@ -123,4 +123,4 @@ check("month_by_category: the facts carry each category's change from last month
   assert.ok(category.facts!.some(f => f.name === "change_from_last_month_percent" && !f.about));
 });
 
-console.log(`month-by-category: ${passed} checks passed`);
+console.log(`month-by-category: ${tally.passed} checks passed`);

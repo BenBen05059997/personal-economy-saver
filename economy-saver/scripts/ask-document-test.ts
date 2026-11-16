@@ -3,11 +3,9 @@
 // The reader is faked as reader-test does it: globalThis.fetch answers for Storage and for the model. Fictional data only; PGlite, no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/ask-document-test.ts
 import assert from "node:assert/strict";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
+import { anthropicReply } from "./ai-fake";
+import { openDb, saveEnv } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { contextText, assembleContext } from "@/db/ask";
@@ -40,6 +38,7 @@ import { extractSchema, type Extracted } from "@/lib/reader/extract";
 import { ReaderError } from "@/lib/reader/settings";
 import { TURN_VERSION, type ConversationTurn } from "@/lib/schema/turn";
 import { daysBetween } from "@/lib/money/dates";
+import { DEMO_DATE } from "@/db/clock";
 
 const bill = (over: Partial<Extracted> = {}): Extracted => extractSchema.parse({
   kind: "bill", name: "Kawa Gym", date: "2026-11-27", amountMinor: 6000, currency: "JPY", category: "other", cardId: null, ...over,
@@ -47,7 +46,10 @@ const bill = (over: Partial<Extracted> = {}): Extracted => extractSchema.parse({
 const bytesOf = (text: string) => new TextEncoder().encode(text).buffer as ArrayBuffer;
 const form = { madeBy: "form" } as const;
 
+const ENV_NAMES = ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DOCUMENT_BUCKET", "AI_PROTOCOL", "AI_API_KEY", "AI_DOCUMENT_MODEL", "AI_TEXT_MODEL"];
+
 async function main() {
+  const restoreEnv = saveEnv(ENV_NAMES);
   process.env.SUPABASE_URL = "https://storage.example";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "fictional-test-value";
   process.env.SUPABASE_DOCUMENT_BUCKET = "fictional-documents";
@@ -55,15 +57,12 @@ async function main() {
   process.env.AI_API_KEY = "fictional-test-value";
   process.env.AI_DOCUMENT_MODEL = "fixture-document";
   process.env.AI_TEXT_MODEL = "fixture-text";
-  const pg = new PGlite({ extensions: { pg_trgm } });
+  const { pg, db } = await openDb();
   const originalFetch = globalThis.fetch;
   let passed = 0;
   const ok = (name: string) => { passed++; console.log(`✓ ${name}`); };
   try {
-    const db = drizzle(pg, { schema });
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true });
-    const TODAY = "2026-11-14";
 
     // ---------------------------------------------------------------- the fake Storage and model
     const objects = new Map<string, Blob>();
@@ -77,8 +76,7 @@ async function main() {
         modelCalls++;
         if (modelStatus !== 200) return Response.json({ error: { type: "authentication_error", message: "invalid x-api-key" } }, { status: modelStatus });
         const body = await request.json();
-        return Response.json({ id: "msg_fixture", type: "message", role: "assistant", model: body.model, stop_reason: "tool_use", stop_sequence: null,
-          content: [{ type: "tool_use", id: "toolu_fixture", name: "record_items", input: { items } }], usage: { input_tokens: 1, output_tokens: 1 } });
+        return anthropicReply("tool_use", [{ type: "tool_use", id: "toolu_fixture", name: "record_items", input: { items } }], { model: body.model });
       }
       assert.equal(url.host, "storage.example");
       if (url.pathname.includes("/bucket/")) return Response.json({ name: "fictional-documents", public: false });
@@ -130,14 +128,14 @@ async function main() {
 
     // ================================================================ the mark on the resolver (a hand-worked household)
     const ctx = await loadCanvasContext(db, a, { blocks: [] });
-    assert.equal(ctx.state.today, TODAY);
+    assert.equal(ctx.state.today, DEMO_DATE);
     const withKawa = {
       ...ctx, state: { ...ctx.state, bills: [
         ...ctx.state.bills,
         { id: "kawa@2026-11-27", biller: "Kawa Gym", amount: 6000, due: "2026-11-27", category: "other" as const, businessBp: 0, status: "confirmed" as const, repeatUnit: "month" as const, repeatDay: 27, startsOn: "2026-11-27", startAmount: 6000 },
         { id: "kawa@2026-12-27", biller: "Kawa Gym", amount: 6000, due: "2026-12-27", category: "other" as const, businessBp: 0, status: "confirmed" as const, repeatUnit: "month" as const, repeatDay: 27, startsOn: "2026-11-27", startAmount: 6000 },
       ],
-      // a window past the plan's is expanded from the stored series (27D), so the series is stored too
+      // a window past the plan's is expanded from the stored series, so the series is stored too
       storedBills: [...ctx.state.storedBills, { id: "kawa", biller: "Kawa Gym", amount: 6000, due: "2026-11-27", category: "other" as const, businessBp: 0, status: "confirmed" as const, repeatUnit: "month" as const, repeatDay: 27 }] },
     };
     const recipeWith = (markId: string | undefined, days = 60) => ({
@@ -152,7 +150,7 @@ async function main() {
       return { flow: flow.data as FlowData, timeline: timeline.data as TimelineData, blocks: [flow, timeline] };
     };
     const hit = parts(recipeWith("kawa"));
-    assert.deepEqual(hit.flow.mark, { index: daysBetween(TODAY, "2026-11-27"), label: "Kawa Gym ¥6,000 · Nov 27" });
+    assert.deepEqual(hit.flow.mark, { index: daysBetween(DEMO_DATE, "2026-11-27"), label: "Kawa Gym ¥6,000 · Nov 27" });
     assert.ok(hit.flow.mark!.index < hit.flow.points.length);
     assert.ok(hit.flow.aria.endsWith(" Marked: Kawa Gym ¥6,000 · Nov 27."));
     const markedRows = hit.timeline.rows.filter(row => row.marked);
@@ -160,7 +158,7 @@ async function main() {
     assert.ok(hit.timeline.rows.filter(row => !row.marked).every(row => !row.id.startsWith("kawa")));
     assert.equal(parts(recipeWith("kawa", 30)).timeline.rows.filter(row => row.marked).length, 1, "only the occurrence inside 30 days");
     const viaOccurrence = parts(recipeWith("kawa@2026-12-27"));
-    assert.equal(viaOccurrence.flow.mark?.index, daysBetween(TODAY, "2026-11-27"), "an occurrence id names the whole bill");
+    assert.equal(viaOccurrence.flow.mark?.index, daysBetween(DEMO_DATE, "2026-11-27"), "an occurrence id names the whole bill");
     const unknown = parts(recipeWith("no-such-bill"));
     assert.equal(unknown.flow.mark, null);
     assert.ok(unknown.timeline.rows.every(row => !row.marked));
@@ -208,7 +206,7 @@ async function main() {
     // the stored one-off bill, as the household's spending holds it once confirmed
     const hikariRow = { id: target.id, biller: "Hikari Denki", amount: 11220, due: "2026-11-27", category: "utilities" as const, businessBp: 0, status: "confirmed" as const };
     const withStored = { ...ctx, spending: { ...ctx.spending, bills: [...ctx.spending.bills, hikariRow] } };
-    const novUtilities = monthByCategory(withStored.spending, TODAY, "2026-11").categories.find(c => c.category === "utilities")!.totalMinor;
+    const novUtilities = monthByCategory(withStored.spending, DEMO_DATE, "2026-11").categories.find(c => c.category === "utilities")!.totalMinor;
     const oneOff = savedCard({ value: hikari, target, seriesId: null }, withStored);
     assert.equal(oneOff.words, `Saved: Hikari Denki ¥11,220 · Utilities · due Nov 27 · Utilities in November: ${money(novUtilities, "JPY")} with this bill.`, "a one-off bill due later this month counts in the month");
     assert.ok(novUtilities >= 11220);
@@ -223,7 +221,7 @@ async function main() {
     ok("buildCard and cardContext: each row of the words table, item statuses, checks only on to_check");
 
     // ================================================================ the database
-    const sentenceBefore = homeSentence(await loadMoneyState(db, a, TODAY)).text;
+    const sentenceBefore = homeSentence(await loadMoneyState(db, a, DEMO_DATE)).text;
     const billsBefore = (await db.select().from(schema.bills).where(eq(schema.bills.householdId, a))).length;
 
     // 1. attach
@@ -239,7 +237,7 @@ async function main() {
     assert.deepEqual(stored, [first.turn], "the turn is stored exactly as returned");
     const texted = await attach(a, "typed words", { text: "Gym bill for December" });
     assert.equal(texted.turn.question, "Gym bill for December");
-    assert.equal(ConversationTurnParses(texted.turn), true);
+    assert.equal(isDocumentTurn(texted.turn), true);
     ok("attachDocument: a document turn, a queued document, a reading card, typed words become the question");
 
     // 2. read
@@ -251,7 +249,7 @@ async function main() {
     assert.equal(card.items[0].checks[0].words, "Does Kawa Gym come again?");
     assert.equal(card.words, "Read from your bill:");
     assert.equal(card.canvas, null);
-    assert.equal(homeSentence(await loadMoneyState(db, a, TODAY)).text, sentenceBefore, "a reading never enters the numbers");
+    assert.equal(homeSentence(await loadMoneyState(db, a, DEMO_DATE)).text, sentenceBefore, "a reading never enters the numbers");
     assert.equal((await db.select().from(schema.bills).where(eq(schema.bills.householdId, a))).length, billsBefore);
     ok("after the read: one item, its read line and its repeat question; Ben's sentence is unchanged");
 
@@ -273,7 +271,7 @@ async function main() {
 
     // 5b. where it now lives: the line and the links, the month total the one Spending draws
     const spendNow = (await loadCanvasContext(db, a, { blocks: [] })).spending;
-    const novOther = monthByCategory(spendNow, TODAY, "2026-11").categories.find(c => c.category === "other")!.totalMinor;
+    const novOther = monthByCategory(spendNow, DEMO_DATE, "2026-11").categories.find(c => c.category === "other")!.totalMinor;
     assert.equal(done.items[0].saved?.words, `Saved: Kawa Gym ¥6,000 · Other · due Nov 27 · Other in November: ${money(novOther, "JPY")} with this bill.`);
     assert.deepEqual(done.items[0].saved?.links.map(link => link.href), [`/bills#series-${saved.id}`, "/spending#category-other", `/#series-${saved.id}`], "a repeating bill links to its series");
     ok("a confirmed repeating bill: the saved line, the month total equal to Spending's, series links");
@@ -286,12 +284,12 @@ async function main() {
     assert.ok(sentenceBlock.type === "sentence" && flowBlock.type === "flow_chart" && timelineBlock.type === "timeline");
     const flowQuery = done.canvas.recipe.blocks[2];
     assert.ok(flowQuery.type === "flow_chart");
-    assert.equal(flowQuery.query.days, daysBetween(TODAY, "2026-11-30") + 1);
+    assert.equal(flowQuery.query.days, daysBetween(DEMO_DATE, "2026-11-30") + 1);
     assert.equal(flowQuery.mark, saved.id);
-    const nowState = await loadMoneyState(db, a, TODAY);
+    const nowState = await loadMoneyState(db, a, DEMO_DATE);
     const point = low(series(nowState, "worst", flowQuery.query.days));
     assert.equal(flowBlock.data.lowLabel, `${money(point.amount, "JPY")} · ${dayLabel(point.date)}`);
-    assert.deepEqual(flowBlock.data.mark, { index: daysBetween(TODAY, "2026-11-27"), label: "Kawa Gym ¥6,000 · Nov 27" });
+    assert.deepEqual(flowBlock.data.mark, { index: daysBetween(DEMO_DATE, "2026-11-27"), label: "Kawa Gym ¥6,000 · Nov 27" });
     assert.equal(timelineBlock.data.rows.filter(row => row.marked).length, 1);
     assert.equal(sentenceBlock.data.text, homeSentence(nowState).text);
     ok("after Confirm: the canvas holds the chart's own lowest point, the marked bill and the confirmed words");
@@ -356,7 +354,7 @@ async function main() {
     assert.ok(afterOne.canvas && afterOne.canvas.blocks[2].type === "flow_chart" && afterOne.canvas.blocks[2].data.mark === null, "a charge sits in its card's row: no mark");
     assert.ok(afterOne.canvas.recipe.blocks.every(block => !("mark" in block)));
     const noodle = named(afterOne, "Noodle shop");
-    const novFood = monthByCategory((await loadCanvasContext(db, a, { blocks: [] })).spending, TODAY, "2026-11").categories.find(c => c.category === noodle.value.category)!.totalMinor;
+    const novFood = monthByCategory((await loadCanvasContext(db, a, { blocks: [] })).spending, DEMO_DATE, "2026-11").categories.find(c => c.category === noodle.value.category)!.totalMinor;
     assert.ok(noodle.saved!.words.startsWith(`Saved: Noodle shop ¥3,800 · ${categoryLabel(noodle.value.category!)} · ${nowState.cards[0].label}, Nov 12 · `));
     assert.ok(noodle.saved!.words.endsWith(`in November: ${money(novFood, "JPY")} with this charge.`));
     assert.deepEqual(noodle.saved!.links.map(link => link.href), [`/cards/${noodle.value.cardId}#charge-${noodle.target!.id}`, `/spending#category-${noodle.value.category}`], "a charge has no Home link");
@@ -378,7 +376,7 @@ async function main() {
     assert.deepEqual((await readerInbox(db, a)).readings.filter(r => r.documentId === orderDoc.documentId).map(r => r.value.name), order, "To check lists them in the order read");
     ok("three readings from one file: the Ask card and To check keep the model's order though the ids sort the other way");
 
-    // a repeating bill whose first date is past the plan window: the chart looks as far as its days (27D), so the mark is found
+    // a repeating bill whose first date is past the plan window: the chart looks as far as its days, so the mark is found
     items = [bill({ name: "Far Pool", date: "2026-12-27", repeat: "month" })];
     const far = await read(a, (await attach(a, "far pool")).documentId);
     assert.equal(await reviewReading(db, a, far.items[0].readingId, far.items[0].value, {}, false, []), true);
@@ -466,15 +464,15 @@ async function main() {
     const tool = tools.find(t => t.name === "set_whose")!;
     assert.equal(tool.scope, "draft");
     const links: { label: string; href: string }[] = [];
-    const toolCtx = (hid: string) => ({ madeBy: "ask", db, householdId: hid, state: () => loadMoneyState(db, hid, TODAY), appUrl: new URL("http://127.0.0.1:3123"), addLink: (link: { label: string; href: string }) => links.push(link) }) as never;
+    const toolCtx = (hid: string) => ({ madeBy: "ask", db, householdId: hid, state: () => loadMoneyState(db, hid, DEMO_DATE), appUrl: new URL("http://127.0.0.1:3123"), addLink: (link: { label: string; href: string }) => links.push(link) }) as never;
     const setWhose = (hid: string, input: { reading: string; shared: boolean; person?: string | null }) => tool.run(toolCtx(hid), tool.input.parse({ person: null, ...input }) as never);
-    items = [bill({ name: "Hikari Denki", amountMinor: 11_220, date: "2026-11-27", category: "utilities", repeat: "month" }), { kind: "charge", name: "Ramen Kita", amountMinor: 1200, currency: "JPY", category: "food", date: "2026-11-13", cardId: (await loadMoneyState(db, a, TODAY)).cards[0].id }];
+    items = [bill({ name: "Hikari Denki", amountMinor: 11_220, date: "2026-11-27", category: "utilities", repeat: "month" }), { kind: "charge", name: "Ramen Kita", amountMinor: 1200, currency: "JPY", category: "food", date: "2026-11-13", cardId: (await loadMoneyState(db, a, DEMO_DATE)).cards[0].id }];
     const whoseCard = await read(a, (await attach(a, "whose")).documentId);
     const denki = whoseCard.items.find(item => item.value.name === "Hikari Denki")!, ramen = whoseCard.items.find(item => item.value.name === "Ramen Kita")!;
     await assert.rejects(setWhose(a, { reading: "Hikari Denki", shared: true, person: "Ben" }), (e: unknown) => e instanceof InputError && /second person/.test(e.message), "a household of one has no choice to make");
     assert.equal(whoseWords("bill", { shared: true, memberId: null, paidByMemberId: null }, [{ id: "x", name: "Ben" }]), null, "one member: no words");
     const aki = await addMember(db, a, { name: "Aki" });
-    const ben = (await loadMoneyState(db, a, TODAY)).split.members[0].id;
+    const ben = (await loadMoneyState(db, a, DEMO_DATE)).split.members[0].id;
     // the form's choice reaches readingForm
     const formOf = (fields: Record<string, string>, target: "bill" | "charge" = "bill") => { const fd = new FormData(); for (const [k, v] of Object.entries({ target, name: "Hikari Denki", amount: "11220", currency: "JPY", date: "2026-11-27", category: "utilities", businessShare: "personal", cardId: "", ...fields })) fd.set(k, v); return fd; };
     assert.equal(readingForm(formOf({})).whose, undefined, "no Whose field (one person): not set");
@@ -529,11 +527,12 @@ async function main() {
     console.log(`Ask-document checks passed (${passed}).`);
   } finally {
     globalThis.fetch = originalFetch;
+    restoreEnv();
     await pg.close();
   }
 }
 
-function ConversationTurnParses(turn: ConversationTurn): boolean {
+function isDocumentTurn(turn: ConversationTurn): boolean {
   return turn.documentId !== undefined && turn.documentId !== null && turn.question.length > 0;
 }
 

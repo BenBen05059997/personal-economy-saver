@@ -2,13 +2,14 @@ import { z } from "zod";
 import { InputError } from "@/db/input-error";
 import { hasLongNumber, SECRET_REFUSAL } from "@/lib/schema/memory";
 import { listSpaces } from "@/db/spaces";
+import { MEMORY_SPACES } from "@/lib/links";
 import type { Tool } from "./tools";
 
 const proposal = z.object({ name: z.string().trim().min(1).max(60) }).strict();
 
 export const spaceTools: Tool[] = [
   {
-    name: "list_spaces", words: "Looking at your spaces", source: { label: "Spaces", href: "/memory?tab=spaces" },
+    name: "list_spaces", words: "Looking at your spaces", source: { label: "Spaces", href: MEMORY_SPACES },
     scope: "read",
     input: z.object({}).strict(),
     description: "The household's task spaces by id, name and status.",

@@ -10,7 +10,7 @@ import { overdue } from "@/lib/money/runway";
 import type { MoneyState } from "@/lib/money/types";
 import type { ReadPaymentCandidate } from "@/db/invoice-match";
 import type { ConnectionView } from "@/lib/paypal/contracts";
-import { firstName } from "@/components/ui/words";
+import { firstName } from "@/lib/money/format";
 import { ConfirmingRefresh } from "./ConfirmingRefresh";
 import { CopyLink } from "./CopyLink";
 import "./invoice.css";

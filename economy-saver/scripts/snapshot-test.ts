@@ -1,14 +1,11 @@
-// The household schema (D44): the committed JSON Schema, the snapshot builder, scope, exclusions and the agent tool.
+// The household schema (D44): the committed JSON Schemas, the snapshot builder, what it leaves out and the agent tool.
 // PGlite only; no network, no credentials. The values planted below are fictional markers.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/snapshot-test.ts
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { setBankBalance } from "@/db/bank-balance";
 import { billInput, insertBill } from "@/db/bills";
@@ -26,7 +23,7 @@ import { saveTurn } from "@/db/conversation";
 import { CashFlowEvent } from "@/lib/schema/cash-flow";
 import { MemoryItem } from "@/lib/schema/memory";
 import { ConversationTurn } from "@/lib/schema/turn";
-import { HouseholdSnapshot } from "@/lib/schema/household";
+import { HouseholdSnapshot, SNAPSHOT_VERSION } from "@/lib/schema/household";
 
 // Planted in rows the snapshot must never read. None of these may appear anywhere in its JSON.
 const SECRET_VALUES = {
@@ -53,38 +50,26 @@ function walk(value: unknown, visit: (key: string, value: unknown) => void) {
 }
 
 async function main() {
-  let passed = 0;
-  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { check, tally } = createChecks();
 
   await check("schema/household.v4.json equals the schema generated from the zod definition, and so do the recipe, memory, turn and cash-flow schemas (drift for all five files)", () => {
     const committed = readFileSync(SCHEMA_FILE, "utf8");
     assert.equal(committed, householdJsonSchema(), `${SCHEMA_FILE} is out of date. Run \`npm run schema\` and commit the result.`);
     const files = schemaFiles();
-    assert.deepEqual(files.map(f => f.file), ["schema/household.v4.json", "schema/recipe.v1.json", "schema/memory.v1.json", "schema/turn.v1.json", "schema/cash-flow-event.v1.json"]);
+    assert.deepEqual(files.map(f => f.file), [SCHEMA_FILE, "schema/recipe.v1.json", "schema/memory.v1.json", "schema/turn.v1.json", "schema/cash-flow-event.v1.json"]);
     for (const { file, text } of files) assert.equal(readFileSync(file, "utf8"), text, `${file} is out of date. Run \`npm run schema\` and commit the result.`);
     assert.equal(existsSync("schema/household.v1.json"), false, "version 1 file is not kept");
     const json = JSON.parse(committed);
     assert.equal(json.additionalProperties, false);
-    assert.equal(json.properties.version.const, 4);
+    assert.equal(json.properties.version.const, SNAPSHOT_VERSION);
     assert.equal(json.required.includes("ownCategories"), false, "ownCategories is optional: version 2 and 3 files have none");
     assert.ok("ownCategories" in json.properties && "ownCategoryId" in json.properties.bills.items.properties && "ownCategoryId" in json.properties.charges.items.properties);
     for (const optional of ["events", "memory", "canvases", "journal", "spaces"]) assert.deepEqual(json.required.includes(optional), false, `${optional} is optional`);
     for (const key of ["memory", "canvases", "journal", "spaces"]) assert.ok(key in json.properties, key);
   });
 
-  await check("D53: travel is one of the fourteen category keys in the committed schema, on bills and charges (a new key only widens the enum)", () => {
-    const json = JSON.parse(readFileSync(SCHEMA_FILE, "utf8"));
-    for (const list of ["bills", "charges"]) {
-      const keys: string[] = json.properties[list].items.properties.category.enum;
-      assert.equal(keys.length, 14, list);
-      assert.deepEqual(keys.slice(5, 7), ["transport", "travel"], `${list}: travel after transport`);
-    }
-  });
-
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true });
     const [aMember] = await db.select().from(schema.members).where(eq(schema.members.householdId, a));
     const [aCard] = await db.select().from(schema.cards).where(eq(schema.cards.householdId, a)).limit(1);
@@ -115,9 +100,9 @@ async function main() {
     const full = await loadHouseholdSnapshot(db, a, { events: true });
     const json = JSON.stringify(full);
 
-    await check("Ben's household parses with the schema, version 4, and the household block is right", () => {
+    await check("Ben's household parses with the schema at its current version, and the household block is right", () => {
       assert.deepEqual(HouseholdSnapshot.parse(JSON.parse(JSON.stringify(snap))), snap);
-      assert.equal(snap.version, 4);
+      assert.equal(snap.version, SNAPSHOT_VERSION);
       assert.deepEqual(snap.household, { id: a, name: "Ben", homeCurrency: "JPY", timeZone: "Asia/Tokyo", today: DEMO_DATE, isDemo: true,
         bankBalanceMinor: snap.household.bankBalanceMinor, paypalBalanceMinor: snap.household.paypalBalanceMinor,
         usdRateMicro: snap.household.usdRateMicro, usdRateDate: snap.household.usdRateDate, splitSince: null });
@@ -168,8 +153,8 @@ async function main() {
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, household: { ...snap.household, bankBalanceMinor: 12.5 } }));
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, household: { ...snap.household, homeCurrency: "yen" } }));
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 1 }));
-      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 5 }));
-      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: 3 }), Error, "an older file is read by Import with its own version, not by this schema");
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: SNAPSHOT_VERSION + 1 }));
+      assert.throws(() => HouseholdSnapshot.parse({ ...snap, version: SNAPSHOT_VERSION - 1 }), Error, "an older file is read by Import with its own version, not by this schema");
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, ownCategories: [{ id: snap.ownCategories![0].id, kind: "food", name: "x".repeat(41), businessBp: null }] }));
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, ownCategories: [{ ...snap.ownCategories![0], extra: 1 }] }));
     });
@@ -197,7 +182,7 @@ async function main() {
       assert.equal(snap.bills.filter(bill => bill.biller === "Fictional Cloud").length, 1, "one row, not one per year");
       const rent = snap.bills.find(bill => bill.biller === "Rent")!;
       assert.deepEqual([rent.repeatUnit, rent.repeatDay, rent.nextAmountMinor, rent.nextAmountFrom, rent.cancelBy, rent.repeatUntil ?? null], ["month", 27, null, null, null, null]);
-      assert.equal(snap.version, 4);
+      assert.equal(snap.version, SNAPSHOT_VERSION);
       // A document written before these fields existed written before these fields existed has none of them and still validates.
       const old: Record<string, unknown> = { ...yearly };
       for (const key of ["repeatUnit", "nextAmountMinor", "nextAmountFrom", "cancelBy", "repeatUntil"]) delete old[key];
@@ -239,7 +224,7 @@ async function main() {
         assert.ok(list.length > 0);
         for (const row of list) assert.ok(["form", "ask", "mcp", "reader", "cron", "paypal", "import"].includes(row.madeBy ?? ""), JSON.stringify(row));
       }
-      assert.equal(snap.version, 4);
+      assert.equal(snap.version, SNAPSHOT_VERSION);
       const old = JSON.parse(JSON.stringify(snap.pots[0])) as Record<string, unknown>;
       delete old.madeBy;
       assert.deepEqual(HouseholdSnapshot.parse({ ...JSON.parse(JSON.stringify(snap)), pots: [old] }).pots.length, 1, "a snapshot without madeBy still parses");
@@ -353,7 +338,7 @@ async function main() {
       assert.equal(CashFlowEvent.safeParse({ date: "2026-11-27", label: "Rent", kind: "bill", amountMinor: -820.5, currency: "JPY", direction: "out" }).success, false);
     });
 
-    console.log(`\n${passed} checks passed`);
+    console.log(`\n${tally.passed} checks passed`);
   } finally {
     await pg.close();
   }

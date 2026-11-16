@@ -7,7 +7,7 @@ import { AgentError } from "@/lib/agent/run";
 import { QUESTIONS_USED_UP, questionsLeft, spendAiBudget } from "@/db/ai-cap";
 import { limited, text, tooMany } from "@/lib/door";
 import { NO_STORE, readBounded } from "@/lib/form-fetch";
-import { QUESTION_MAX } from "@/lib/schema/turn";
+import { QUESTION_MAX } from "@/lib/question-limit";
 import { householdRequest } from "@/lib/session";
 
 import { MissingAuthSetting } from "@/lib/supabase-auth";

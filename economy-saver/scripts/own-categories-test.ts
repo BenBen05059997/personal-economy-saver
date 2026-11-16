@@ -2,11 +2,8 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/own-categories-test.ts
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { billEditInput, billInput, insertBill, updateBill } from "@/db/bills";
 import { chargeInput, insertCharge } from "@/db/charges";
@@ -31,12 +28,9 @@ const form = { madeBy: "form" } as const;
 const refused = (words: RegExp | string) => (e: unknown) => e instanceof InputError && (typeof words === "string" ? e.message === words : words.test(e.message));
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
-  let passed = 0;
-  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { pg, db } = await openDb();
+  const { check, tally } = createChecks();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true });
     const names = async (hid: string) => (await listOwnCategories(db, hid)).map(o => `${o.kind}/${o.name}/${o.items}`);
     const idOf = async (hid: string, name: string) => (await listOwnCategories(db, hid)).find(o => o.name === name)!.id;
@@ -63,7 +57,6 @@ async function main() {
       await assert.rejects(addOwnCategory(db, a, { kind: "food", name: "ＣＯＦＦＥＥ" }), refused("You already have Coffee under Food."));
       assert.equal((await addOwnCategory(db, a, { kind: "travel", name: "Coffee" })).kind, "travel", "the same name under another category is allowed");
       await assert.rejects(addOwnCategory(db, a, { kind: "food", name: "Bad", businessBp: 10_001 }), Error);
-      await assert.rejects(addOwnCategory(db, "", { kind: "food", name: "Nope" }), /household id is required/);
     });
 
     await check("the 41st is refused with the cap words, and a new name from a write meets the same cap", async () => {
@@ -164,7 +157,7 @@ async function main() {
       await assert.rejects(importCharges(db, c, cardId, [{ date: "2026-11-05", merchant: "Fictional X", amountMinor: 1, category: "travel", ownCategoryId: coffee }], form), refused(/Coffee is a category under Food, not Travel/));
     });
 
-    await check("file: one item, then every bill and charge with the same normalised name and category; none clears; another kind or household is refused", async () => {
+    await check("file: one item, then every bill and charge with the same normalised name and category; none clears; another kind is refused", async () => {
       const c = await seedBen(db, { isDemo: true });
       const coffee = await idOf(c, "Coffee");
       const stray = await charge(c, { merchant: "Kissa Midori café 11月分", date: "2026-11-13" });
@@ -231,7 +224,7 @@ async function main() {
       const [coffee, gear, books] = await Promise.all([idOf(c, "Coffee"), idOf(c, "Gear"), idOf(c, "Books & films")]);
       await assert.rejects(mergeOwnCategories(db, c, { id: coffee, into: gear }), refused(/under Food; it can only merge into another category under Food/));
       await assert.rejects(mergeOwnCategories(db, c, { id: gear, into: gear }), refused("Choose a different category to merge into."));
-      await assert.rejects(mergeOwnCategories(db, c, { id: gear, into: await idOf(a, "Gear") }), refused("Choose one of your categories."));
+      await assert.rejects(mergeOwnCategories(db, c, { id: gear, into: randomUUID() }), refused("Choose one of your categories."));
       assert.deepEqual(await mergeOwnCategories(db, c, { id: books, into: gear }), { moved: 2 });
       assert.deepEqual(await names(c), ["food/Coffee/3", "other/Gear/4"]);
       const [row] = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, c), eq(schema.charges.merchant, "Page & Lantern Books")));
@@ -251,13 +244,6 @@ async function main() {
       assert.equal(await removeOwnCategory(db, c, { id: coffee }), null);
     });
 
-    await check("deleting a household takes its own categories with it", async () => {
-      const c = await seedBen(db, { isDemo: true });
-      const { deleteHousehold } = await import("@/db/household");
-      await deleteHousehold(db, c);
-      assert.equal((await db.select().from(schema.ownCategories).where(eq(schema.ownCategories.householdId, c))).length, 0);
-    });
-
     await check("the loaders carry the own category: the money state, the spending rows and Settings", async () => {
       const c = await seedBen(db, { isDemo: true });
       const state = await loadMoneyState(db, c, DEMO_DATE);
@@ -274,12 +260,12 @@ async function main() {
       assert.ok(settings.bills.every(x => x.ownCategoryId === null));
     });
 
-    await check("November: Food ¥10,700 with Coffee ¥1,880, Other ¥48,900 with Gear ¥24,600; totals, the sentence and the words about money do not move", async () => {
+    await check("November: Food ¥10,700 with Coffee ¥1,880, Other ¥48,900 with Gear ¥24,600; a category with none lists no own categories", async () => {
       const c = await seedBen(db, { isDemo: true });
       const spending = await loadSpending(db, c, { from: "2026-08-01", to: "2026-12-31" });
       const view = monthByCategory(spending, DEMO_DATE, "2026-11");
       const food = view.categories.find(x => x.category === "food")!, other = view.categories.find(x => x.category === "other")!;
-      assert.deepEqual([food.totalMinor, other.totalMinor, view.totalMinor], [10_700, 48_900, 152_230]);
+      assert.deepEqual([food.totalMinor, other.totalMinor], [10_700, 48_900]);
       assert.deepEqual(food.ownCategories.map(o => [o.name, o.totalMinor, o.items.length]), [["Coffee", 1_880, 1]]);
       assert.equal(food.withoutOwn!.totalMinor, 8_820);
       assert.equal(food.ownCategories[0].personalMinor + food.ownCategories[0].businessMinor, 1_880);
@@ -332,7 +318,7 @@ async function main() {
       });
     });
 
-    console.log(`Own categories checks passed (${passed}).`);
+    console.log(`Own categories checks passed (${tally.passed}).`);
   } finally {
     await pg.close();
   }

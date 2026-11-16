@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-
-const MAX_BYTES = 1_000_000;
+import { IMPORT_FILE_MAX_BYTES, IMPORT_FILE_TOO_BIG } from "@/lib/app-info";
 
 /** Import (D59): reads a household file in the browser and posts it to /api/restore. The route answers with a sentence when it refuses. */
 export function ImportFile() {
@@ -14,7 +13,7 @@ export function ImportFile() {
     const file = input.files?.[0];
     if (!file || busy) return;
     setMessage("");
-    if (file.size > MAX_BYTES) { setMessage("This file is over 1 MB, which is more than Import takes."); input.value = ""; return; }
+    if (file.size > IMPORT_FILE_MAX_BYTES) { setMessage(IMPORT_FILE_TOO_BIG); input.value = ""; return; }
     setBusy(true);
     try {
       const response = await fetch("/api/restore", { method: "POST", headers: { "Content-Type": "application/json" }, body: await file.text() });

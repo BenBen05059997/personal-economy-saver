@@ -4,11 +4,11 @@
 // Fictional data only; no database. Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/fx-cost-test.ts
 import assert from "node:assert/strict";
 import { FX_WINDOW_DAYS, PAYPAL_RATES, foreignCostWords, foreignCosts, payoutFeesUsd, rateOn, type FxCharge, type FxInput, type FxInvoice } from "@/lib/money/fx-cost";
+import { DEMO_DATE } from "@/db/clock";
+import { createSyncChecks } from "./fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createSyncChecks();
 
-const TODAY = "2026-11-14";
 const CARD_A = { id: "card-a", label: "Card A", currency: "JPY", foreignFeeBp: 220 };
 const CARD_B = { id: "card-b", label: "Card B", currency: "JPY", foreignFeeBp: null };
 const RATES = [{ date: "2026-10-20", perUsd: 160 }, { date: "2026-02-01", perUsd: 140 }, { date: "2026-10-01", perUsd: 150 }]; // any order
@@ -16,7 +16,7 @@ const charge = (over: Partial<FxCharge> & Pick<FxCharge, "id">): FxCharge => ({
   cardId: "card-a", merchant: `Fictional shop ${over.id}`, date: "2026-10-10", amountMinor: 3_000, original: { amountMinor: 2_000, currency: "USD" }, fxEstimated: false, ...over,
 });
 const invoice = (over: Partial<FxInvoice> & Pick<FxInvoice, "id">): FxInvoice => ({ clientId: "c-1", clientName: "Fictional Client One", amountUsdMinor: 100_000, paidOn: "2026-10-01", perUsd: 150, ...over });
-const input = (over: Partial<FxInput> = {}): FxInput => ({ today: TODAY, homeCurrency: "JPY", rates: RATES, cards: [CARD_A, CARD_B], charges: [], invoices: [], ...over });
+const input = (over: Partial<FxInput> = {}): FxInput => ({ today: DEMO_DATE, homeCurrency: "JPY", rates: RATES, cards: [CARD_A, CARD_B], charges: [], invoices: [], ...over });
 
 check("the rate on a date is the latest on or before it; none before the first is null", () => {
   assert.equal(rateOn(RATES, "2026-10-19"), 150);
@@ -66,7 +66,7 @@ check("a yen purchase of a USD-home household converts the other way (¥3,000 at
 check("the twelve months: 365 days back is in, 366 is out, tomorrow is out; totals count only the window", () => {
   const edge = "2025-11-14", before = "2025-11-13", future = "2026-11-15";
   const out = foreignCosts(input({ rates: [{ date: "2025-01-01", perUsd: 150 }], charges: [
-    charge({ id: "edge", date: edge, amountMinor: 3_100 }), charge({ id: "before", date: before, amountMinor: 3_100 }), charge({ id: "future", date: future, amountMinor: 3_100 }), charge({ id: "today", date: TODAY, amountMinor: 3_100 }),
+    charge({ id: "edge", date: edge, amountMinor: 3_100 }), charge({ id: "before", date: before, amountMinor: 3_100 }), charge({ id: "future", date: future, amountMinor: 3_100 }), charge({ id: "today", date: DEMO_DATE, amountMinor: 3_100 }),
   ] }));
   assert.equal(FX_WINDOW_DAYS, 365);
   assert.deepEqual(out.charges.map(c => [c.id, c.inWindow]).sort(), [["before", false], ["edge", true], ["future", false], ["today", true]]);
@@ -150,4 +150,4 @@ check("the words give nothing when there is nothing, and never advise leaving Pa
   assert.doesNotMatch(all, /\b(leave|switch|wise|revolut|convert now|wait|will rise|will fall)\b/i);
 });
 
-console.log(`Foreign cost checks passed (${passed}).`);
+console.log(`Foreign cost checks passed (${tally.passed}).`);

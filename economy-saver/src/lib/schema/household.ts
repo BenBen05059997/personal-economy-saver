@@ -8,7 +8,7 @@
 // token data, no webhook payloads, no storage paths or file bytes.
 import { z } from "zod";
 import { CategoryKeySchema } from "@/lib/money/categories";
-import { RecipeSchema } from "@/lib/canvas/schema";
+import { RecipeSchema, TITLE_MAX } from "@/lib/canvas/schema";
 import { MemoryItem } from "@/lib/schema/memory";
 import { BriefAuthor, BriefSchema } from "@/lib/agent/brief";
 import { RepeatUnitSchema } from "@/lib/money/repeat";
@@ -200,7 +200,7 @@ const Event = z.object({
 // A pinned canvas as exported: the recipe holds queries, never numbers (D57), so a restored pin draws today's numbers.
 const PinnedCanvasExport = z.object({
   id,
-  title: z.string().min(1).max(80),
+  title: z.string().min(1).max(TITLE_MAX),
   position: z.number().int().min(0).describe("0 is first in this space."),
   spaceId: id.optional(),
   recipe: RecipeSchema,

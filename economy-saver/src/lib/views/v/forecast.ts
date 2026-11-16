@@ -2,7 +2,7 @@
 import { engineFact, fact, type Fact, type FactAbout } from "@/lib/money/facts";
 import { forecastCosts } from "@/lib/money/forecast-causes";
 import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
-import { dayLabel, formatter, longDay, minorPerUnit, ordinal, toMinor } from "@/lib/money/format";
+import { dayLabel, firstName, formatter, longDay, minorPerUnit, ordinal, toMinor } from "@/lib/money/format";
 import { firstShort, low, safeToSpend, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { hasNothingToForecast } from "@/lib/money/sentence";
 import { CASES } from "@/lib/money/terms";
@@ -10,7 +10,7 @@ import { VIEW_META } from "../catalogue";
 import { stepLine } from "../step-line";
 import { ViewError, type FormData, type Resolver, type TableTwin, type ViewResult } from "../types";
 import { eventWords, ifCase, ifClientsPay, NOTHING_SCHEDULED } from "../words";
-import { storedId } from "@/lib/money/repeat";
+import { storedId } from "@/lib/money/name-key";
 import { addDays, daysBetween } from "@/lib/money/dates";
 
 type StepLine = FormData["step_line"];
@@ -75,7 +75,7 @@ export const forecastView: Resolver<"forecast"> = (args, ctx): ViewResult => {
   if (days === WINDOW_DAYS) facts.push(engineFact("safe_to_spend", minor(sts.amount), money));
   else facts.push(engineFact("safe_to_spend_for_period", minor(sts.amount), { ...money, period: window }));
   if (days === WINDOW_DAYS && showUsual) facts.push(engineFact("safe_to_spend_as_usual", minor(safeToSpend(state, { case: "as_usual" }).amount), money));
-  const clientAbout = (name: string): FactAbout => { const found = state.clients.filter(c => c.name.split(" ")[0] === name); return { type: "client", id: found.length === 1 ? found[0].id : name, name }; };
+  const clientAbout = (name: string): FactAbout => { const found = state.clients.filter(c => firstName(c.name) === name); return { type: "client", id: found.length === 1 ? found[0].id : name, name }; };
   if (showLate) for (const name of sts.lateClients) facts.push(engineFact("late_client", name, { from, about: clientAbout(name) }));
   const costAbout = (event: ReturnType<typeof timeline>[number]): FactAbout => event.kind === "statement" && event.cardId ? { type: "card", id: event.cardId, name: event.label.replace(/ statement$/, "") } : { type: "bill", id: storedId(event.id), name: event.label };
   const addCase = (c: "late" | "as_usual", point: ReturnType<typeof low>, events: typeof lateEvents, balances: number[]) => {

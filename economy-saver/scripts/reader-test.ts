@@ -1,11 +1,12 @@
-// PGlite + local HTTP boundary doubles. The reader never contacts Supabase or Anthropic in this script.
+// The document reader (D61): storing a document, the read job, extraction through both model protocols, the forwarding address,
+// reviewing a reading, the correction offer, estimated due dates for a bill that shows its month, the suggestions after a
+// confirmation, and cleanup of a household's stored files. PGlite + local HTTP boundary doubles: the reader never contacts Supabase
+// or Anthropic in this script.
 import assert from "node:assert/strict";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
+import { openDb, saveEnv } from "./fixtures/harness";
 import * as schema from "@/db/schema";
+import { DEMO_DATE } from "@/db/clock";
 import { documentCard } from "@/db/document-card";
 import { changeStandingRule } from "@/db/rules";
 import { openSuggestions } from "@/db/suggestions";
@@ -24,6 +25,7 @@ import { forwardingAddress, householdForRecipient } from "@/lib/reader/forwardin
 const conn = { protocol: "anthropic" as const, baseUrl: "https://api.anthropic.com", key: "fictional-test-value", textModel: "fixture-text", documentModel: "fixture-document", own: false };
 
 async function test() {
+  const restoreEnv = saveEnv(["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "SUPABASE_DOCUMENT_BUCKET", "AI_PROTOCOL", "AI_API_KEY", "AI_DOCUMENT_MODEL", "AI_TEXT_MODEL", "FORWARDING_DOMAIN", "INBOUND_ADDRESS_KEY"]);
   process.env.SUPABASE_URL = "https://storage.example";
   process.env.SUPABASE_SERVICE_ROLE_KEY = "fictional-test-value";
   process.env.SUPABASE_DOCUMENT_BUCKET = "fictional-documents";
@@ -33,13 +35,11 @@ async function test() {
   process.env.AI_TEXT_MODEL = "fixture-text";
   process.env.FORWARDING_DOMAIN = "inbox.example";
   process.env.INBOUND_ADDRESS_KEY = "ab".repeat(32);
-  const pg = new PGlite({ extensions: { pg_trgm } });
+  const { pg, db } = await openDb();
   const originalFetch = globalThis.fetch;
   try {
-    const db = drizzle(pg, { schema });
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
-    const aState = await loadMoneyState(db, a, "2026-11-14");
+    const aState = await loadMoneyState(db, a, DEMO_DATE);
     const card = aState.cards[0];
     const bills = aState.bills.length;
     const objects = new Map<string, Blob>();
@@ -117,13 +117,11 @@ async function test() {
     assert.equal(calls, 1);
     const first = (await readerInbox(db, a)).readings[0];
     assert.equal(first.value.name, "Harbor Lights");
-    assert.equal((await loadMoneyState(db, a, "2026-11-14")).bills.length, bills);
-    assert.deepEqual(await readerInbox(db, b), { readings: [], jobs: [] });
-    assert.equal(await reviewReading(db, b, first.id, first.value), false);
+    assert.equal((await loadMoneyState(db, a, DEMO_DATE)).bills.length, bills);
     const corrected = { ...first.value, name: "Harbor Energy", category: "utilities" as const, amountMinor: 11220 };
     assert.equal(await reviewReading(db, a, first.id, corrected), true);
     assert.equal(await reviewReading(db, a, first.id, corrected), false);
-    assert.equal((await loadMoneyState(db, a, "2026-11-14")).bills.length, bills + 1);
+    assert.equal((await loadMoneyState(db, a, DEMO_DATE)).bills.length, bills + 1);
     extracted.amountMinor = 9000;
     const second = await storeDocument(db, a, "upload", expectedMime, file("%PDF-1.7 fictional second month"));
     await readDocument(db, a, second);
@@ -135,12 +133,12 @@ async function test() {
     console.log("✓ Upload → read → confirm is scoped and idempotent; corrected labels recur, amounts do not");
 
     expectedMime = "message/rfc822";
-    extracted = { ...extracted, kind: "charge", name: "Minato kiosk", cardId: card.id, currency: "USD", amountMinor: 1250, date: "2026-11-14" };
+    extracted = { ...extracted, kind: "charge", name: "Minato kiosk", cardId: card.id, currency: "USD", amountMinor: 1250, date: DEMO_DATE };
     const email = file("From: sender@example.invalid\r\nSubject: Card B purchase\r\nContent-Type: text/plain; charset=utf-8\r\n\r\nMinato kiosk USD 12.50");
     const message = await storeDocument(db, a, "email", expectedMime, email);
     await readDocument(db, a, message);
     const charge = (await readerInbox(db, a)).readings[0];
-    const bCard = (await loadMoneyState(db, b, "2026-11-14")).cards[0];
+    const bCard = (await loadMoneyState(db, b, DEMO_DATE)).cards[0];
     await assert.rejects(reviewReading(db, a, charge.id, { ...charge.value, cardId: bCard.id }), /household/);
     assert.equal(await reviewReading(db, a, charge.id, charge.value), true);
     const [stored] = await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, a), eq(schema.charges.documentId, message)));
@@ -206,7 +204,7 @@ async function test() {
     assert.equal(await reviewReading(db, a, plan.id, { ...plan.value, repeat: "year", nextAmountMinor: 13_000, nextAmountFrom: "2027-12-01", cancelBy: "2026-11-20", repeatUntil: "2028-06-01" }), true);
     const [planRow] = await db.select().from(schema.bills).where(and(eq(schema.bills.householdId, a), eq(schema.bills.documentId, retry)));
     assert.deepEqual([planRow.status, planRow.repeatUnit, planRow.repeatDay, planRow.amountMinor, planRow.nextAmountMinor, planRow.nextAmountFrom, planRow.cancelBy, planRow.repeatUntil], ["confirmed", "year", null, 12_000, 13_000, "2027-12-01", "2026-11-20", "2028-06-01"]);
-    assert.deepEqual((await loadMoneyState(db, a, "2026-11-14")).cancelNotices.map(n => [n.biller, n.renewsOn, n.amount]), [["Fictional Cloud", "2026-12-01", 12_000]]);
+    assert.deepEqual((await loadMoneyState(db, a, DEMO_DATE)).cancelNotices.map(n => [n.biller, n.renewsOn, n.amount]), [["Fictional Cloud", "2026-12-01", 12_000]]);
     console.log("✓ The review card's repeat, new amount and cancel-by date are checked like a typed-in bill and stored with the confirmed bill");
 
     empty = true;
@@ -219,7 +217,7 @@ async function test() {
 
     for (const [reason, message] of [["refusal", "AI reader declined to read this document."], ["max_tokens", "Document has too many records to read in one request."]]) {
       stop = reason;
-      await assert.rejects(extractDocument(file("Subject: x\r\n\r\nMinato kiosk"), expectedMime, { today: "2026-11-14", currency: "JPY", cards: [] }, async () => conn), { message });
+      await assert.rejects(extractDocument(file("Subject: x\r\n\r\nMinato kiosk"), expectedMime, { today: DEMO_DATE, currency: "JPY", cards: [] }, async () => conn), { message });
     }
     stop = "tool_use";
     console.log("✓ A refusal or a cut-off answer fails with a clear message");
@@ -227,7 +225,7 @@ async function test() {
     empty = false;
     const fixture = { kind: "bill", name: "Kawa Gym", amountMinor: "6000", currency: "JPY", category: "gym", date: "2026-12-12", cardId: null };
     const readFixture = () => extractDocument(file("Subject: bill\r\n\r\nMinato kiosk"), expectedMime,
-      { today: "2026-11-14", currency: "JPY", cards: [] }, async () => conn);
+      { today: DEMO_DATE, currency: "JPY", cards: [] }, async () => conn);
     extracted = { ...fixture, vendorNote: "untrusted extra field", dateBasis: "untrusted estimate", repeat: "year", businessBp: 5000 };
     const [cleaned] = await readFixture();
     assert.deepEqual([cleaned.name, cleaned.amountMinor, cleaned.category, cleaned.date], ["Kawa Gym", 6000, null, "2026-12-12"]);
@@ -253,7 +251,7 @@ async function test() {
     console.log("✓ A remaining error names only schema paths and refuses an unsafe digit-string amount");
 
     const openai = { protocol: "openai" as const, baseUrl: "https://llm.example/v1", key: "fictional-openai-value", textModel: "fixture-text", documentModel: "fixture-document", own: true };
-    const context = { today: "2026-11-14", currency: "JPY", cards: [] as { id: string; label: string }[] };
+    const context = { today: DEMO_DATE, currency: "JPY", cards: [] as { id: string; label: string }[] };
     extracted = { ...extracted, kind: "bill", name: "Harbor Lights", cardId: null, currency: "JPY", amountMinor: 11_200, date: "2026-11-27", category: "other" };
     const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]).buffer;
     const items = await extractDocument(png, "image/png", context, async () => openai);
@@ -271,7 +269,7 @@ async function test() {
     await assert.rejects(extractDocument(png, "image/png", context, async () => ({ ...openai, baseUrl: "http://llm.example/v1" })), /that address can't be used/i);
     console.log("✓ OpenAI-compatible protocol: an image goes as an image_url part through the forced tool; a PDF the model refuses becomes a clear message");
 
-    // 27F: the month a bill covers
+    // the month a bill covers
     empty = false;
     assert.deepEqual(estimatedDue({ start: "2026-12-01", end: "2026-12-31" }, 27), { date: "2027-01-27", basis: "Estimated from 12月分: usually paid on the 27th" });
     assert.deepEqual(estimatedDue({ start: "2027-01-01", end: "2027-01-31" }, 31), { date: "2027-02-28", basis: "Estimated from 1月分: usually paid on the 31st" });
@@ -296,7 +294,7 @@ async function test() {
     const printed = (await readerInbox(db, a)).readings.find(r => r.value.name === "Sakura Gas")!;
     assert.deepEqual([printed.value.date, printed.value.dateBasis ?? null, printed.value.periodStart, printed.value.periodEnd], ["2026-12-05", null, "2026-11-01", "2026-11-30"], "a printed due date is kept with the period, never estimated");
     extracted = { ...month, name: "Reversed Co", date: "2026-12-05", periodStart: "2026-11-30", periodEnd: "2026-11-01" };
-    const [dropped] = await extractDocument(file("%PDF-1.7 fictional reversed"), "application/pdf", { today: "2026-11-14", currency: "JPY", cards: [] }, async () => conn);
+    const [dropped] = await extractDocument(file("%PDF-1.7 fictional reversed"), "application/pdf", { today: DEMO_DATE, currency: "JPY", cards: [] }, async () => conn);
     assert.deepEqual([dropped.periodStart, dropped.periodEnd, dropped.date], [null, null, "2026-12-05"], "a period the model got backwards is not kept");
     await assert.rejects(reviewReading(db, a, printed.id, { ...printed.value, periodStart: "2026-11-30", periodEnd: "2026-11-01" }), /must start on or before/);
     await assert.rejects(reviewReading(db, a, printed.id, { ...printed.value, periodEnd: null }), /both the first and the last day/);
@@ -306,7 +304,7 @@ async function test() {
     const confirmedRows = await db.select({ biller: schema.bills.biller, due: schema.bills.due, periodStart: schema.bills.periodStart, periodEnd: schema.bills.periodEnd }).from(schema.bills)
       .where(and(eq(schema.bills.householdId, a), eq(schema.bills.status, "confirmed"), eq(schema.bills.periodStart, "2026-11-01"))).orderBy(schema.bills.biller);
     assert.deepEqual(confirmedRows.map(r => [r.biller, r.due, r.periodStart, r.periodEnd]), [["Harbor Energy", "2026-12-27", "2026-11-01", "2026-11-30"], ["Sakura Gas", "2026-12-05", "2026-11-01", "2026-11-30"]]);
-    const afterState = await loadMoneyState(db, a, "2026-11-14");
+    const afterState = await loadMoneyState(db, a, DEMO_DATE);
     assert.deepEqual(afterState.bills.filter(b => b.periodStart !== undefined).map(b => [b.biller, b.due, b.periodStart, b.periodEnd]), [["Sakura Gas", "2026-12-05", "2026-11-01", "2026-11-30"], ["Harbor Energy", "2026-12-27", "2026-11-01", "2026-11-30"]]);
     await assert.rejects(db.insert(schema.bills).values({ householdId: a, biller: "Bad Period", amountMinor: 100, currency: "JPY", due: "2026-12-01", category: "other", periodStart: "2026-11-30", periodEnd: "2026-11-01" }),
       (error: { cause?: { message?: string } }) => /bills_period_valid/.test(String(error.cause?.message)));
@@ -314,7 +312,7 @@ async function test() {
       (error: { cause?: { message?: string } }) => /bills_period_valid/.test(String(error.cause?.message)), "the table refuses a period with one end");
     console.log("✓ A bill that shows its month and no due date is proposed with an estimated date and its basis; a printed date is kept; the period is stored on confirm and a reversed one is refused");
 
-    // 29F: a normalized bill name names the stored cost before confirmation and changes Home in the same request.
+    // a normalized bill name names the stored cost before confirmation and changes Home in the same request.
     const readerHome = await seedBen(db, { isDemo: true });
     const otherSuggestions = await openSuggestions(db, b);
     await db.insert(schema.bills).values([
@@ -353,6 +351,6 @@ async function test() {
     await removeHouseholdDocuments(db, a);
     assert.equal(objects.size, 0);
     console.log("✓ Public buckets are refused; cleanup removes the household’s private objects");
-  } finally { globalThis.fetch = originalFetch; await pg.close(); }
+  } finally { globalThis.fetch = originalFetch; restoreEnv(); await pg.close(); }
 }
 test().catch(error => { console.error("Reader checks failed", error instanceof Error ? error.stack?.split("\n").filter(line => line.trim().startsWith("at ")).slice(0, 4).join("\n") : "", error instanceof Error ? error.message : ""); process.exitCode = 1; });

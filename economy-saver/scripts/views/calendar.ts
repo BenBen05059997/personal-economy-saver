@@ -11,9 +11,9 @@ import { Calendar } from "@/components/views/forms/Calendar";
 import { calendarView } from "@/lib/views/v/calendar";
 import type { ViewResult } from "@/lib/views/types";
 import { reads } from "../fixtures/view-reads";
+import { createSyncChecks } from "../fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createSyncChecks();
 const ctx = { state: benMoney };
 const rows = calendarDays(benMoney);
 const day = (date: string) => rows.find(row => row.date === date)!;
@@ -110,4 +110,4 @@ check("the facts hold the sentence's numbers and dates, and the shared and seven
   for (const view of [calendarView({ whose: "shared" }, ctx), calendarView({ days: 7 }, ctx)]) reads(view, benMoney.today);
 });
 
-console.log(`calendar: ${passed} passed`);
+console.log(`calendar: ${tally.passed} passed`);

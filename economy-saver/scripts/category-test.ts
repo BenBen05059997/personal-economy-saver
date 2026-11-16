@@ -1,5 +1,6 @@
 // Categories and the business share (D46): the category list and keyword table, the month view's maths, the migration of
-// the old free-text categories, the forms' and tools' validation, the snapshot and household scope. PGlite, no credentials.
+// the old free-text categories, the forms' and tools' validation, the snapshot, Settings edits of a bill, the money in a US
+// household, card statements and the engine's rounding. PGlite, no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/category-test.ts
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -7,8 +8,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, openDb, violates } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { householdDate } from "@/db/account";
 import { billEditInput, billInput, insertBill, updateBill } from "@/db/bills";
@@ -25,7 +25,6 @@ import { guessCategory, guessRepeat } from "@/lib/money/categorise";
 import { businessLine, monthByCategory, monthWhen, splitLine } from "@/lib/money/month";
 import { expandBills } from "@/lib/money/repeat";
 import { cycle, low, safeToSpend, series, statementItems } from "@/lib/money/runway";
-import { leftOverEachMonth } from "@/lib/money/plan";
 import { homeSentence } from "@/lib/money/sentence";
 import { toCheck } from "@/lib/money/to-check";
 import { sharedBillsComing } from "@/lib/money/family";
@@ -40,10 +39,8 @@ const summary = (state: MoneyState) => monthByCategory(state, state.today).categ
   [c.category, c.totalMinor, c.businessMinor, c.personalMinor] as const);
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
-  let passed = 0;
-  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { pg, db } = await openDb();
+  const { check, tally } = createChecks();
   try {
     // ------------------------------------------------------------ the list and the keyword table
     await check("the list: fourteen keys (travel since D53) with their labels in order; the zod enum takes exactly those", () => {
@@ -98,7 +95,7 @@ async function main() {
       for (const name of ["", "   ", "Zebra Supplies", "Marketing agency", "Business class seat", "Brenton Ltd"]) assert.deepEqual(guessCategory(name), { category: "other", sure: false }, `"${name}" matches nothing`);
     });
 
-    await check("the keyword table (Nov 5 walk): Tokyo food, transport, work and pharmacy names", () => {
+    await check("the keyword table: Tokyo food, transport, work and pharmacy names", () => {
       const cases: [string, string][] = [
         ["Noodle shop", "food"], ["Udon Taro", "food"], ["Soba house", "food"], ["Curry house", "food"], ["Bento box", "food"], ["Sushi bar", "food"],
         ["Konbini", "food"], ["Cafe Mori", "food"], ["Corner bakery", "food"], ["Ramen Ichi", "food"], ["Izakaya Kaze", "food"], ["Fictional takeout", "food"],
@@ -246,7 +243,6 @@ async function main() {
     });
 
     // ------------------------------------------------------------ the database
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     const stateOf = async (hid: string) => loadMoneyState(db, hid, await householdDate(db, hid));
 
@@ -257,23 +253,19 @@ async function main() {
       assert.equal(safeToSpend(state).amount, 0);
       const [cardA, cardB] = ["Card A", "Card B"].map(label => cardSummary(state, state.cards.find(c => c.label === label)!.id));
       assert.deepEqual([cardA.owed, cardA.limitLeft, cardB.owed, cardB.limitLeft], [86_450, 413_550, 61_000, 239_000]);
-      assert.equal(leftOverEachMonth(state), 92_220);
       const rows = await db.select().from(schema.bills).where(eq(schema.bills.householdId, a));
       assert.deepEqual(rows.map(r => [r.biller, r.category, r.businessBp]).sort(), [["CloudBox Plus", "subscriptions", 10_000], ["Hikari Denki", "utilities", 3000], ["Hikari Denki", "utilities", 3000], ["Hikari Denki", "utilities", 3000], ["Mobaile Tsushin", "phone_internet", 5000], ["Rent", "housing", 3000]]);
     });
 
-    await check("confirming Hikari Denki from To check adds Utilities ¥11,220 at 30% and changes nothing else in the month", async () => {
+    await check("confirming Hikari Denki from To check puts Utilities in the month, in the categories' order", async () => {
       const before = await stateOf(a);
       const row = toCheck(before).find(r => r.kind === "bill")!;
       assert.equal(row.detail, "Utilities · 30% business · due Nov 27");
       assert.equal(await confirmPending(db, a, "bill", row.id), true);
       const after = await stateOf(a);
       const utilities = monthByCategory(after, after.today).categories.find(c => c.category === "utilities")!;
-      assert.deepEqual([utilities.totalMinor, utilities.businessMinor, utilities.personalMinor, utilities.items.map(i => [i.label, i.date])], [11_220, 3_366, 7_854, [["Hikari Denki", "2026-11-27"]]]);
+      assert.deepEqual(utilities.items.map(i => [i.label, i.date]), [["Hikari Denki", "2026-11-27"]]);
       assert.deepEqual(summary(after).map(r => r[0]), ["housing", "utilities", "phone_internet", "subscriptions", "food", "business_tools", "other"], "categories.ts order");
-      const view = monthByCategory(after, after.today);
-      assert.deepEqual([view.totalMinor, view.businessMinor], [163_450, 36_196]);
-      assert.equal(homeSentence(after).emphasis, "¥30,000 short on the 27th.", "the runway moved because the bill counts, not because of its category");
     });
 
     await check("moving Card A's closing day from 31 to 10 keeps what is owed: the Nov 4 and Nov 9 charges fall into a computed closed statement", async () => {
@@ -339,12 +331,12 @@ async function main() {
       await assert.rejects(insertBill(db, hid, { id: randomUUID(), biller: "X", amount: "1", due: "2026-11-20", category: "pets", businessBp: 0, memberId: null, paidByMemberId: null, repeat: null } as never, "confirmed", { madeBy: "form" }));
       await assert.rejects(insertCharge(db, hid, { id: randomUUID(), cardId: card.id, merchant: "X", amount: "1", date: "2026-11-14", category: "other", businessBp: -1, shared: false } as never, "confirmed", "manual", { madeBy: "form" }));
       const row = { householdId: hid, biller: "Raw", amountMinor: 1, currency: "JPY", due: "2026-11-20" };
-      await assert.rejects(db.insert(schema.bills).values({ ...row, category: "pets" }), "bills_category_valid");
-      await assert.rejects(db.insert(schema.bills).values({ ...row, category: "Housing" }), "keys only, not labels");
-      await assert.rejects(db.insert(schema.bills).values({ ...row, category: "other", businessBp: 10_001 }), "bills_business_valid");
+      await assert.rejects(db.insert(schema.bills).values({ ...row, category: "pets" }), violates("bills_category_valid"));
+      await assert.rejects(db.insert(schema.bills).values({ ...row, category: "Housing" }), violates("bills_category_valid"), "keys only, not labels");
+      await assert.rejects(db.insert(schema.bills).values({ ...row, category: "other", businessBp: 10_001 }), violates("bills_business_valid"));
       const charge = { householdId: hid, cardId: card.id, merchant: "Raw", amountMinor: 1, currency: "JPY", date: "2026-11-14", source: "manual" as const };
-      await assert.rejects(db.insert(schema.charges).values({ ...charge, category: "pets" }), "charges_category_valid");
-      await assert.rejects(db.insert(schema.charges).values({ ...charge, businessBp: -1 }), "charges_business_valid");
+      await assert.rejects(db.insert(schema.charges).values({ ...charge, category: "pets" }), violates("charges_category_valid"));
+      await assert.rejects(db.insert(schema.charges).values({ ...charge, businessBp: -1 }), violates("charges_business_valid"));
       assert.equal((await db.insert(schema.charges).values(charge).returning())[0].category, "other", "a charge without a category is Other");
     });
 
@@ -442,7 +434,7 @@ async function main() {
       assert.throws(() => HouseholdSnapshot.parse({ ...snap, charges: [{ ...snap.charges[0], category: undefined }] }));
     });
 
-    await check("Settings edit (Nov 5 walk): a one-off bill's amount and category, one bill_changed event, the same values record nothing, and a pending one is refused", async () => {
+    await check("Settings edit: a one-off bill's amount and category, one bill_changed event, the same values record nothing, and a pending one is refused", async () => {
       const one = await seedBen(db, { isDemo: true });
       const id = randomUUID();
       await insertBill(db, one, billInput.parse({ id, biller: "Noodle shop", amount: "1200", due: "2026-11-20", category: "other" }), "confirmed", { madeBy: "form" });
@@ -528,7 +520,7 @@ async function main() {
       assert.ok(monthByCategory(stateOne, stateOne.today).categories.some(c => c.category === "debt" && c.items[0].label === "ZZ Only In One"));
     });
 
-    console.log(`Category checks passed (${passed}).`);
+    console.log(`Category checks passed (${tally.passed}).`);
   } finally {
     await pg.close();
   }

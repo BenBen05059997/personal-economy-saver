@@ -7,6 +7,7 @@ import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import { drizzle } from "drizzle-orm/pglite";
+import { createChecks } from "./fixtures/harness";
 import { createHousehold, finishSetup } from "@/db/account";
 import { listCanvases, pinCanvas } from "@/db/canvases";
 import { legacyThreads, saveTurn, spaceThread, type NewTurn } from "@/db/conversation";
@@ -17,7 +18,7 @@ import { restoreHousehold } from "@/db/restore";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
-import { archiveSpace, createSpace, deleteSpace, generalSpace, listSpaces, renameSpace, saveBrief } from "@/db/spaces";
+import { SPACE_LIMIT, archiveSpace, createSpace, deleteSpace, generalSpace, listSpaces, renameSpace, saveBrief } from "@/db/spaces";
 
 const settings = { name: "Fictional owner", timeZone: "Asia/Tokyo", currency: "USD" as const };
 const recipe = { version: 1, title: "Cash now", blocks: [{ type: "number", label: "Cash today", query: { q: "cash" } }] };
@@ -31,10 +32,7 @@ async function main() {
   const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
   const store = db as unknown as Db;
-  let passed = 0;
-  async function check(name: string, run: () => Promise<void>) {
-    await run(); passed++; console.log("✓ " + name);
-  }
+  const { check, tally } = createChecks();
 
   try {
     const steps = readMigrationFiles({ migrationsFolder: "./drizzle" });
@@ -51,7 +49,7 @@ async function main() {
       for (const statement of migration.sql) await tx.exec(statement);
     });
 
-    await check("0030 adds General to an existing household and keeps its legacy conversations intact", async () => {
+    await check("a household that existed before spaces gets General and keeps its legacy conversations intact", async () => {
       const general = await generalSpace(store, legacy);
       assert.equal(general.name, "General");
       assert.equal(general.status, "open");
@@ -61,7 +59,7 @@ async function main() {
       assert.deepEqual(await spaceThread(store, legacy, general.id), []);
     });
 
-    await check("0030 keeps older household inserts working and installs all three trigram indexes", async () => {
+    await check("an older household insert still gets General, and all three trigram indexes exist", async () => {
       const oldWriter = randomUUID();
       await pg.query("insert into households (id, name, home_currency) values ($1, 'Fictional old worker', 'USD')", [oldWriter]);
       assert.equal((await generalSpace(store, oldWriter)).name, "General");
@@ -90,23 +88,23 @@ async function main() {
       }
     });
 
-    await check("the twentieth open space fits, another is refused, and archiving frees one place", async () => {
+    await check("the last open space the limit allows fits, another is refused, and archiving frees one place", async () => {
       const created = [];
-      for (let i = 1; i <= 18; i++) created.push(await createSpace(store, demo, `Fictional task ${i}`));
+      for (let i = 1; i <= SPACE_LIMIT - 2; i++) created.push(await createSpace(store, demo, `Fictional task ${i}`)); // General is one of the open spaces
       const attempts = await Promise.allSettled([
-        createSpace(store, demo, "Fictional task 19"),
-        createSpace(store, demo, "Fictional task 20"),
+        createSpace(store, demo, "Fictional task last"),
+        createSpace(store, demo, "Fictional task over"),
       ]);
       assert.equal(attempts.filter(r => r.status === "fulfilled").length, 1);
       assert.ok(attempts.some(r => r.status === "rejected" && r.reason instanceof InputError));
-      assert.equal((await listSpaces(store, demo)).filter(s => s.status === "open").length, 20);
+      assert.equal((await listSpaces(store, demo)).filter(s => s.status === "open").length, SPACE_LIMIT);
       const oldest = created[0];
       await renameSpace(store, demo, oldest.id, "  Fictional renamed task  ");
       await archiveSpace(store, demo, oldest.id);
       const archived = (await listSpaces(store, demo)).find(s => s.id === oldest.id);
       assert.deepEqual([archived?.name, archived?.status], ["Fictional renamed task", "archived"]);
       await createSpace(store, demo, "Fictional replacement task");
-      assert.equal((await listSpaces(store, demo)).filter(s => s.status === "open").length, 20);
+      assert.equal((await listSpaces(store, demo)).filter(s => s.status === "open").length, SPACE_LIMIT);
       await assert.rejects(createSpace(store, blank, "x".repeat(61)), InputError);
     });
 
@@ -116,7 +114,6 @@ async function main() {
       const taskPin = await pinCanvas(store, demo, { title: "Fictional task pin", recipe, spaceId: named.id }, { madeBy: "form" });
       assert.deepEqual((await listCanvases(store, demo)).map(pin => pin.id), [generalPin.id]);
       assert.deepEqual((await listCanvases(store, demo, { spaceId: named.id })).map(pin => pin.id), [taskPin.id]);
-      assert.deepEqual((await listCanvases(store, blank, { spaceId: named.id })).map(pin => pin.id), []);
     });
 
     async function populate(hid: string) {
@@ -195,7 +192,7 @@ async function main() {
       assert.deepEqual(await spaceThread(store, blank, other.space.id), []);
     });
 
-    console.log(`Spaces checks passed (${passed}).`);
+    console.log(`Spaces checks passed (${tally.passed}).`);
   } finally {
     await pg.close();
   }

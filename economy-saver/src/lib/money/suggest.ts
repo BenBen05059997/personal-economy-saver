@@ -13,7 +13,7 @@ import type { Finding, StandingRule, StandingRules } from "./suggestion-types";
 import { TAX_AHEAD_DAYS, taxAhead } from "./tax-ahead";
 import type { MoneyState } from "./types";
 import { stateThrough } from "./window";
-import { storedId } from "./repeat";
+import { storedId } from "./name-key";
 import { addDays, daysBetween } from "./dates";
 
 const FROM = "suggestions";

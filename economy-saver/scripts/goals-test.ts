@@ -5,19 +5,16 @@ import { goalPace, goalPaces } from "@/lib/money/goals";
 import { findSuggestions } from "@/lib/money/suggest";
 import type { Pot } from "@/lib/money/types";
 import { benMoney } from "@/lib/sample/ben";
+import { DEMO_DATE } from "@/db/clock";
+import { createSyncChecks } from "./fixtures/harness";
 
-const today = "2026-11-14";
+const today = DEMO_DATE;
 const targetDate = "2026-12-14";
 const startedOn = "2026-10-15";
 const goal: Pot = { id: "camera-pot", name: "Camera", startedOn, targetDate, target: 120_000, saved: 40_000 };
 const state = { ...benMoney, today };
 
-let passed = 0;
-function check(name: string, run: () => void) {
-  run();
-  passed++;
-  console.log("✓ " + name);
-}
+const { check, tally } = createSyncChecks();
 
 check("a ¥120,000 goal halfway to its date needs ¥60,000 saved to be on pace", () => {
   const pace = goalPace(goal, state);
@@ -103,4 +100,4 @@ check("the daily finding uses pace and the standing rule, with no changes to the
   assert.deepEqual(withGoal, before);
 });
 
-console.log(String(passed) + " goal checks passed");
+console.log(String(tally.passed) + " goal checks passed");

@@ -15,7 +15,7 @@
 
 import type { Context, Moment, Profile } from "@/lib/catalogue/types";
 import { addDays, dateIn, daysBetween } from "./dates";
-import { formatter, minorPerUnit, plural, usd } from "./format";
+import { firstName, formatter, minorPerUnit, plural, usd } from "./format";
 import type { Bill, Card, Charge, Client, Invoice, MoneyState } from "./types";
 
 // ---------------------------------------------------------------- cards
@@ -375,7 +375,6 @@ type Rung = {
 
 export const EARLY_DISCOUNT = 0.02;
 
-const short = (name: string) => name.split(" ")[0];
 const lowerFirst = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s);
 
 /**
@@ -400,14 +399,14 @@ export function ladder(state: MoneyState): Rung[] {
     rows.push({
       id: "invoice",
       title: `Invoice ${p.clientName} for ${lowerFirst(unbilled.item)}`,
-      detail: `${usd(p.amountUsd)}${cur === "USD" ? "" : ` (about ${home(p.amountHome)})`}. ${short(p.clientName)} usually pays in ${plural(med, "day")}.`,
+      detail: `${usd(p.amountUsd)}${cur === "USD" ? "" : ` (about ${home(p.amountHome)})`}. ${firstName(p.clientName)} usually pays in ${plural(med, "day")}.`,
       cost: 0,
     });
   }
 
   // 2. Send the clients with sent invoices their payment link again.
   if (sent.length) {
-    const names = sent.map((a) => short(a.clientName));
+    const names = sent.map((a) => firstName(a.clientName));
     rows.push({
       id: "remind",
       title: `Send ${names.join(" and ")} the link again`,
@@ -421,7 +420,7 @@ export function ladder(state: MoneyState): Rung[] {
     const cost = Math.round(biggest.amountHome * EARLY_DISCOUNT);
     rows.push({
       id: "discount",
-      title: `Offer ${short(biggest.clientName)} ${Math.round(EARLY_DISCOUNT * 100)}% off to pay now`,
+      title: `Offer ${firstName(biggest.clientName)} ${Math.round(EARLY_DISCOUNT * 100)}% off to pay now`,
       detail: `${Math.round(EARLY_DISCOUNT * 100)}% of invoice${biggest.number ? " #" + biggest.number : ""} (${usd(biggest.amountUsd)}).`,
       cost,
     });
@@ -503,7 +502,7 @@ export function safeToSpend(state: MoneyState, opts: { days?: number; case?: "la
   const usual = opts.case === "as_usual";
   const lw = low(series(state, usual ? "expected" : "worst", opts.days ?? WINDOW_DAYS));
   const amount = Math.max(0, lw.amount);
-  const lateClients = [...new Set(arrivals(state).filter((a) => (usual ? a.expectedOn : a.worstOn) > lw.date).map((a) => short(a.clientName)))];
+  const lateClients = [...new Set(arrivals(state).filter((a) => (usual ? a.expectedOn : a.worstOn) > lw.date).map((a) => firstName(a.clientName)))];
   return { amount, low: lw, cash: availableCash(state), shortBy: Math.max(0, -lw.amount), lateClients };
 }
 

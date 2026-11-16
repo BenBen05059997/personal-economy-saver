@@ -4,20 +4,29 @@ import { CHECK_QUESTIONS, PROBE_TOOLS } from "@/lib/ai/check";
 // cases for either protocol, in the way a good model would or in one of the ways a bad one fails. No network.
 export type FakeMode = "good" | "notools" | "injected" | "chatty" | "noimages" | "wrongimage" | "down" | "missingmodel" | "credit" | "unreachable";
 
+type Usage = Record<string, number>;
+/** A model's reply in Anthropic's wire shape: why it stopped and its content blocks. */
+export function anthropicReply(stopReason: string, content: unknown[], over: { id?: string; model?: string; usage?: Usage } = {}) {
+  return Response.json({ id: over.id ?? "msg_fixture", type: "message", role: "assistant", model: over.model ?? "fixture-text", content, stop_reason: stopReason, stop_sequence: null,
+    usage: over.usage ?? { input_tokens: 1, output_tokens: 1 } });
+}
+/** A model's reply in the OpenAI-compatible chat shape: why it stopped and its message. */
+export function chatReply(finishReason: string, message: Record<string, unknown>, over: { id?: string; model?: string; usage?: unknown } = {}) {
+  return Response.json({ id: over.id ?? "chatcmpl-fixture", object: "chat.completion", created: 1, model: over.model ?? "fixture-text",
+    choices: [{ index: 0, finish_reason: finishReason, message: { role: "assistant", ...message } }], usage: "usage" in over ? over.usage : { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } });
+}
+const FIXTURE = { id: "m", model: "x" };
 /** A reply that calls one tool, in either protocol's wire shape. */
 export function wireCall(anthropic: boolean, id: string, name: string, input: unknown) {
   return anthropic
-    ? Response.json({ id: "m", type: "message", role: "assistant", model: "x", stop_reason: "tool_use", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 },
-      content: [{ type: "tool_use", id, name, input }] })
-    : Response.json({ id: "c", object: "chat.completion", created: 1, model: "x", usage: { prompt_tokens: 1, completion_tokens: 1 },
-      choices: [{ index: 0, finish_reason: "tool_calls", message: { role: "assistant", content: null, tool_calls: [{ id, type: "function", function: { name, arguments: JSON.stringify(input) } }] } }] });
+    ? anthropicReply("tool_use", [{ type: "tool_use", id, name, input }], FIXTURE)
+    : chatReply("tool_calls", { content: null, tool_calls: [{ id, type: "function", function: { name, arguments: JSON.stringify(input) } }] }, { ...FIXTURE, id: "c", usage: { prompt_tokens: 1, completion_tokens: 1 } });
 }
 /** A reply that ends with words, in either protocol's wire shape. */
 export function wireWords(anthropic: boolean, text: string) {
   return anthropic
-    ? Response.json({ id: "m", type: "message", role: "assistant", model: "x", stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: "text", text }] })
-    : Response.json({ id: "c", object: "chat.completion", created: 1, model: "x", usage: { prompt_tokens: 1, completion_tokens: 1 },
-      choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: text } }] });
+    ? anthropicReply("end_turn", [{ type: "text", text }], FIXTURE)
+    : chatReply("stop", { content: text }, { ...FIXTURE, id: "c", usage: { prompt_tokens: 1, completion_tokens: 1 } });
 }
 const call = (anthropic: boolean, name: string, input: unknown) => wireCall(anthropic, (anthropic ? "tu_" : "tc_") + name, name, input);
 

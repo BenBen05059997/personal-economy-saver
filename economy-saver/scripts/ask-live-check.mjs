@@ -149,7 +149,7 @@ function grade(expect, turn) {
   if (expect.notLine && (turn.reply?.wording === undefined || turn.reply.wording === "model")) {
     for (const line of linesOf(turn.reply)) if (modelText.toLowerCase().includes(line.toLowerCase())) fails.push(`the model's text restates the view's sentence "${line.slice(0, 60)}"`);
   }
-  // `wording` is absent until the reply carries it (stage 4); then a reply in code's sentence is for a person to read.
+  // `wording` is absent when the reply does not carry it; when it does, a reply in code's sentence is for a person to read.
   if (expect.wording === "model" && turn.reply?.wording !== undefined && turn.reply.wording !== "model") fails.review.push("the model's words failed the check");
   if (expect.pending !== undefined && Boolean(turn.reply?.pending) !== expect.pending) fails.push(`pending ${Boolean(turn.reply?.pending)}, wanted ${expect.pending}`);
   return fails;

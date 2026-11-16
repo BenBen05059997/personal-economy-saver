@@ -1,6 +1,7 @@
 // One turn of the Ask conversation (D60), version 1: a question and the reply the app chose. The shape of a stored row and of the export.
 import { z } from "zod";
 import { RecipeSchema } from "@/lib/canvas/schema";
+import { QUESTION_MAX } from "@/lib/question-limit";
 
 export const TURN_VERSION = 1;
 const sourceLabel = z.string().min(1).max(60);
@@ -16,8 +17,8 @@ export type MemorySource = z.infer<typeof MemorySource>;
 export const TurnSource = z.union([LinkSource, MemorySource]);
 export type TurnSource = z.infer<typeof TurnSource>;
 /** Where the turn kept something (D60), stored beside the sources so a reloaded turn shows the same buttons as the live one. */
-export const SavedLink = z.object({ kind: z.literal("saved"), label: sourceLabel, href: z.string().min(1).max(200) }).strict();
-export type SavedLink = z.infer<typeof SavedLink>;
+const SavedLink = z.object({ kind: z.literal("saved"), label: sourceLabel, href: z.string().min(1).max(200) }).strict();
+type SavedLink = z.infer<typeof SavedLink>;
 export const StoredSource = z.union([LinkSource, MemorySource, SavedLink]);
 export type StoredSource = z.infer<typeof StoredSource>;
 /** The sources and the links of a turn as stored in one list. */
@@ -30,9 +31,6 @@ export function splitSources(stored: readonly StoredSource[]): { sources: TurnSo
 }
 export const TurnKind = z.enum(["answer", "clarify", "declined", "document"]);
 export type TurnKind = z.infer<typeof TurnKind>;
-
-/** The longest question a person can ask, in characters. */
-export const QUESTION_MAX = 320;
 
 export const ConversationTurn = z.object({
   version: z.literal(TURN_VERSION),

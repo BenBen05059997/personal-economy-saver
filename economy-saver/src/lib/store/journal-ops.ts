@@ -7,11 +7,6 @@ import { InputError } from "@/db/input-error";
 
 const byTime = (a: ConversationTurn, b: ConversationTurn) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
 
-/** Adds one turn (a retried question has the same id, so it is one turn), oldest first. */
-export function appendTurn(turns: ConversationTurn[], turn: ConversationTurn): ConversationTurn[] {
-  return [...turns.filter(item => item.id !== turn.id), turn].sort(byTime);
-}
-
 /** Drops one saved turn while keeping the order and contents of the other turns. */
 export function removeTurn<T extends { id: string }>(turns: T[], id: string): T[] {
   return turns.filter(turn => turn.id !== id);

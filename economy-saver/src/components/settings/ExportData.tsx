@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import { z } from "zod";
+import { exportFilename } from "@/lib/app-info";
 import { MemoryItem } from "@/lib/schema/memory";
 import { ConversationTurn } from "@/lib/schema/turn";
 import { listDevice, readDeviceJournal, type DeviceKind } from "@/lib/store/device";
@@ -52,7 +53,7 @@ export function ExportData({ householdId, device }: { householdId: string; devic
       }
       const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2) + "\n"], { type: "application/json" }));
       const link = document.createElement("a");
-      link.href = url; link.download = `personal-economy-saver-${file.household.today}.json`;
+      link.href = url; link.download = exportFilename(file.household.today);
       document.body.append(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
       setMessage("Saved, with what you keep on this device added.");

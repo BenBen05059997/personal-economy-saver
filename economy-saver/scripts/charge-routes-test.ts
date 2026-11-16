@@ -1,15 +1,12 @@
 // D62 inputs: /api/charges with the original amount and currency (both or neither, a blank dropped, the card's own currency refused)
 // and the card's foreign transaction fee through /api/settings (2.2 -> 220 basis points, empty clears, over 10 refused, absent leaves it).
-// SEC-002 checks writes and removals against a second household's ids.
+// It also checks, at the routes, that writes and removals naming a second household's ids change nothing; and /api/confirm's returnTo.
 // Route handlers are called directly with a hand-built form Request over PGlite (same stand-ins as ask-routes-test.ts). Fictional data only.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/charge-routes-test.ts
 import assert from "node:assert/strict";
 import Module from "node:module";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
+import { openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { createFamilyLink } from "@/db/family-links";
@@ -18,9 +15,9 @@ type Handler = (request: Request) => Promise<Response>;
 const ORIGIN = "http://127.0.0.1:3123";
 
 import { demoCookies } from "./demo-cookie";
+import { DEMO_DATE } from "@/db/clock";
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   const tokenFor = demoCookies(db); // the Try it cookie is a token (D34)
   let passed = 0;
   const ok = (name: string) => { passed++; console.log(`✓ ${name}`); };
@@ -34,7 +31,6 @@ async function main() {
     return realLoad.call(this, request, parent, isMain);
   };
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const hid = await seedBen(db, { isDemo: true });
     cookie = hid;
     process.env.APP_URL = ORIGIN;
@@ -46,7 +42,7 @@ async function main() {
     const familyLinks = (await import("@/app/api/family-links/route")).POST as Handler;
     const form = (path: string, fields: Record<string, string>) => new Request(`${ORIGIN}${path}`, { method: "POST", body: new URLSearchParams(fields), headers: { origin: ORIGIN, host: "127.0.0.1:3123" } });
     const [card] = await db.select().from(schema.cards).where(eq(schema.cards.householdId, hid)).orderBy(schema.cards.createdAt);
-    const today = "2026-11-14";
+    const today = DEMO_DATE;
     const charge = (over: Record<string, string> = {}) => ({ id: crypto.randomUUID(), cardId: card.id, merchant: "Fontly Cloud", amount: "3710", date: today, category: "other", businessShare: "personal", ...over });
     const row = async (id: string) => (await db.select().from(schema.charges).where(and(eq(schema.charges.householdId, hid), eq(schema.charges.id, id))))[0];
 
@@ -117,7 +113,7 @@ async function main() {
     })), 400, "Card no longer exists");
     await responseMatches(await familyLinks(form("/api/family-links", { kind: "stop", id: otherLink.id })), 200, "That link has already ended.");
     assert.deepEqual(await records(), before, "foreign ids leave both households’ records and Activity alone");
-    ok("SEC-002: foreign charge and client ids, bill and card edits, and removal or stop requests return the expected response without changing either household's records");
+    ok("foreign charge and client ids, bill and card edits, and removal or stop requests return the expected response without changing either household's records");
 
     const removeOwnCharge = () => remove(form("/api/remove", { kind: "charge", id: plain.id }));
     assert.equal((await removeOwnCharge()).status, 303);

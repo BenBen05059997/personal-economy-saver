@@ -17,7 +17,7 @@ import { ViewError, type ViewId, type ViewResult } from "@/lib/views/types";
 import type { ViewArgs } from "@/lib/views/args";
 import { defineTool } from "./define-tool";
 import type { Tool } from "./tools";
-import { storedId } from "@/lib/money/repeat";
+import { storedId } from "@/lib/money/name-key";
 
 /** The name of the tool that draws a picture; the run treats its facts apart from other tools'. */
 export const SHOW_TOOL = "show";

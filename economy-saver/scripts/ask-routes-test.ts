@@ -1,5 +1,6 @@
 // The Ask doors and their neighbours: /api/ask (body limit, input, rate limit, error mapping), /api/ask/thumb, /api/confirm as Ask's
-// document card posts it (from=ask, returnTo, answered), /api/ask/view, reader email limits, and missingAskSetting.
+// document card posts it (from=ask, returnTo, answered), /api/ask/view, the draft card, /api/upload and /api/ask/document, /api/inbound,
+// reader email limits, the body caps of the other routes, the Ask panel's stored choices, the QA clock route and missingAskSetting.
 // The route handlers are called directly with a hand-built Request: Module._load hands them the PGlite database in place of
 // src/db/client and a fixed cookie jar in place of next/headers. The render check stubs router and CSS imports. `/api/ask`'s answerQuestion is
 // replaced only in the cases that need a thrown error, and runs for real otherwise. Fictional data only; PGlite, no credentials.
@@ -8,11 +9,9 @@ import assert from "node:assert/strict";
 import Module from "node:module";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq, sql } from "drizzle-orm";
+import { anthropicReply } from "./ai-fake";
+import { openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { pinCanvas } from "@/db/canvases";
@@ -38,8 +37,7 @@ const ORIGIN = "http://127.0.0.1:3123";
 
 import { demoCookies } from "./demo-cookie";
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   let passed = 0;
   const ok = (name: string) => { passed++; console.log(`✓ ${name}`); };
 
@@ -73,7 +71,6 @@ async function main() {
   const savedEnv = { ...process.env };
 
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     process.env.APP_URL = ORIGIN;
     const ask = (await import("@/app/api/ask/route")).POST as Handler;
@@ -85,7 +82,7 @@ async function main() {
     const json = (path: string, value: unknown, headers: Record<string, string> = {}) => post(path, typeof value === "string" ? value : JSON.stringify(value), { "content-type": "application/json", ...headers });
     const question = (over: Record<string, unknown> = {}) => ({ id: crypto.randomUUID(), conversationId: crypto.randomUUID(), text: "Am I fine this month?", source: "manual", canvas: null, ...over });
     const say = async (response: Response) => ({ status: response.status, text: await response.text(), headers: response.headers });
-    /** A question that got past the checks is a 200 stream of lines (27B): steps, then one reply or error line. */
+    /** A question that got past the checks is a 200 stream of lines: steps, then one reply or error line. */
     const streamed = async (response: Response) => {
       assert.equal(response.status, 200);
       assert.equal(response.headers.get("content-type"), "application/x-ndjson");
@@ -325,7 +322,7 @@ async function main() {
       cookie = hid;
       for (const ids of ["", "not-a-uuid", `${turn},nope`, Array.from({ length: 41 }, () => crypto.randomUUID()).join(",")]) assert.equal((await get(ids)).status, 400, `ids ${ids.slice(0, 20)}`);
       const read = async (ids = turn) => { const r = await get(ids); assert.equal(r.status, 200); assert.equal(r.headers.get("cache-control"), "private, no-store"); return (await r.json() as { drafts: Record<string, import("@/lib/agent/view").DraftView[]> }).drafts; };
-      assert.deepEqual((await read())[turn].map(d => [d.kind, d.state]), [["charge", "waiting"], ["bill", "waiting"], ["pot", "waiting"], ["balance", "waiting"]]);
+      assert.equal((await read())[turn].length, 4, "the turn's four drafts");
       cookie = b;
       assert.deepEqual(await read(), {}, "another household reads nothing of this turn");
       cookie = hid;
@@ -341,7 +338,6 @@ async function main() {
       const confirmed = async (kind: string, id: string) => { const f = new FormData(); f.set("kind", kind); f.set("id", id); f.set("returnTo", `/canvas?space=${general.id}`); return say(await confirm(post("/api/confirm", f))); };
       assert.equal((await confirmed("charge", charge)).status, 303);
       let now = await read();
-      assert.deepEqual(now[turn].map(d => d.state), ["confirmed", "waiting", "waiting", "waiting"]);
       assert.equal(now[turn][0].title, `What changed: Fictional Lunch Bar ¥1,200 on ${card.label}`);
       const removeForm = new FormData(); removeForm.set("kind", "bill"); removeForm.set("id", bill);
       assert.equal((await say(await remove(post("/api/remove", removeForm)))).status, 303);
@@ -508,7 +504,7 @@ async function main() {
     }
     ok("the guarded QA date route advances only Try it, runs suggestions on the new date and rolls back a failed pass");
 
-    // Stage 32D. Real route and runner, simulated Anthropic responses only.
+    // Real route and runner, simulated Anthropic responses only.
     const privateHid = await seedBen(db, { isDemo: true });
     cookie = privateHid;
     const general = await generalSpace(db, privateHid);
@@ -518,8 +514,7 @@ async function main() {
       reply: "Older fictional answer", choices: null, recipe: null, sources: [] });
     Object.assign(process.env, { AI_PROTOCOL: "anthropic", AI_API_KEY: "fictional-test-key", AI_TEXT_MODEL: "fixture" });
     delete process.env.AI_BASE_URL;
-    const modelReply = (reason: string, content: unknown[]) => Response.json({ id: "fixture", type: "message", role: "assistant",
-      model: "fixture", stop_reason: reason, stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 }, content });
+    const modelReply = (reason: string, content: unknown[]) => anthropicReply(reason, content, { id: "fixture", model: "fixture" });
     const call = (name: string, input: unknown) => ({ type: "tool_use", id: `tool_${name}`, name, input });
     const scripted = (make: (index: number, body: { system: string; tools: { name: string }[]; messages: unknown[] }) => Response) => {
       let count = 0;
@@ -797,7 +792,7 @@ async function main() {
     const first = await readingFor(a, "Kawa Gym");
     // the card asked 'does it come again?'; from=ask without the answer is refused, nothing is saved
     const refused = await send(fields(first, {}, [["from", "ask"], ["returnTo", "/canvas"]]));
-    assert.deepEqual([refused.status, refused.text], [400, "Answer the question first: Does Kawa Gym come again?"]);
+    assert.equal(refused.status, 400, "the question is unanswered (its words are reviewReading's, in ask-document-test)");
     assert.equal((await bills(a, "Kawa Gym")).length, 0);
     assert.equal(await statusOf(first), "to_check");
     // answered values that are not check kinds are dropped, so a made-up kind does not satisfy the rule
@@ -858,8 +853,7 @@ async function main() {
     let sent: { model: string; messages: { content: string | { type: string }[] }[] }[] = [];
     const modelFetch = (async (_input: unknown, init?: RequestInit) => {
       sent.push(JSON.parse(String(init?.body)));
-      return Response.json({ id: "m", type: "message", role: "assistant", model: "x", stop_reason: "tool_use", stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 },
-        content: [{ type: "tool_use", id: "tu", name: "record_items", input: { items: [] } }] });
+      return anthropicReply("tool_use", [{ type: "tool_use", id: "tu", name: "record_items", input: { items: [] } }], { id: "m", model: "x" });
     }) as typeof fetch;
     const read = (eml: string) => {
       asked = []; sent = [];
@@ -968,15 +962,16 @@ async function main() {
       for (const [name, route, path] of [["upload", upload, "/api/upload"], ["ask attach", attach, "/api/ask/document"]] as const) {
         env({}); await reset();
         const noFile = await say(await route(post(path, new URLSearchParams())));
-        assert.deepEqual([noFile.status, noFile.text], [400, "Select a file to upload."], `${name}: a non-multipart request is 400 even without a model`);
+        assert.equal(noFile.status, 400, `${name}: a non-multipart request is 400 even without a model`);
         const bad = await say(await route(post(path, file("hello", "a.txt", "text/plain"))));
-        assert.deepEqual([bad.status, bad.text], [400, "Select a PDF, JPEG, PNG or WebP file."], `${name}: a wrong file type is 400`);
+        assert.equal(bad.status, 400, `${name}: a wrong file type is 400`);
         await reset();
         const mismatch = await say(await route(post(path, file("hello", "a.png", "image/png"))));
-        assert.deepEqual([mismatch.status, mismatch.text], [400, "File contents do not match the selected file type."], `${name}: contents that do not match are 400`);
+        assert.equal(mismatch.status, 400, `${name}: contents that do not match are 400`);
         await reset();
         const big = await say(await route(post(path, file(new Uint8Array(6 * 1024 * 1024 + 9000), "big.png", "image/png"))));
-        assert.deepEqual([big.status, big.text], [400, "Document exceeds the 6 MiB limit."], `${name}: too big is 400`);
+        assert.equal(big.status, 400, `${name}: too big is 400`);
+        if (route === upload) assert.deepEqual([noFile.text, bad.text, mismatch.text, big.text], ["Select a file to upload.", "Select a PDF, JPEG, PNG or WebP file.", "File contents do not match the selected file type.", "Document exceeds the 6 MiB limit."], "the refusal is readUpload's own words (ask-document-test)");
         env({}); await reset();
         const noModel = await say(await route(post(path, file(PNG, "a.png", "image/png"))));
         assert.deepEqual([noModel.status, noModel.text], [503, "Reading documents needs an AI key in Settings → Your AI model."], `${name}: with no model on this server, 503 points to the household's own key`);

@@ -3,7 +3,7 @@
 // because the change is "later than usual". The amount the person asked about is a person fact (D79): it confirms nothing.
 import { engineFact, fact, personFact, type Fact } from "@/lib/money/facts";
 import { WhatIfError, whatIf } from "@/lib/money/whatif";
-import { formatter, longDay, minorMoney, plural, toMinor } from "@/lib/money/format";
+import { firstName, formatter, longDay, minorMoney, plural, toMinor } from "@/lib/money/format";
 import { arrivals, low, series, timeline, WINDOW_DAYS } from "@/lib/money/runway";
 import { hasNothingToForecast } from "@/lib/money/sentence";
 import { CASE_KIND, FACT_CASE } from "@/lib/money/terms";
@@ -21,7 +21,7 @@ export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
   const client = late ? state.clients.find(c => c.id === late.clientId) : undefined;
   if (late && !client) throw new ViewError("That client is not in your records, so they cannot pay later than usual in a what-if.");
   const spendDate = args.date ?? state.today, which = late ? "usual" as const : "late" as const, kind = CASE_KIND[which];
-  const base = { view: "what_if" as const, args: { ...args }, form: "step_line" as const, title: late ? `What if ${client!.name.split(" ")[0]} pays later than usual` : "What if you spend it", question: meta.question, hint: meta.hint, currency, strip: null, source: "Your next days, worked out again with the change. Nothing is saved." };
+  const base = { view: "what_if" as const, args: { ...args }, form: "step_line" as const, title: late ? `What if ${firstName(client!.name)} pays later than usual` : "What if you spend it", question: meta.question, hint: meta.hint, currency, strip: null, source: "Your next days, worked out again with the change. Nothing is saved." };
   if (hasNothingToForecast(state)) return { ...base, data: null, table: null, line: null, aria: "Nothing to forecast yet.", facts: [], empty: { words: "Nothing to forecast yet. Add a bill or a client and a what-if shows here.", add: "bill", addLabel: "Add a bill" } };
 
   let changed;
@@ -32,7 +32,7 @@ export const whatIfView: Resolver<"what_if"> = (args, ctx): ViewResult => {
   const date = (i: number) => addDays(state.today, i), events = timeline(changed, kind, days);
   const wordsOn = (i: number) => events.filter(event => event.date === date(i)).map(event => eventWords(event, format));
   const dayWords = next.map((_, i) => ({ date: date(i), label: longDay(date(i)), lines: wordsOn(i).length ? wordsOn(i) : [NOTHING_SCHEDULED] }));
-  const withLabel = late ? `If ${client!.name.split(" ")[0]} pays ${plural(late.days, "day")} later` : "With this spend", nowLabel = "As things are now";
+  const withLabel = late ? `If ${firstName(client!.name)} pays ${plural(late.days, "day")} later` : "With this spend", nowLabel = "As things are now";
   const markIndex = late ? -1 : daysBetween(state.today, spendDate);
   const data = stepLine({
     startDate: state.today, currency, lowLine: "main", sub: [], dayWords, band: null,

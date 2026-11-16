@@ -11,9 +11,9 @@ import { fact } from "@/lib/money/facts";
 import { StackedColumns } from "@/components/views/forms/StackedColumns";
 import { resolveView } from "@/lib/views/resolve";
 import { ViewError, type ViewResult } from "@/lib/views/types";
+import { createSyncChecks } from "../fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createSyncChecks();
 const ctx = { state: benMoney, spending: benMoney };
 const fixed = resolveView("fixed_costs", {}, ctx) as ViewResult<"stacked_columns">;
 const search = (text: string, months?: number) => resolveView("search_months", months === undefined ? { text } : { text, months }, ctx) as ViewResult<"stacked_columns">;
@@ -112,4 +112,4 @@ check("fixed_costs: the regular share and what changed per cost are facts about 
   assert.ok(costs.every(f => ["regular_costs", "change_from_last_month", "regular_cost_started", "regular_cost_stopped", "about_estimate"].includes(f.name)));
 });
 
-console.log(`spending-more: ${passed} passed`);
+console.log(`spending-more: ${tally.passed} passed`);

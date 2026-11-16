@@ -8,7 +8,7 @@ import { clockForHousehold } from "./clock";
 import { AMOUNT_LIMIT, limitMessage } from "@/lib/money/amount";
 import { CategoryKeySchema } from "@/lib/money/categories";
 import { ownChoiceFields, resolveOwnCategory } from "./own-categories";
-import { minorPerUnit } from "@/lib/money/format";
+import { minorPerUnit, plural } from "@/lib/money/format";
 import { IMPORT_BATCH, MERCHANT_MAX } from "@/lib/import/csv";
 import { cards, charges } from "./schema";
 import { normalise } from "@/lib/money/name-key";
@@ -80,7 +80,7 @@ export async function importCharges(
     const totalMinor = fresh.reduce((sum, r) => sum + r.amountMinor, 0);
     await recordEvent(tx, hid, {
       ...by, kind: "charges_imported",
-      title: `Imported ${fresh.length} ${fresh.length === 1 ? "charge" : "charges"} to ${card.label} from a statement${skipped ? ` (${skipped} already there)` : ""}`,
+      title: `Imported ${plural(fresh.length, "charge")} to ${card.label} from a statement${skipped ? ` (${skipped} already there)` : ""}`,
       amount: { value: fromMinor(totalMinor, currency), currency }, ref: { type: "card", id: card.id }, // Activity opens the card page
     });
     await observeRunway(tx, hid);

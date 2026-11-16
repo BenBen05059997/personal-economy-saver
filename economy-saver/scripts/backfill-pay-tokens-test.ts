@@ -2,21 +2,14 @@
 // PGlite, no credentials. Fictional data only. Run from the project root:
 // npx tsx --tsconfig ./tsconfig.json scripts/backfill-pay-tokens-test.ts
 import assert from "node:assert/strict";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
-import type { Db } from "@/db/household";
 import { backfillPayTokens } from "@/db/pay-token-backfill";
 import { seedBen } from "@/db/seed";
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
-  const store = db as unknown as Db;
-  await migrate(db, { migrationsFolder: "./drizzle" });
+  const { pg, db, store } = await openDb();
   try {
     const mine = await seedBen(db, {}), theirs = await seedBen(db, {});
     const rows = (hid: string) => db.select().from(schema.invoices).where(eq(schema.invoices.householdId, hid));
@@ -41,7 +34,7 @@ async function main() {
     assert.equal(second.given, 0);
     assert.equal(second.households, 0);
     assert.deepEqual((await rows(mine)).map(r => r.payToken), after.map(r => r.payToken), "a second run changes nothing, another household is untouched");
-        assert.deepEqual((await rows(theirs)).map(r => r.payToken), before.map(r => r.payToken), "a household whose invoices already have links keeps exactly those");
+    assert.deepEqual((await rows(theirs)).map(r => r.payToken), before.map(r => r.payToken), "a household whose invoices already have links keeps exactly those");
     assert.ok(before.some(r => r.payToken), "the fixture household had links to keep");
     console.log("✓ backfill: dry run writes nothing, sent USD invoices get a link, yen is skipped, a second run changes nothing, another household is untouched");
   } finally {

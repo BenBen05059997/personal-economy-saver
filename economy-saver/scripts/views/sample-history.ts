@@ -1,10 +1,6 @@
 // The sample's paid history (D77): Ben and every Try it household are seeded with sixteen paid invoices spread over June to early November,
 // so the months of income have something to show, while every number the app already says stays the same. Fictional data only; PGlite.
 import assert from "node:assert/strict";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
 import * as schema from "@/db/schema";
 import { foreignCostInputs } from "@/db/fx-cost";
@@ -13,18 +9,16 @@ import { loadIncome } from "@/db/income";
 import { seedBen } from "@/db/seed";
 import { foreignCosts } from "@/lib/money/fx-cost";
 import { benMoney } from "@/lib/sample/ben";
+import { createChecks, openDb } from "../fixtures/harness";
+import { DEMO_DATE } from "@/db/clock";
 
-let passed = 0;
-async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
-const TODAY = "2026-11-14";
+const { check, tally } = createChecks();
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const hid = await seedBen(db, { isDemo: true });
-    const state = await loadMoneyState(db, hid, TODAY);
+    const state = await loadMoneyState(db, hid, DEMO_DATE);
     const paid = await db.select().from(schema.invoices).where(and(eq(schema.invoices.householdId, hid), eq(schema.invoices.status, "paid")));
 
     await check("sixteen paid invoices, every one paid between Jun 1 and Nov 6", () => {
@@ -45,7 +39,7 @@ async function main() {
     });
 
     await check("the foreign costs: sixteen payouts, ¥111,637", async () => {
-      const costs = foreignCosts(await foreignCostInputs(db, hid, TODAY));
+      const costs = foreignCosts(await foreignCostInputs(db, hid, DEMO_DATE));
       assert.equal(costs.payoutTotals.count, 16);
       assert.equal(costs.payoutTotals.costMinor, 111_637);
     });
@@ -60,7 +54,7 @@ async function main() {
   } finally {
     await pg.close();
   }
-  console.log(`\n${passed} checks passed`);
+  console.log(`\n${tally.passed} checks passed`);
 }
 
 export const done = main();

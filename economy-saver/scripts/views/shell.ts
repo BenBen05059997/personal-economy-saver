@@ -1,20 +1,17 @@
 // The views shell: strict arguments, the stored block, the table, the card and the panel.
 import assert from "node:assert/strict";
 import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { VIEW_ARGS, viewBlockSchema } from "@/lib/views/args";
 import { VIEW_META } from "@/lib/views/catalogue";
 import type { TableTwin, ViewId, ViewResult } from "@/lib/views/types";
 import { ViewCard } from "@/components/views/ViewCard";
 import { ViewPanel } from "@/components/views/ViewPanel";
 import { ViewTable } from "@/components/views/ViewTable";
+import { renderWithRouter } from "../fixtures/harness";
+import { createSyncChecks } from "../fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createSyncChecks();
 const ids = Object.keys(VIEW_ARGS) as ViewId[];
-const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} };
-const render = (element: ReturnType<typeof createElement>) => renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: router as never }, element));
 
 const table: TableTwin = { caption: "Spending by group", head: ["Group", "Spent"], rows: [{ key: "a", cells: ["Food", "¥1,000"] }, { key: "b", cells: ["Eating out", "¥400"], child: true }], foot: ["Total", "¥1,000"] };
 const base: ViewResult = { view: "month_by_category", args: {}, form: "ranked_bars", title: "Where the month goes", question: "Where does the month go?", hint: "hint", currency: "JPY", data: null, table, empty: null, line: "One sentence.", strip: null, aria: "", source: "", facts: [] };
@@ -40,7 +37,7 @@ check("viewBlockSchema refuses an unknown view, an extra key and an amount on a 
 });
 
 check("ViewTable draws its caption, column scopes and indented child rows", () => {
-  const html = render(createElement(ViewTable, { table }));
+  const html = renderWithRouter(createElement(ViewTable, { table }));
   assert.match(html, /<caption>Spending by group<\/caption>/);
   assert.match(html, /<th scope="col">Group<\/th>/);
   assert.match(html, /<th scope="row">Food<\/th>/);
@@ -49,10 +46,10 @@ check("ViewTable draws its caption, column scopes and indented child rows", () =
 });
 
 check("ViewCard draws the figure, the line and the empty state with its Add button", () => {
-  const html = render(createElement(ViewCard, { result: base, figure: createElement("svg", { id: "fig" }) }));
+  const html = renderWithRouter(createElement(ViewCard, { result: base, figure: createElement("svg", { id: "fig" }) }));
   assert.match(html, /id="fig"/);
   assert.match(html, /One sentence\./);
-  const blank = render(createElement(ViewCard, { result: empty, figure: createElement("svg", { id: "fig" }) }));
+  const blank = renderWithRouter(createElement(ViewCard, { result: empty, figure: createElement("svg", { id: "fig" }) }));
   assert.match(blank, /Nothing spent yet\./);
   assert.match(blank, /Add a bill/);
   assert.doesNotMatch(blank, /id="fig"/);
@@ -60,12 +57,12 @@ check("ViewCard draws the figure, the line and the empty state with its Add butt
 
 check("ViewPanel has Ask about this and Pin to Home, and neither when read only", () => {
   const questions = [{ key: "q", label: "Q", result: base, figure: createElement("svg") }];
-  const open = render(createElement(ViewPanel, { id: "spending-month", questions }));
+  const open = renderWithRouter(createElement(ViewPanel, { id: "spending-month", questions }));
   assert.match(open, /Ask about this/);
   assert.match(open, /Pin to Home/);
-  const closed = render(createElement(ViewPanel, { id: "spending-month", questions, readOnly: true }));
+  const closed = renderWithRouter(createElement(ViewPanel, { id: "spending-month", questions, readOnly: true }));
   assert.doesNotMatch(closed, /Ask about this/);
   assert.doesNotMatch(closed, /Pin to Home/);
 });
 
-console.log(`\n${passed} checks passed`);
+console.log(`\n${tally.passed} checks passed`);

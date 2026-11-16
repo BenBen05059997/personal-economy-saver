@@ -2,28 +2,21 @@
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
-import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { ViewFigure } from "@/components/views/ViewFigure";
 import { loadViewContext } from "@/lib/views/load";
 import { resolveView } from "@/lib/views/resolve";
 import type { FormData, ViewContext, ViewResult } from "@/lib/views/types";
 import type { Charge } from "@/lib/money/types";
+import { createChecks, openDb } from "../fixtures/harness";
 
-let passed = 0;
-async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createChecks();
 type Rows = FormData["before_after"]["rows"];
 const row = (rows: Rows, key: string) => rows.find(r => r.key === key);
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const hid = await seedBen(db, { isDemo: true });
     const ctx = await loadViewContext(db, hid, ["spending"]);
     const { state } = ctx;
@@ -131,7 +124,7 @@ async function main() {
   } finally {
     await pg.close();
   }
-  console.log(`what-changed: ${passed} checks passed`);
+  console.log(`what-changed: ${tally.passed} checks passed`);
 }
 
 export const done = main();

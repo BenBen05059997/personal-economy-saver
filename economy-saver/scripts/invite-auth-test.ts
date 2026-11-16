@@ -1,4 +1,4 @@
-// Stage 30A (D68). Real PGlite invitations with a fake Supabase Auth transport.
+// Invitations (D68). Real PGlite invitations with a fake Supabase Auth transport. Not run alone: members-test.ts calls runInviteAuthChecks.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import Module from "node:module";
@@ -127,6 +127,7 @@ export async function runInviteAuthChecks(db: Db, check: Check) {
       sendError = { status: 429 };
       const failed = await linkPost({ email: EMAIL, invite: token });
       assert.equal(failed.status, 429);
+      assert.equal(await failed.text(), "Too many sign-in links requested. Try again in a minute.");
       assert.equal(failed.headers.has("set-cookie"), false);
       sendError = null;
       incoming.set(INVITE_COOKIE, token);

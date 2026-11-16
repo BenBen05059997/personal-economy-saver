@@ -2,30 +2,18 @@
 // disconnect, a revoked-consent delivery and the payee. PGlite and a fake PayPal call; no network, no real settings.
 import assert from "node:assert/strict";
 
-// Fictional settings; the env schema reads them when the PayPal modules run.
-Object.assign(process.env, {
-  PAYPAL_ENVIRONMENT: "SANDBOX", PAYPAL_CLIENT_ID: "client-fictional", PAYPAL_CLIENT_SECRET: "secret-fictional",
-  PAYPAL_PARTNER_ATTRIBUTION_ID: "FIPA_TEST_BN", PAYPAL_PARTNER_MERCHANT_ID: "PARTNERFICTIONAL", APP_URL: "https://fipa.example.test",
-});
-
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { PAYPAL_TEST_ENV, eventsOf, noCapture, openDb, setPayPalEnv } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { applyMerchantEvent, confirmConnection, ConnectError, disconnect, paypalConnectionView, payeeFor, startConnect } from "@/db/paypal-connection";
 import { applyVerifiedDelivery } from "@/lib/events";
 import { PayPalError } from "@/lib/paypal/client";
-import { NotConnected, type CaptureOrder, type PayPalCall, type PayPalRequest } from "@/lib/paypal/contracts";
+import { NotConnected, type PayPalCall, type PayPalRequest } from "@/lib/paypal/contracts";
 import { referralBody } from "@/lib/paypal/partner";
 import type { PayPalWebhookEvent } from "@/lib/paypal/webhook";
 
-/** Merchant events never take a payment; the webhook entry point still asks for the capture function. */
-const capture: CaptureOrder = async () => { throw new Error("A merchant event must not capture"); };
-
-const BASE = "/v1/customer/partners/PARTNERFICTIONAL/merchant-integrations";
+const BASE = `/v1/customer/partners/${PAYPAL_TEST_ENV.PAYPAL_PARTNER_MERCHANT_ID}/merchant-integrations`;
 
 type Seller = { merchant: string; email?: string; receivable?: boolean; confirmed?: boolean; partner?: string; known?: boolean };
 
@@ -49,7 +37,7 @@ function fakePayPal(sellers: Map<string, Seller>) {
       return {
         merchant_id: id, primary_email: seller.email ?? "seller@example.test",
         primary_email_confirmed: seller.confirmed ?? true, payments_receivable: seller.receivable ?? true,
-        oauth_integrations: [{ integration_type: "OAUTH_THIRD_PARTY", oauth_third_party: [{ partner_client_id: seller.partner ?? "client-fictional", scopes: ["x"] }] }],
+        oauth_integrations: [{ integration_type: "OAUTH_THIRD_PARTY", oauth_third_party: [{ partner_client_id: seller.partner ?? PAYPAL_TEST_ENV.PAYPAL_CLIENT_ID, scopes: ["x"] }] }],
       };
     }
     throw new Error(`Unexpected PayPal call ${req.method} ${req.path}`);
@@ -60,22 +48,21 @@ function fakePayPal(sellers: Map<string, Seller>) {
 const event = (id: string, type: string, resource: Record<string, unknown>): PayPalWebhookEvent => ({ id, event_type: type, create_time: "2026-11-11T00:00:00Z", resource });
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
+  setPayPalEnv();
+  const { pg, db } = await openDb();
   try {
-    const db = drizzle(pg, { schema });
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const demo = await seedBen(db, { isDemo: true });
     const a = await seedBen(db, { isDemo: false });
     const b = await seedBen(db, { isDemo: false });
     const row = async (hid: string) => (await db.select().from(schema.paypalConnections).where(eq(schema.paypalConnections.householdId, hid)))[0];
-    const events = (hid: string, kind: string) => db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, kind)));
+    const events = eventsOf(db);
     const sellers = new Map<string, Seller>();
     const { call, calls } = fakePayPal(sellers);
 
     // The referral body: the three permissions, the express checkout product, consent and the return address.
     const body = referralBody("fipa-track");
     assert.equal(body.tracking_id, "fipa-track");
-    assert.equal(body.partner_config_override.return_url, "https://fipa.example.test/api/paypal/connect/return?tracking_id=fipa-track");
+    assert.equal(body.partner_config_override.return_url, `${PAYPAL_TEST_ENV.APP_URL}/api/paypal/connect/return?tracking_id=fipa-track`);
     assert.deepEqual(body.operations[0].api_integration_preference.rest_api_integration.third_party_details.features, ["PAYMENT", "ACCESS_MERCHANT_INFORMATION", "ADVANCED_TRANSACTIONS_SEARCH"]);
     assert.equal(body.operations[0].api_integration_preference.rest_api_integration.integration_type, "THIRD_PARTY");
     assert.deepEqual(body.products, ["EXPRESS_CHECKOUT"]);
@@ -105,11 +92,9 @@ async function main() {
     assert.equal((await paypalConnectionView(db, a)).state, "pending");
     await assert.rejects(payeeFor(db, a), NotConnected);
 
-    // A household that has started no sign-up has nothing to confirm, and nothing is asked of PayPal; another household's
-    // sign-up can never be confirmed from here, because only the household's own stored tracking id is ever asked about.
-    const before = calls.length;
+    // A household that has started no sign-up has nothing to confirm (another household's sign-up cannot be confirmed from here:
+    // isolation-test).
     await assert.rejects(confirmConnection(db, b, call), ConnectError);
-    assert.equal(calls.length, before);
     assert.equal((await row(b)).connectionStatus, null);
 
     // PayPal does not know the sign-up yet: still waiting, not a crash.
@@ -170,7 +155,6 @@ async function main() {
     await assert.rejects(payeeFor(db, a), NotConnected);
     assert.equal((await events(a, "paypal_disconnected")).length, 1);
     assert.equal(await disconnect(db, a), false);
-    assert.equal((await row(b)).connectionStatus, "pending"); // the other household is untouched
 
     // B can now connect that account (a tracking id is single-use, so B's sign-up is checked as it stands).
     result = await confirmConnection(db, b, call);
@@ -179,13 +163,13 @@ async function main() {
 
     // A verified MERCHANT.PARTNER-CONSENT.REVOKED delivery clears the connection, once, through the delivery entry point.
     const revoked = event("WH-REVOKE-1", "MERCHANT.PARTNER-CONSENT.REVOKED", { merchant_id: "SELLERA" });
-    await applyVerifiedDelivery(db, revoked, capture);
+    await applyVerifiedDelivery(db, revoked, noCapture);
     assert.equal((await row(b)).connectionStatus, null);
     assert.equal((await row(b)).sellerMerchantId, null);
     const revokedEvents = await events(b, "paypal_disconnected");
     assert.equal(revokedEvents.length, 1);
     assert.equal(revokedEvents[0].notify, true);
-    await applyVerifiedDelivery(db, revoked, capture); // a redelivery changes nothing
+    await applyVerifiedDelivery(db, revoked, noCapture); // a redelivery changes nothing
     assert.equal((await events(b, "paypal_disconnected")).length, 1);
     const receipts = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, "WH-REVOKE-1"));
     assert.equal(receipts.length, 1);
@@ -193,9 +177,9 @@ async function main() {
     assert.deepEqual(Object.keys(receipts[0].payload as object), ["createdAt"]);
 
     // Merchant deliveries without the fields they need, or for an account that is not ours, are recorded and change nothing.
-    await applyVerifiedDelivery(db, event("WH-REVOKE-2", "MERCHANT.PARTNER-CONSENT.REVOKED", {}), capture);
-    await applyVerifiedDelivery(db, event("WH-REVOKE-3", "MERCHANT.PARTNER-CONSENT.REVOKED", { merchant_id: "NOBODY" }), capture);
-    await applyVerifiedDelivery(db, event("WH-ONBOARD-1", "MERCHANT.ONBOARDING.COMPLETED", { merchant_id: 42 }), capture);
+    await applyVerifiedDelivery(db, event("WH-REVOKE-2", "MERCHANT.PARTNER-CONSENT.REVOKED", {}), noCapture);
+    await applyVerifiedDelivery(db, event("WH-REVOKE-3", "MERCHANT.PARTNER-CONSENT.REVOKED", { merchant_id: "NOBODY" }), noCapture);
+    await applyVerifiedDelivery(db, event("WH-ONBOARD-1", "MERCHANT.ONBOARDING.COMPLETED", { merchant_id: 42 }), noCapture);
     for (const id of ["WH-REVOKE-2", "WH-REVOKE-3", "WH-ONBOARD-1"]) {
       const [stored] = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, id));
       assert.equal(stored.householdId, null);

@@ -5,7 +5,7 @@ import { setting } from "./env";
 import { MissingAuthSetting, supabaseService } from "./supabase-auth";
 
 /** Removes one sign-in email at Supabase Auth. Passed into `deleteAccount` so tests use a fake. */
-export type RemoveLogin = (uid: string) => Promise<void>;
+type RemoveLogin = (uid: string) => Promise<void>;
 
 export class LoginRemovalError extends Error {}
 

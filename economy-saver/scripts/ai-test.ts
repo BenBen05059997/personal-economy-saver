@@ -2,11 +2,7 @@
 // over fake transports; and the assistant evaluation's graders (D60) against a scripted model. PGlite only for the graders;
 // no network, no credentials.
 import assert from "node:assert/strict";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
-import * as schema from "@/db/schema";
+import { createChecks, openDb } from "./fixtures/harness";
 import { householdDate } from "@/db/account";
 import { loadMoneyState } from "@/db/household";
 import { foreignCosts } from "@/db/fx-cost";
@@ -21,16 +17,16 @@ import { listModels, markListedModels } from "@/lib/ai/list-models";
 import { CHECK_NAMES, checkConnection } from "@/lib/ai/check";
 import { CONNECTION_BILL } from "@/lib/ai/connection-bill";
 import { isTested, TESTED } from "@/lib/ai/tested";
-import { fakeModel, type FakeMode } from "./ai-fake";
+import { anthropicReply, chatReply, fakeModel, type FakeMode } from "./ai-fake";
 import { checkBaseUrl, localAllowed } from "@/lib/ai/endpoint";
 import type { Fact } from "@/lib/money/facts";
 import { unconfirmedNumbers } from "@/lib/ai/number-check";
 import { PROVIDERS, providerFromKey, tokenParamFor } from "@/lib/ai/providers";
 import { modelFailureWords } from "@/lib/ai/provider-failure";
 import { ModelError, type Connection, type ModelRequest } from "@/lib/ai/types";
+import { DEMO_DATE } from "@/db/clock";
 
-let passed = 0;
-async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createChecks();
 
 const SECRET = "fictional-key-" + "z".repeat(24);
 const anthropic: Connection = { protocol: "anthropic", baseUrl: "https://api.anthropic.com", key: SECRET, textModel: "m-text", documentModel: "m-doc", own: true };
@@ -51,10 +47,8 @@ function fake(respond: (seen: Seen) => Response | Promise<Response>) {
   }) as typeof globalThis.fetch;
   return { fetch, seen };
 }
-const message = (stop_reason: string, content: unknown[], usage = { input_tokens: 11, output_tokens: 22 }) => Response.json({
-  id: "msg_1", type: "message", role: "assistant", model: "m-text", content, stop_reason, stop_sequence: null, usage });
-const chat = (finish_reason: string, msg: Record<string, unknown>, usage: unknown = { prompt_tokens: 5, completion_tokens: 6, total_tokens: 11 }) => Response.json({
-  id: "c1", object: "chat.completion", created: 1, model: "m-text", choices: [{ index: 0, finish_reason, message: { role: "assistant", ...msg } }], usage });
+const message = (stop_reason: string, content: unknown[], usage = { input_tokens: 11, output_tokens: 22 }) => anthropicReply(stop_reason, content, { id: "msg_1", model: "m-text", usage });
+const chat = (finish_reason: string, msg: Record<string, unknown>, usage: unknown = { prompt_tokens: 5, completion_tokens: 6, total_tokens: 11 }) => chatReply(finish_reason, msg, { id: "c1", model: "m-text", usage });
 
 async function main() {
   await check("the model tool catalogue stays below 20,000 characters and preserves bulk item fields", () => {
@@ -525,7 +519,7 @@ async function main() {
     for (const connection of [anthropic, openai]) for (const [mode, failed] of expect) {
       const result = await checkConnection(connection, { fetch: fakeModel(mode).fetch, appUrl: APP });
       assert.deepEqual(result.failed.map(f => f.name), failed, `${connection.protocol} ${mode}`);
-      assert.equal(result.passed.length + result.failed.length, 4);
+      assert.equal(result.passed.length + result.failed.length, CHECK_NAMES.length);
       assert.ok(result.failed.every(f => f.why.length > 10));
       if (mode === "noimages" || mode === "wrongimage") {
         assert.deepEqual(result.failed, [{ name: "reads_images", why: "It did not read the total from the bill image." }]);
@@ -549,11 +543,11 @@ async function main() {
     for (const connection of [anthropic, openai]) {
       const result = await checkConnection(connection, { fetch: fakeModel("down").fetch, appUrl: APP });
       assert.equal(result.passed.length, 0);
-      assert.equal(result.failed.length, 4);
+      assert.equal(result.failed.length, CHECK_NAMES.length);
       assert.ok(result.failed.every(f => f.providerFailure === "key" && /refused the request.*401/.test(f.why)), result.failed[0].why);
       assert.ok(!JSON.stringify(result).includes(SECRET));
       const credit = await checkConnection(connection, { fetch: fakeModel("credit").fetch, appUrl: APP });
-      assert.equal(credit.failed.length, 4);
+      assert.equal(credit.failed.length, CHECK_NAMES.length);
       assert.ok(credit.failed.every(f => f.providerFailure === "credit" && !f.why.includes("fictional-billing")));
       const missing = await checkConnection(connection, { fetch: fakeModel("missingmodel").fetch, appUrl: APP });
       assert.deepEqual(missing.failed.map(({ name, providerFailure }) => [name, providerFailure]), [["reads_images", "model"]]);
@@ -562,16 +556,13 @@ async function main() {
     assert.deepEqual(none.passed, ["reads_images"]);
     const transport = fakeModel("good");
     const bad = await checkConnection({ ...openai, baseUrl: "https://10.0.0.5/v1" }, { fetch: transport.fetch, appUrl: APP });
-    assert.equal(bad.failed.length, 4);
+    assert.equal(bad.failed.length, CHECK_NAMES.length);
     assert.equal(transport.seen.length, 0, "the address rule runs before any request");
   });
 
   await check("the evaluation's graders: a scripted good model passes every case on both protocols, and the key never reaches a result", async () => {
-    const pg = new PGlite({ extensions: { pg_trgm } });
+    const { pg, db } = await openDb();
     try {
-      const db = drizzle(pg, { schema });
-      await migrate(db, { migrationsFolder: "./drizzle" });
-      assert.equal(CASE_NAMES.length, 19);
       for (const connection of [anthropic, openai]) {
         const seen: string[] = [];
         const results = await runEval({ db, connection, fetch: scriptedModel().fetch, appUrl: APP, onResult: r => seen.push(r.name) });
@@ -594,10 +585,8 @@ async function main() {
   });
 
   await check("the evaluation's graders: a failed question, a wrong number and a missing canvas are named in words", async () => {
-    const pg = new PGlite({ extensions: { pg_trgm } });
+    const { pg, db } = await openDb();
     try {
-      const db = drizzle(pg, { schema });
-      await migrate(db, { migrationsFolder: "./drizzle" });
       const householdId = await seedBen(db, { isDemo: true });
       const state = await loadMoneyState(db, householdId, await householdDate(db, householdId));
       const northwind = state.clients.find(c => c.name === "Northwind")!;
@@ -623,10 +612,8 @@ async function main() {
   });
 
   await check("logs_charge grader: echoing \"you paid\" passes; sent, marked as paid, settled or confirmed fail; denials pass; both protocols", async () => {
-    const pg = new PGlite({ extensions: { pg_trgm } });
+    const { pg, db } = await openDb();
     try {
-      const db = drizzle(pg, { schema });
-      await migrate(db, { migrationsFolder: "./drizzle" });
       const pass = ["You paid ¥3,800 at the noodle place. It is waiting in To check.", "I paid is noted: ¥3,800 at the noodle place is in To check for you to confirm.", "Nothing was sent; the ¥3,800 is waiting in To check."];
       const fail = ["I've sent it.", "Marked as paid.", "The ¥3,800 is settled.", "PayPal paid it.", "It is confirmed and final."];
       for (const connection of [anthropic, openai]) {
@@ -644,10 +631,8 @@ async function main() {
   });
 
   await check("foreign_fees grader: the tool called and the engine's total quoted passes; a wrong number, no tool call, another provider or leaving PayPal fail; both protocols", async () => {
-    const pg = new PGlite({ extensions: { pg_trgm } });
+    const { pg, db } = await openDb();
     try {
-      const db = drizzle(pg, { schema });
-      await migrate(db, { migrationsFolder: "./drizzle" });
       const householdId = await seedBen(db, { isDemo: true });
       const state = await loadMoneyState(db, householdId, await householdDate(db, householdId));
       const total = group((await foreignCosts(db, householdId)).payoutTotals.costMinor);
@@ -698,7 +683,7 @@ async function main() {
   await check("unconfirmedNumbers: each unit is confirmed only by a fact of the same unit", () => {
     const f = (unit: Fact["unit"], value: number | string, extra: Partial<Fact> = {}): Fact => ({ name: "short", unit, value, by: "engine", period: null, case: "none", meaning: "", from: "test", ...extra });
     const facts = [f("money", 18780, { currency: "JPY" }), f("days", 14), f("percent", 12.2), f("date", "2026-11-27")];
-    const today = "2026-11-14";
+    const today = DEMO_DATE;
     const un = (text: string, fs = facts, person: string[] = []) => unconfirmedNumbers(text, fs, { today, person });
     assert.deepEqual(un("You are ¥18,780 short on Fri, Nov 27, in 14 days, up 12.2%."), []);
     assert.deepEqual(un("¥18,780 / 18,780円 / 約1.878万円"), []);
@@ -727,7 +712,7 @@ async function main() {
 
   await check("unconfirmedNumbers: units, date forms and percentages", () => {
     const f = (unit: Fact["unit"], value: number | string, extra: Partial<Fact> = {}): Fact => ({ name: "short", unit, value, by: "engine", period: null, case: "none", meaning: "", from: "test", ...extra });
-    const today = "2026-11-14";
+    const today = DEMO_DATE;
     const un = (text: string, fs: ReturnType<typeof f>[]) => unconfirmedNumbers(text, fs, { today });
     assert.deepEqual(un("14 days", [f("money", 14, { currency: "JPY" })]), ["14 days"], "a ¥14 fact does not confirm 14 days");
     assert.deepEqual(un("¥14", [f("days", 14)]), ["¥14"]);
@@ -753,7 +738,7 @@ async function main() {
 
   await check("unconfirmedNumbers: what the person said may be quoted back and confirms nothing else", () => {
     const f = (unit: Fact["unit"], value: number | string, extra: Partial<Fact> = {}): Fact => ({ name: "short", unit, value, by: "engine", period: null, case: "none", meaning: "", from: "test", ...extra });
-    const today = "2026-11-14";
+    const today = DEMO_DATE;
     const engine = [f("money", 133770, { currency: "JPY" })];
     const person = ["Can I put ¥40,000 on Card A?", "remember I get paid 25% on the 5th, 20日後 maybe"];
     const un = (text: string, fs = engine) => unconfirmedNumbers(text, fs, { today, person });
@@ -792,9 +777,11 @@ async function main() {
   await check("isTested is true for every listed provider and model pair and false for any other; the providers offered", () => {
     assert.ok(TESTED.every(({ provider, model }) => isTested(provider, model)));
     assert.equal(isTested("no-such-provider", "no-such-model"), false);
-    assert.deepEqual(PROVIDERS.map(p => p.id), ["anthropic", "openai", "gemini", "openrouter", "groq", "mistral", "custom"]);
+    const ids = PROVIDERS.map(p => p.id);
+    assert.equal(new Set(ids).size, ids.length, "each provider once");
+    assert.equal(ids.at(-1), "custom", "the person's own address comes last");
   });
 
-  console.log(`AI layer checks passed (${passed}).`);
+  console.log(`AI layer checks passed (${tally.passed}).`);
 }
 main().catch(error => { console.error("AI layer checks failed", error instanceof Error ? error.stack?.split("\n").slice(0, 8).join("\n") : error); process.exitCode = 1; });

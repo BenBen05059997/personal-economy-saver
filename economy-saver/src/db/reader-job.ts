@@ -11,7 +11,7 @@ import { requireStorageRoom } from "./document-cleanup";
 import { proposeReadings } from "./readings";
 import { documentBucket } from "@/lib/reader/storage";
 import { extractDocument } from "@/lib/reader/extract";
-import { MAX_DOCUMENT_BYTES } from "@/lib/document-limit";
+import { MAX_DOCUMENT_BYTES, MAX_DOCUMENT_LABEL } from "@/lib/document-limit";
 import { ReaderError } from "@/lib/reader/settings";
 
 const LEASE_MS = 90_000;
@@ -51,7 +51,7 @@ export async function requireDocumentBudget(db: Db, id: string, mime: string, by
 
 export async function storeDocument(db: Db, id: string, kind: "email" | "upload", mime: string, bytes: ArrayBuffer) {
   const hid = requireHousehold(id);
-  if (!bytes.byteLength || bytes.byteLength > MAX_DOCUMENT_BYTES) throw new ReaderError("Supply a document of 1 byte to 6 MiB.");
+  if (!bytes.byteLength || bytes.byteLength > MAX_DOCUMENT_BYTES) throw new ReaderError(`Supply a document of 1 byte to ${MAX_DOCUMENT_LABEL}.`);
   const documentId = await contentId(hid, mime, bytes);
   const path = hid + "/" + documentId;
   const where = and(eq(documents.householdId, hid), eq(documents.id, documentId));

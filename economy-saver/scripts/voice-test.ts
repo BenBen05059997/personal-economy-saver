@@ -1,16 +1,12 @@
-// Voice fill (28B): numbersSaid, the code checks (checkFill) and POST /api/voice-fill. The route handler is called directly with a hand-built
+// Voice fill: numbersSaid, the code checks (checkFill) and POST /api/voice-fill. The route handler is called directly with a hand-built
 // Request: Module._load hands it the PGlite database in place of src/db/client and a fixed cookie jar in place of next/headers.
 // The model is faked by replacing globalThis.fetch (the Anthropic host); it proposes whatever the case says. Fictional data only.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/voice-test.ts
 import assert from "node:assert/strict";
 import Module from "node:module";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { count, eq } from "drizzle-orm";
-import { spendAiBudget } from "@/db/ai-cap";
-import type { Db } from "@/db/household";
+import { openDb } from "./fixtures/harness";
+import { DAILY_QUESTIONS, spendAiBudget } from "@/db/ai-cap";
 import * as schema from "@/db/schema";
 import { seedBen } from "@/db/seed";
 import { numbersSaid } from "@/lib/ai/number-check";
@@ -19,7 +15,6 @@ import { VoiceFillRequest } from "@/lib/voice/schema";
 
 type Handler = (request: Request) => Promise<Response>;
 const ORIGIN = "http://127.0.0.1:3123";
-const TODAY = "2026-11-14";
 
 const request = (text: string, extra: Partial<VoiceFillRequest> = {}): VoiceFillRequest => VoiceFillRequest.parse({
   text,
@@ -34,6 +29,7 @@ const request = (text: string, extra: Partial<VoiceFillRequest> = {}): VoiceFill
 });
 
 import { demoCookies } from "./demo-cookie";
+import { DEMO_DATE } from "@/db/clock";
 async function main() {
   let passed = 0;
   const ok = (name: string) => { passed++; console.log(`✓ ${name}`); };
@@ -59,17 +55,17 @@ async function main() {
   // ---------------------------------------------------------------- checkFill
   const rent = "来月の家賃12万円、27日";
   const good = { name: "家賃", amount: "120000", date: "2026-12-27", category: "housing", shared: true };
-  assert.deepEqual(checkFill(good, request(rent), TODAY), { values: { name: "家賃", amount: "120000", date: "2026-12-27", category: "housing", shared: "on" }, notes: [] });
-  assert.deepEqual(checkFill({ amount: "12000" }, request(rent), TODAY).values, {}, "12000 was not said for 12万");
-  assert.deepEqual(checkFill({ amount: 120000 }, request(rent), TODAY).values, { amount: "120000" }, "a number is read as its text");
-  assert.deepEqual(checkFill({ amount: "12" }, request(rent), TODAY).values, {}, "the bare 12 was not said either");
-  const dollars = checkFill({ amount: "400" }, request("the gym is $400 a month"), TODAY);
+  assert.deepEqual(checkFill(good, request(rent), DEMO_DATE), { values: { name: "家賃", amount: "120000", date: "2026-12-27", category: "housing", shared: "on" }, notes: [] });
+  assert.deepEqual(checkFill({ amount: "12000" }, request(rent), DEMO_DATE).values, {}, "12000 was not said for 12万");
+  assert.deepEqual(checkFill({ amount: 120000 }, request(rent), DEMO_DATE).values, { amount: "120000" }, "a number is read as its text");
+  assert.deepEqual(checkFill({ amount: "12" }, request(rent), DEMO_DATE).values, {}, "the bare 12 was not said either");
+  const dollars = checkFill({ amount: "400" }, request("the gym is $400 a month"), DEMO_DATE);
   assert.deepEqual(dollars.values, {});
   assert.deepEqual(dollars.notes, ["You said dollars; this field takes yen."]);
-  assert.deepEqual(checkFill({ amount: "$400" }, request("gym 400"), TODAY).values, {}, "a mark of the other currency in the proposal");
+  assert.deepEqual(checkFill({ amount: "$400" }, request("gym 400"), DEMO_DATE).values, {}, "a mark of the other currency in the proposal");
   const usd = request("coffee beans 12.50 dollars", { fields: [{ kind: "amount", name: "amount", label: "Amount", currency: "USD" }] });
-  assert.deepEqual(checkFill({ amount: "12.5" }, usd, TODAY).values, { amount: "12.50" });
-  assert.deepEqual(checkFill({ amount: "12.50" }, request("rent 12万円", { fields: usd.fields }), TODAY).notes, ["You said yen; this field takes dollars."]);
+  assert.deepEqual(checkFill({ amount: "12.5" }, usd, DEMO_DATE).values, { amount: "12.50" });
+  assert.deepEqual(checkFill({ amount: "12.50" }, request("rent 12万円", { fields: usd.fields }), DEMO_DATE).notes, ["You said yen; this field takes dollars."]);
   const wrongCurrency = "fifty dollars";
   const yenFields = request(wrongCurrency, { fields: [
     { kind: "amount", name: "amount", label: "Amount", currency: "JPY" },
@@ -77,28 +73,28 @@ async function main() {
   ] });
   const wrongNote = "You said dollars; this field takes yen.";
   for (const proposed of [{}, { amount: "" }, { amount: null }, { amount: "50", nextAmount: "50" }]) {
-    assert.deepEqual(checkFill(proposed, yenFields, TODAY), { values: {}, notes: [wrongNote] });
+    assert.deepEqual(checkFill(proposed, yenFields, DEMO_DATE), { values: {}, notes: [wrongNote] });
   }
   assert.deepEqual(checkFill({ originalAmount: "50" }, request("50 dollars", { fields: [
     yenFields.fields[0], { kind: "amount", name: "originalAmount", label: "Original amount", currency: "USD" },
-  ] }), TODAY), { values: { originalAmount: "50" }, notes: [] }, "a form with a dollar field can accept dollars");
-  assert.deepEqual(checkFill({ amount: "-5000" }, request("minus 5000 yen"), TODAY).values, {}, "a minus sign on an unsigned field");
-  assert.deepEqual(checkFill({ category: "crypto" }, request(rent), TODAY).values, {}, "a select value not among the options");
-  assert.deepEqual(checkFill({ category: "Housing" }, request(rent), TODAY).values, {}, "the label is not the value");
-  assert.deepEqual(checkFill({ date: "2029-01-01" }, request(rent), TODAY).values, {}, "past the two-year limit");
-  assert.equal(checkFill({ date: "2029-01-01" }, request(rent), TODAY).notes.length, 1);
-  assert.deepEqual(checkFill({ date: "2028-11-14" }, request(rent), TODAY).values, { date: "2028-11-14" }, "the last day");
-  assert.deepEqual(checkFill({ date: "2026-02-30" }, request(rent), TODAY).values, {}, "not a real day");
-  assert.deepEqual(checkFill({ date: "12/27" }, request(rent), TODAY).values, {}, "not yyyy-mm-dd");
+  ] }), DEMO_DATE), { values: { originalAmount: "50" }, notes: [] }, "a form with a dollar field can accept dollars");
+  assert.deepEqual(checkFill({ amount: "-5000" }, request("minus 5000 yen"), DEMO_DATE).values, {}, "a minus sign on an unsigned field");
+  assert.deepEqual(checkFill({ category: "crypto" }, request(rent), DEMO_DATE).values, {}, "a select value not among the options");
+  assert.deepEqual(checkFill({ category: "Housing" }, request(rent), DEMO_DATE).values, {}, "the label is not the value");
+  assert.deepEqual(checkFill({ date: "2029-01-01" }, request(rent), DEMO_DATE).values, {}, "past the two-year limit");
+  assert.equal(checkFill({ date: "2029-01-01" }, request(rent), DEMO_DATE).notes.length, 1);
+  assert.deepEqual(checkFill({ date: "2028-11-14" }, request(rent), DEMO_DATE).values, { date: "2028-11-14" }, "the last day");
+  assert.deepEqual(checkFill({ date: "2026-02-30" }, request(rent), DEMO_DATE).values, {}, "not a real day");
+  assert.deepEqual(checkFill({ date: "12/27" }, request(rent), DEMO_DATE).values, {}, "not yyyy-mm-dd");
   const bounded = request(rent, { fields: [{ kind: "date", name: "date", label: "Date", min: "2026-12-01", max: "2026-12-31" }] });
-  assert.deepEqual(checkFill({ date: "2026-12-27" }, bounded, TODAY).values, { date: "2026-12-27" });
-  assert.deepEqual(checkFill({ date: "2027-01-02" }, bounded, TODAY).values, {});
-  assert.deepEqual(checkFill({ date: "2026-11-30" }, bounded, TODAY).values, {});
-  assert.deepEqual(checkFill({ secret: "x", __proto__: "y", constructor: "z" }, request(rent), TODAY).values, {}, "names not in the request are dropped");
-  assert.deepEqual(checkFill({ name: "x".repeat(161) }, request(rent), TODAY).values, {}, "text over its limit");
-  assert.deepEqual(checkFill({ name: "  家賃\n " }, request(rent), TODAY).values, { name: "家賃" });
-  assert.deepEqual(checkFill({ shared: false }, request(rent), TODAY).values, { shared: "" });
-  assert.deepEqual(checkFill({ name: 5, date: 5, shared: "maybe", amount: {} }, request(rent), TODAY).values, {}, "wrong types");
+  assert.deepEqual(checkFill({ date: "2026-12-27" }, bounded, DEMO_DATE).values, { date: "2026-12-27" });
+  assert.deepEqual(checkFill({ date: "2027-01-02" }, bounded, DEMO_DATE).values, {});
+  assert.deepEqual(checkFill({ date: "2026-11-30" }, bounded, DEMO_DATE).values, {});
+  assert.deepEqual(checkFill({ secret: "x", __proto__: "y", constructor: "z" }, request(rent), DEMO_DATE).values, {}, "names not in the request are dropped");
+  assert.deepEqual(checkFill({ name: "x".repeat(161) }, request(rent), DEMO_DATE).values, {}, "text over its limit");
+  assert.deepEqual(checkFill({ name: "  家賃\n " }, request(rent), DEMO_DATE).values, { name: "家賃" });
+  assert.deepEqual(checkFill({ shared: false }, request(rent), DEMO_DATE).values, { shared: "" });
+  assert.deepEqual(checkFill({ name: 5, date: 5, shared: "maybe", amount: {} }, request(rent), DEMO_DATE).values, {}, "wrong types");
   assert.equal(VoiceFillRequest.safeParse({ text: "x", fields: [{ kind: "check", name: "a", label: "A" }, { kind: "check", name: "a", label: "B" }] }).success, false, "unique names");
   assert.equal(VoiceFillRequest.safeParse({ text: "x".repeat(401), fields: request("x").fields }).success, false, "400 characters");
   assert.equal(VoiceFillRequest.safeParse({ text: "x", fields: [] }).success, false, "at least one field");
@@ -106,7 +102,7 @@ async function main() {
   ok("checkFill: amounts need the said number and currency, dates the limit, selects their options, unknown names dropped; the request schema's limits");
 
   // ---------------------------------------------------------------- the route
-  const pg = new PGlite({ extensions: { pg_trgm } });
+  const { pg, db, store } = await openDb();
   const originalFetch = globalThis.fetch;
   const savedEnv = { ...process.env };
   let cookie: string | null = null;
@@ -115,9 +111,7 @@ async function main() {
   const realInfo = console.info;
   const infoLines: string[] = [];
   try {
-    const db = drizzle(pg, { schema });
     const tokenFor = demoCookies(db); // the Try it cookie is a token (D34)
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     loader._load = function (name, parent, isMain) {
       if (name === "next/headers") return { cookies: async () => { const value = await tokenFor(cookie); return { getAll: () => (value ? [{ name: "household", value }] : []), get: (n: string) => (n === "household" && value ? { name: n, value } : undefined) }; } };
@@ -190,7 +184,7 @@ async function main() {
     assert.ok(lastBody!.system.endsWith("Answer only by calling the fill_fields tool once."));
     assert.deepEqual(lastBody!.tools[0].input_schema.properties.category.enum, ["housing", "food"], "the select's options are the tool's enum");
     assert.deepEqual(Object.keys(lastBody!.tools[0].input_schema.properties), ["name", "amount", "date", "category", "shared"]);
-    assert.ok(lastBody!.system.includes(`Today is ${TODAY} (Saturday)`) && lastBody!.system.includes("JPY"), "today with its weekday and the currency");
+    assert.ok(lastBody!.system.includes(`Today is ${DEMO_DATE} (Saturday)`) && lastBody!.system.includes("JPY"), "today with its weekday and the currency");
     assert.equal(lastBody!.messages[0].content, rent, "the words go as the person's message");
     ok("「来月の家賃12万円、27日」 fills the name, 120000 and 2026-12-27 as the model proposes them; the tool is forced and built from the fields");
 
@@ -256,10 +250,10 @@ async function main() {
     cookie = b;
     assert.equal((await call(rent)).status, 200);
     cookie = a;
-    // D33: on the owner's connection a voice fill spends the same 30 a day as an Ask question
+    // D33: on the owner's connection a voice fill spends the same daily count as an Ask question
     await db.delete(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, a));
-    for (let i = 0; i < 29; i++) assert.equal(await spendAiBudget(db as unknown as Db, a, "question"), true, "29 Ask questions");
-    assert.equal((await call(rent)).status, 200, "the 30th use of the day is a voice fill");
+    for (let i = 0; i < DAILY_QUESTIONS - 1; i++) assert.equal(await spendAiBudget(store, a, "question"), true, "Ask questions up to the last use of the day");
+    assert.equal((await call(rent)).status, 200, "the last use of the day is a voice fill");
     const callsAtCap = modelCalls;
     const capped = await call(rent);
     assert.equal(capped.status, 429);
@@ -276,7 +270,7 @@ async function main() {
     }
     assert.ok(!infoLines.join("\n").includes("家賃") && !infoLines.join("\n").includes("ignore the rules"), "the log never holds the words or values");
     assert.ok(lines.some(l => l.ok === false) && lines.some(l => l.ok === true));
-    ok("the session's household is the only one used (b's call logs b); the owner's connection allows 30 a day shared with Ask; one content-free log line per call");
+    ok("the session's household is the only one used (b's call logs b); the owner's connection allows a daily count shared with Ask; one content-free log line per call");
 
     assert.deepEqual(await counts(), before, "bills, charges, invoices, clients, balance updates, events and households are unchanged after every call");
     ok("no table changed row count across every call");

@@ -1,3 +1,4 @@
+// The reminder transport: the digest text, the email and the web-push encryption. Not run alone: notify-test.ts calls runNotifyTransportChecks.
 import assert from "node:assert/strict";
 import { engineFact } from "@/lib/money/facts";
 import { reminderDigest, testReminder } from "@/lib/notify/digest";

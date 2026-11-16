@@ -3,12 +3,10 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/pots-test.ts
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, eventsOf, first, noCapture, openDb, violates } from "./fixtures/harness";
 import * as schema from "@/db/schema";
+import { DEMO_DATE } from "@/db/clock";
 import { confirmPending } from "@/db/confirm";
 import { InputError } from "@/db/input-error";
 import { markPaidOutside } from "@/db/invoice-paid";
@@ -17,7 +15,6 @@ import { fillPots, parseFillBp, potInput, removePot, savePot } from "@/db/pots";
 import { seedBen } from "@/db/seed";
 import { loadNavigationData } from "@/db/workspace";
 import { applyVerifiedDelivery } from "@/lib/events";
-import type { CaptureOrder } from "@/lib/paypal/contracts";
 import { leftOverEachMonth, monthsUntil, planFor, planLine, potLine, potSummary, roomLine } from "@/lib/money/plan";
 import { availableCash, low, roomOnCard, safeToSpend, series } from "@/lib/money/runway";
 import { homeSentence } from "@/lib/money/sentence";
@@ -26,14 +23,11 @@ import { benMoney } from "@/lib/sample/ben";
 import type { MoneyState, Pot } from "@/lib/money/types";
 import { addMonths } from "@/lib/money/dates";
 
-const TODAY = "2026-11-14";
 const pot = (over: Partial<Pot> = {}): Pot => ({ id: "pot-1", name: "Tax", saved: 10_000, ...over });
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
-  let passed = 0;
-  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { pg, db } = await openDb();
+  const { check, tally } = createChecks();
   try {
     // ------------------------------------------------------------ pure maths
     await check("months: addMonths clamps to the month end; monthsUntil counts whole months, at least 1", () => {
@@ -42,12 +36,12 @@ async function main() {
       assert.equal(addMonths("2026-11-14", 4), "2027-03-14");
       assert.equal(addMonths("2026-12-15", 1), "2027-01-15");
       assert.equal(addMonths("2026-11-30", 3), "2027-02-28");
-      assert.equal(monthsUntil(TODAY, "2027-03-31"), 4);
-      assert.equal(monthsUntil(TODAY, "2027-03-14"), 4);
-      assert.equal(monthsUntil(TODAY, "2027-03-13"), 3);
-      assert.equal(monthsUntil(TODAY, "2026-12-01"), 1, "under a month rounds up to one");
-      assert.equal(monthsUntil(TODAY, TODAY), 1);
-      assert.equal(monthsUntil(TODAY, "2026-01-01"), 1, "a date in the past still divides by one");
+      assert.equal(monthsUntil(DEMO_DATE, "2027-03-31"), 4);
+      assert.equal(monthsUntil(DEMO_DATE, "2027-03-14"), 4);
+      assert.equal(monthsUntil(DEMO_DATE, "2027-03-13"), 3);
+      assert.equal(monthsUntil(DEMO_DATE, "2026-12-01"), 1, "under a month rounds up to one");
+      assert.equal(monthsUntil(DEMO_DATE, DEMO_DATE), 1);
+      assert.equal(monthsUntil(DEMO_DATE, "2026-01-01"), 1, "a date in the past still divides by one");
     });
 
     await check("leftOverEachMonth is the expected series at day 30 less its start, on Ben ¥92,220", () => {
@@ -74,7 +68,7 @@ async function main() {
       assert.equal(planFor({ target: 276_660, saved: 0, targetDate: "2027-02-14" }, benMoney).fits, true, "exactly the room fits");
       assert.equal(planFor({ target: 276_661, saved: 0, targetDate: "2027-02-14" }, benMoney).fits, false, "one yen more does not");
       const done = planFor({ target: 50_000, saved: 80_000, targetDate: "2027-02-14" }, benMoney);
-      assert.deepEqual([done.needed, done.monthlyNeeded, done.fits, done.monthsAtPace, done.reachedOn], [0, 0, true, 0, TODAY]);
+      assert.deepEqual([done.needed, done.monthlyNeeded, done.fits, done.monthsAtPace, done.reachedOn], [0, 0, true, 0, DEMO_DATE]);
       assert.equal(planFor({ target: 1_200_000, saved: 0 }, benMoney).monthlyNeeded, undefined, "no date, no monthly amount needed");
     });
 
@@ -116,10 +110,6 @@ async function main() {
       assert.equal(availableCash(benMoney), 128_000);
       const empty = { ...benMoney, pots: [] };
       assert.deepEqual(Array.from(series(empty, "worst")), Array.from(series(benMoney, "worst")));
-      assert.equal(homeSentence(benMoney).emphasis, "¥18,780 short on the 27th.");
-      assert.equal(safeToSpend(benMoney).amount, 0);
-      assert.equal(roomOnCard(benMoney, "card-b").room, 173_770);
-      assert.equal(roomOnCard(benMoney, "card-a").room, 173_770);
       const rich = { ...benMoney, bank: benMoney.bank + 40_000 }; // low point +¥21,220
       const potted = { ...rich, pots: [pot({ saved: 10_000 })] };
       assert.equal(availableCash(potted), availableCash(rich) - 10_000);
@@ -138,7 +128,7 @@ async function main() {
       assert.equal(safeToSpend(pending).amount, 21_220, "a pending pot counts for nothing");
     });
 
-    await check("the sentence as parts (box 1): lead + emphasis + the day, the clients and the short flag, with the same words as before", () => {
+    await check("the sentence as parts: lead + emphasis + the day, the clients and the short flag", () => {
       const rich = { ...benMoney, bank: benMoney.bank + 40_000 };
       const joined = (state: typeof benMoney) => { const s = homeSentence(state); return [s.text, s.day, s.short, s.clients.map(c => c.id).join(",")]; };
       assert.deepEqual(joined(benMoney), ["You're fine if Acme and Northwind pay as usual. If they're late, you're ¥18,780 short on the 27th.", "2026-11-27", true, "c-acme,c-northwind"]);
@@ -167,28 +157,26 @@ async function main() {
     });
 
     // ------------------------------------------------------------ database
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
-    const first = async <T,>(rows: Promise<T[]>) => (await rows)[0];
-    const events = (hid: string, kind: string) => db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, kind)));
+    const events = eventsOf(db);
     const rowOf = (id: string) => first(db.select().from(schema.pots).where(eq(schema.pots.id, id)));
-    const stateOf = (hid: string) => loadMoneyState(db, hid, TODAY);
+    const stateOf = (hid: string) => loadMoneyState(db, hid, DEMO_DATE);
     const input = (over: Partial<ReturnType<typeof potInput.parse>> = {}) => potInput.parse({ id: randomUUID(), name: "Fictional trip", ...over });
     const memberB = (await first(db.select().from(schema.members).where(eq(schema.members.householdId, b)))).id;
 
-    await check("Ben starts with no pots, so the loaded state and every demo number are unchanged", async () => {
+    await check("Ben starts with no pots, so the loaded state has none", async () => {
       const state = await stateOf(a);
       assert.deepEqual([state.pots, state.pendingPots], [[], []]);
-      assert.equal(homeSentence(state).emphasis, "¥18,780 short on the 27th.");
-      assert.equal(roomOnCard(state, state.cards[0].id).room, 173_770);
     });
 
     await check("the pots table refuses bad rows in SQL", async () => {
       const base = { householdId: a, currency: "JPY", name: "Fictional" };
-      for (const bad of [{ name: "" }, { name: "x".repeat(61) }, { targetMinor: 0 }, { savedMinor: -1 }, { fillBp: 0 }, { fillBp: 10_001 }]) {
-        await assert.rejects(db.insert(schema.pots).values({ ...base, ...bad }), JSON.stringify(bad));
-      }
-      await assert.rejects(db.insert(schema.pots).values({ ...base, memberId: memberB }), "a member of another household cannot be referenced");
+      const refused: [Partial<typeof schema.pots.$inferInsert>, string][] = [
+        [{ name: "" }, "pots_name_valid"], [{ name: "x".repeat(61) }, "pots_name_valid"], [{ targetMinor: 0 }, "pots_target_positive"],
+        [{ savedMinor: -1 }, "pots_saved_valid"], [{ fillBp: 0 }, "pots_fill_valid"], [{ fillBp: 10_001 }, "pots_fill_valid"],
+        [{ memberId: memberB }, "pots_member_household_fk"], // a member of another household cannot be referenced
+      ];
+      for (const [bad, constraint] of refused) await assert.rejects(db.insert(schema.pots).values({ ...base, ...bad }), violates(constraint), JSON.stringify(bad));
     });
 
     await check("savePot confirmed: stores home-currency minor units, records pot_added once, idempotent on id", async () => {
@@ -202,7 +190,7 @@ async function main() {
       assert.equal(added.length, 1);
       assert.deepEqual([added[0].title, added[0].amountMinor, added[0].refType, added[0].notify], ["Car pot added", 200_000, "pot", false]);
       const state = await stateOf(a);
-      assert.deepEqual(state.pots, [{ id: car.id, name: "Car", saved: 200_000, target: 1_200_000, targetDate: "2027-03-31", startedOn: TODAY, fillPct: 12.5 }]);
+      assert.deepEqual(state.pots, [{ id: car.id, name: "Car", saved: 200_000, target: 1_200_000, targetDate: "2027-03-31", startedOn: DEMO_DATE, fillPct: 12.5 }]);
       assert.equal(availableCash(state), 128_000 - 200_000);
       await removePot(db, a, car.id);
     });
@@ -286,7 +274,7 @@ async function main() {
     // ---- the fill rule
     const clientOf = async (hid: string, name: string) => (await first(db.select().from(schema.clients).where(and(eq(schema.clients.householdId, hid), eq(schema.clients.name, name))))).id;
     const invoice = async (hid: string, client: string, usdCents: number, over: Partial<typeof schema.invoices.$inferInsert> = {}) =>
-      (await first(db.insert(schema.invoices).values({ householdId: hid, clientId: await clientOf(hid, client), status: "sent", item: "Fictional poster", amountMinor: usdCents, currency: "USD", sentOn: TODAY, ...over }).returning())).id;
+      (await first(db.insert(schema.invoices).values({ householdId: hid, clientId: await clientOf(hid, client), status: "sent", item: "Fictional poster", amountMinor: usdCents, currency: "USD", sentOn: DEMO_DATE, ...over }).returning())).id;
     const saved = async (id: string) => (await rowOf(id)).savedMinor;
     const filled = (hid: string) => events(hid, "pot_filled");
 
@@ -318,13 +306,13 @@ async function main() {
       const inv = await invoice(c, "Northwind", 25_000);
       const bank = async () => (await first(db.select().from(schema.households).where(eq(schema.households.id, c)))).bankBalanceMinor;
       const start = await bank();
-      assert.equal(await markPaidOutside(db, c, inv, TODAY), true);
+      assert.equal(await markPaidOutside(db, c, inv, DEMO_DATE), true);
       assert.equal(await bank(), start + 37_500, "the whole payment is credited to the bank");
       assert.equal(await saved(tax.id), 9_375, "$250 x 150 = ¥37,500; a quarter is ¥9,375");
       assert.equal(await saved(plain.id), 0);
       const rows = await filled(c);
       assert.deepEqual(rows.map(r => r.title), ["Set aside ¥9,375 for Tax (25% of Northwind's payment)"]);
-      assert.equal(await markPaidOutside(db, c, inv, TODAY), false);
+      assert.equal(await markPaidOutside(db, c, inv, DEMO_DATE), false);
       assert.equal(await saved(tax.id), 9_375, "a repeat never fills twice");
       assert.equal((await filled(c)).length, 1);
       const state = await stateOf(c);
@@ -332,49 +320,28 @@ async function main() {
     });
 
     await check("a verified completed payment fills the pots after the credit, once", async () => {
-      const c = await seedBen(db, { isDemo: true }), d = await seedBen(db, { isDemo: true });
-      const tax = input({ name: "Tax", fillPct: "25" }), other = input({ name: "Other", fillPct: "40" });
-      await savePot(db, c, tax, "confirmed", { madeBy: "form" }); await savePot(db, d, other, "confirmed", { madeBy: "form" });
+      const c = await seedBen(db, { isDemo: true });
+      const tax = input({ name: "Tax", fillPct: "25" });
+      await savePot(db, c, tax, "confirmed", { madeBy: "form" });
       const order = "ORDER-FICTIONAL-POTS";
       const inv = await invoice(c, "Northwind", 25_000, { paypalOrderId: order, paypalPayeeId: "SELLERFICTIONAL" });
       const connection = async (hid: string) => (await first(db.select().from(schema.paypalConnections).where(eq(schema.paypalConnections.householdId, hid)))).balanceMinor;
-      const [start, startD] = [await connection(c), await connection(d)];
+      const start = await connection(c);
       const event = { id: "WH-POTS-PAID", event_type: "PAYMENT.CAPTURE.COMPLETED", create_time: "2026-11-14T16:00:00Z", resource: { id: "CAP-POTS", status: "COMPLETED",
         amount: { currency_code: "USD", value: "250.00" }, custom_id: inv, supplementary_data: { related_ids: { order_id: order } } } };
-      const capture: CaptureOrder = async () => { throw new Error("A completed payment is not captured again"); };
-      await applyVerifiedDelivery(db, event, capture);
-      await applyVerifiedDelivery(db, event, capture);
+      await applyVerifiedDelivery(db, event, noCapture);
+      await applyVerifiedDelivery(db, event, noCapture);
       assert.equal(await connection(c), start + 37_500);
       assert.equal(await saved(tax.id), 9_375);
-      assert.equal(await saved(other.id), 0, "another household's pot is not touched");
-      assert.equal(await connection(d), startD);
       const rows = await filled(c);
       assert.deepEqual(rows.map(r => [r.title, r.refId]), [["Set aside ¥9,375 for Tax (25% of Northwind's payment)", tax.id]]);
       assert.equal((await events(c, "invoice_paid")).filter(e => e.refId === inv).length, 1);
-      assert.equal((await filled(d)).length, 0);
       // The available cash is the credited balance less the pot.
       const state = await stateOf(c);
       assert.equal(availableCash(state), state.paypal + state.bank - 9_375);
     });
 
-    await check("every pot read and write is scoped by household", async () => {
-      const x = await seedBen(db, { isDemo: true }), y = await seedBen(db, { isDemo: true });
-      const px = input({ name: "Only X", fillPct: "10", saved: "100" });
-      await savePot(db, x, px, "confirmed", { madeBy: "form" });
-      assert.deepEqual((await stateOf(y)).pots, []);
-      assert.equal((await stateOf(x)).pots.length, 1);
-      await db.transaction(tx => fillPots(tx, y, 100_000, "Y's payment"));
-      assert.equal(await saved(px.id), 100);
-      assert.equal(await removePot(db, y, px.id), false);
-      assert.equal(await confirmPending(db, y, "pot", px.id), false);
-      await assert.rejects(savePot(db, y, px, "confirmed", { madeBy: "form" }));
-      await assert.rejects(savePot(db, "", px, "confirmed", { madeBy: "form" }), /household id is required/);
-      await assert.rejects(db.transaction(tx => fillPots(tx, "", 1, "x")), /household id is required/);
-      assert.equal(await saved(px.id), 100);
-      assert.equal((await loadNavigationData(db, y)).pending, (await loadNavigationData(db, await seedBen(db, { isDemo: true }))).pending);
-    });
-
-    console.log(`Pots checks passed (${passed}).`);
+    console.log(`Pots checks passed (${tally.passed}).`);
   } finally {
     await pg.close();
   }

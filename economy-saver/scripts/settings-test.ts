@@ -1,13 +1,11 @@
-// Isolated SQL contract tests. The test-only Vault double does not claim encryption verification.
+// Settings and AI-key contract tests: Settings reads and writes, the household's own AI connection and its saved key, the connection
+// check, the model list and funding options. The Vault double is test-only and does not claim encryption verification.
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import Module from "node:module";
 import { setImmediate as nextTask } from "node:timers/promises";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { and, eq } from "drizzle-orm";
+import { createChecks, openDb, saveEnv } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { missingAskSetting } from "@/lib/agent/availability";
 import { AiKeyError, deleteHouseholdConnection, deleteHouseholdKey, aiConnection, connectionView, saveHouseholdConnection } from "@/db/ai-key";
@@ -16,6 +14,7 @@ import { listModels } from "@/lib/ai/list-models";
 import { providerFailureOf, type ProviderFailureKind } from "@/lib/ai/provider-failure";
 import { modelsFor, scheduleModelChoices } from "@/components/settings/model-choices";
 import { fakeModel, type FakeMode } from "./ai-fake";
+import { DEMO_DATE } from "@/db/clock";
 import { seedBen } from "@/db/seed";
 import { parseMinor } from "@/db/money";
 import { billEditInput, updateBill } from "@/db/bills";
@@ -40,23 +39,10 @@ const setWhose = async (db: Parameters<typeof updateBill>[0], hid: string, billI
 const AI_SETTINGS = ["APP_URL", "AI_PROTOCOL", "AI_BASE_URL", "AI_API_KEY", "AI_TEXT_MODEL", "AI_DOCUMENT_MODEL", "AI_KEY_SEAL_KEY"];
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
-  let passed = 0;
-  async function check(name: string, run: () => Promise<void>) {
-    await run(); passed++; console.log(`✓ ${name}`);
-  }
-  const previous = Object.fromEntries(AI_SETTINGS.map(name => [name, process.env[name]]));
+  const { pg, db } = await openDb({ vault: true });
+  const { check, tally } = createChecks();
+  const restoreSettings = saveEnv(AI_SETTINGS);
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
-    // Vault's public SQL interface is represented only in this disposable test database.
-    await pg.exec(`create schema vault;
-      create table vault.secrets(id uuid primary key default gen_random_uuid(), name text unique, decrypted_secret text);
-      create view vault.decrypted_secrets as select * from vault.secrets;
-      create function vault.create_secret(value text, label text, description text) returns uuid language plpgsql as $$
-        declare secret_id uuid; begin insert into vault.secrets(name,decrypted_secret) values(label,value) returning id into secret_id; return secret_id; end $$;
-      create function vault.update_secret(secret_id uuid, value text, label text) returns void language sql as $$
-        update vault.secrets set decrypted_secret=value,name=label where id=secret_id $$;`);
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     await check("Settings loads navigation, settings and token list in one household-scoped read transaction", async () => {
       const [workspace, settings, tokens] = await db.transaction(tx => Promise.all([
@@ -309,9 +295,10 @@ async function main() {
     });
     await check("an own connection needs no server setting; a missing model for the need is a clear error", async () => {
       await own(a).done;
-      const saved = { ...Object.fromEntries(AI_SETTINGS.map(name => [name, process.env[name]])) };
+      const restoreOwn = saveEnv(AI_SETTINGS);
+      const seal = process.env.AI_KEY_SEAL_KEY;
       for (const name of AI_SETTINGS) delete process.env[name];
-      process.env.AI_KEY_SEAL_KEY = saved.AI_KEY_SEAL_KEY; // the household's own key needs the seal setting, not the AI_ defaults
+      process.env.AI_KEY_SEAL_KEY = seal; // the household's own key needs the seal setting, not the AI_ defaults
       try {
         assert.equal(missingAskSetting(false), "AI_TEXT_MODEL");
         assert.equal(missingAskSetting(true), null);
@@ -323,7 +310,7 @@ async function main() {
         await db.update(schema.households).set({ aiTextModel: null }).where(eq(schema.households.id, a));
         await assert.rejects(aiConnection(db, a, "text"), { message: "Your AI model has no model for questions. Choose one in Settings." });
       } finally {
-        for (const [name, value] of Object.entries(saved)) if (value !== undefined) process.env[name] = value;
+        restoreOwn();
       }
       await db.transaction(tx => deleteHouseholdKey(tx, a));
     });
@@ -413,7 +400,7 @@ async function main() {
       const hid = await seedBen(db, { isDemo: true });
       const settings = await loadSettings(db, hid), card = settings.cards[0];
       await db.update(schema.cards).set({ closingDay: 14 }).where(and(eq(schema.cards.householdId, hid), eq(schema.cards.id, card.id)));
-      const addCharge = async (amount: number) => (await db.insert(schema.charges).values({ householdId: hid, cardId: card.id, merchant: "Fictional late charge", amountMinor: amount, currency: "JPY", date: "2026-11-14", source: "manual", status: "pending" }).returning())[0];
+      const addCharge = async (amount: number) => (await db.insert(schema.charges).values({ householdId: hid, cardId: card.id, merchant: "Fictional late charge", amountMinor: amount, currency: "JPY", date: DEMO_DATE, source: "manual", status: "pending" }).returning())[0];
       const charge = await addCharge(1234);
       await runDaily(db, hid);
       const get = async () => (await db.select().from(schema.cardStatements).where(and(eq(schema.cardStatements.householdId, hid), eq(schema.cardStatements.cardId, card.id), eq(schema.cardStatements.closedOn, "2026-11-14"))))[0];
@@ -425,14 +412,14 @@ async function main() {
       await Promise.all([runDaily(db, hid), confirmPending(db, hid, "charge", next.id), confirmPending(db, hid, "charge", next.id)]);
       assert.equal((await get()).amountMinor, before + 1234 + 4321);
       const [document] = await db.insert(schema.documents).values({ householdId: hid, kind: "upload", storagePath: hid + "/test-reading", mime: "image/png" }).returning();
-      const value = { kind: "charge" as const, name: "Fictional receipt", date: "2026-11-14", amountMinor: 567, currency: "JPY" as const, category: "other" as const, businessBp: 0, cardId: card.id, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null, repeatUntil: null };
+      const value = { kind: "charge" as const, name: "Fictional receipt", date: DEMO_DATE, amountMinor: 567, currency: "JPY" as const, category: "other" as const, businessBp: 0, cardId: card.id, repeat: null, nextAmountMinor: null, nextAmountFrom: null, cancelBy: null, repeatUntil: null };
       const [reading] = await db.insert(schema.readings).values({ householdId: hid, documentId: document.id, target: "charge", extracted: { original: value, proposed: value } }).returning();
       await Promise.all([runDaily(db, hid), reviewReading(db, hid, reading.id, value), reviewReading(db, hid, reading.id, value)]);
       assert.equal((await get()).amountMinor, before + 1234 + 4321 + 567);
       await db.delete(schema.documents).where(and(eq(schema.documents.householdId, hid), eq(schema.documents.id, document.id)));
     });
     await check("options rank total cost, preserve cents, flag US assumptions and never presume credit eligibility", async () => {
-      const state = await loadMoneyState(db, b, "2026-11-14");
+      const state = await loadMoneyState(db, b, DEMO_DATE);
       const options = fundingOptions(state);
       assert.equal(options.gap, 18780);
       assert.deepEqual(options.rows.map(row => row.cost), options.rows.map(row => row.cost).sort((a, b) => a - b));
@@ -628,7 +615,7 @@ async function main() {
       assert.deepEqual(await read(async () => new Response(null, { status: 503 })), { models: [], problem });
       assert.deepEqual(await read(async () => { throw new Error(fictional); }), { models: [], problem });
     });
-    await check("the Stage 34 QA preload is opt-in and keeps its marked fictional keys on the fixture host", async () => {
+    await check("the model-settings QA fixture is opt-in and keeps its marked fictional keys on the fixture host", async () => {
       const priorOptIn = process.env.PES_MODEL_SETTINGS_QA;
       const originalFetch = globalThis.fetch;
       delete process.env.PES_MODEL_SETTINGS_QA;
@@ -657,7 +644,7 @@ async function main() {
       assert.deepEqual(passthrough, [wrongHost]);
     });
 
-    await check("the Stage 34 QA transport drives the real catalogue and save checks without network", async () => {
+    await check("the model-settings QA transport drives the real catalogue and save checks without network", async () => {
       const { withModelSettingsFixture } = await import("./model-settings-qa");
       const fetch = withModelSettingsFixture(async () => {
         assert.fail("marked fictional keys must never reach the fallback transport");
@@ -686,9 +673,9 @@ async function main() {
       const missing = await checkConnection({ ...models, key: keyFor("missing") }, opts);
       assert.deepEqual(missing.failed.map(({ name, providerFailure }) => [name, providerFailure]), [["reads_images", "model"]]);
     });
-    console.log(`${passed}/${passed} settings and AI-key contract checks passed.`);
+    console.log(`${tally.passed} settings and AI-key contract checks passed.`);
   } finally {
-    for (const [name, value] of Object.entries(previous)) { if (value === undefined) delete process.env[name]; else process.env[name] = value; }
+    restoreSettings();
     await pg.close();
   }
 }

@@ -6,7 +6,7 @@ import type { PayPalCall } from "@/lib/paypal/contracts";
 import { isPayPalApproveUrl } from "@/lib/paypal/send";
 
 /** What fipa asks the person to allow: take payments for them, see their account details, search their transactions. */
-export const REFERRAL_FEATURES = ["PAYMENT", "ACCESS_MERCHANT_INFORMATION", "ADVANCED_TRANSACTIONS_SEARCH"] as const;
+const REFERRAL_FEATURES = ["PAYMENT", "ACCESS_MERCHANT_INFORMATION", "ADVANCED_TRANSACTIONS_SEARCH"] as const;
 
 /** Where PayPal sends the person after sign-up. The tracking id the owner just started rides on it and is checked against the stored one. */
 export function returnUrl(trackingId: string): string {
@@ -42,7 +42,7 @@ export async function createReferral(call: PayPalCall, trackingId: string): Prom
   return url.toString();
 }
 
-export type SellerStatus =
+type SellerStatus =
   | { found: false }
   | { found: true; merchantId: string; email: string | null; ready: boolean; missing: string[] };
 

@@ -1,7 +1,7 @@
 import { MonthList } from "@/components/spending/MonthSplit";
 import { homeDateLabel } from "@/components/ui/dates";
 import { PanelHint } from "@/components/ui/PanelHint";
-import { NOBODY_OWES } from "@/components/ui/words";
+import { NOBODY_OWES } from "@/lib/money/split";
 import { Sentence } from "@/components/home/Sentence";
 import { RankedBars } from "@/components/views/forms/RankedBars";
 import { ViewPanel, type PanelQuestion } from "@/components/views/ViewPanel";

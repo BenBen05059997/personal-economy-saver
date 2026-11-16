@@ -2,7 +2,7 @@
 // Every word and number is written here from the rows and the engine, never by the model (D40). The state of a draft is read from the rows now:
 // still pending = waiting for the person's OK, confirmed = confirmed, gone = not added.
 import { categoryLabel } from "@/lib/money/categories";
-import { dayLabel, minorMoney, toMinor } from "@/lib/money/format";
+import { dayLabel, minorMoney, toMinor, WEEKDAYS } from "@/lib/money/format";
 import { goalPace } from "@/lib/money/goals";
 import { allocate } from "@/lib/money/split";
 import type { SpendingInput } from "@/lib/money/spending";
@@ -22,7 +22,7 @@ const EVENT_SUFFIX = / (bill|charge|pot) to check$/;
 /** "Sat Nov 14". */
 function dayWithWeekday(iso: string): string {
   const day = new Date(`${iso}T00:00:00Z`).getUTCDay();
-  return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day]} ${dayLabel(iso)}`;
+  return `${WEEKDAYS[day]} ${dayLabel(iso)}`;
 }
 
 type Context = { state: MoneyState; spending: SpendingInput };

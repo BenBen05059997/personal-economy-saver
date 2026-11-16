@@ -8,9 +8,9 @@ import { benMoney } from "@/lib/sample/ben";
 import { StackedColumns } from "@/components/views/forms/StackedColumns";
 import { monthTrendView } from "@/lib/views/v/month-trend";
 import type { ViewResult } from "@/lib/views/types";
+import { createSyncChecks } from "../fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createSyncChecks();
 const ctx = { state: benMoney, spending: benMoney };
 const result = monthTrendView({}, ctx) as ViewResult<"stacked_columns">;
 const data = result.data!;
@@ -80,4 +80,4 @@ check("month_trend: the highest month and its largest one-off item are facts wit
   assert.ok(result.line!.includes(biggest!.about!.name));
 });
 
-console.log(`month-trend: ${passed} passed`);
+console.log(`month-trend: ${tally.passed} passed`);

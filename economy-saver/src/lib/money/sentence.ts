@@ -1,5 +1,6 @@
 import type { Currency } from "@/lib/catalogue/types";
-import { aboutMoney, minorMoney, minorPerUnit, money, ordinal } from "./format";
+import { aboutMoney, firstName, minorMoney, minorPerUnit, money, ordinal } from "./format";
+import { pluralWord } from "@/lib/plural";
 import { highEndsTurningShort, uncountedInWindow } from "./gaps";
 import { arrivals, low, safeToSpend, series, WINDOW_DAYS, type LowPoint, type SafeToSpend } from "./runway";
 import type { MoneyState } from "./types";
@@ -51,7 +52,7 @@ function composeSentence(safe: SafeToSpend, usualLow: LowPoint, currency: Curren
   }
   const names = safe.lateClients;
   const named = (name: string) => {
-    const matches = known.filter(client => client.name.split(" ")[0] === name);
+    const matches = known.filter(client => firstName(client.name) === name);
     return matches.length === 1 ? { id: matches[0].id, name } : name;
   };
   const list = new Intl.ListFormat("en", { style: "long", type: "conjunction" }).formatToParts(names);
@@ -95,7 +96,7 @@ function gapNote(state: MoneyState): string | null {
   const notes: string[] = [];
   const uncounted = uncountedInWindow(state).map(bill => bill.biller);
   if (uncounted.length > 0) {
-    notes.push(`Not counted: ${new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(uncounted)} (${uncounted.length === 1 ? "amount" : "amounts"} not known).`);
+    notes.push(`Not counted: ${new Intl.ListFormat("en", { style: "long", type: "conjunction" }).format(uncounted)} (${pluralWord(uncounted.length, "amount")} not known).`);
   }
   const [turns] = highEndsTurningShort(state);
   if (turns !== undefined) {

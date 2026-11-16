@@ -27,6 +27,7 @@ import { type DocumentCard as Card } from "@/lib/reader/document-card";
 import type { Drawn, TurnView } from "@/lib/agent/view";
 import type { Recipe } from "@/lib/canvas/schema";
 import type { MemoryItem } from "@/lib/schema/memory";
+import { MAX_DOCUMENT_BYTES, documentLimitMessage } from "@/lib/document-limit";
 import { DEVICE_MEMORY_SOURCE_LABEL, memorySourceLabel, splitSources, storeSources, type ConversationTurn, type TurnSource } from "@/lib/schema/turn";
 import {
   applyDeviceMemoryChanges, deleteDeviceConversation, deleteDeviceTurn, deviceMemory, devicePins, listDevice, pinOnDevice, readDeviceBrief, saveDeviceTurn, setDeviceThumb, unpinOnDevice, updateDevicePin, writeDeviceBrief,
@@ -46,7 +47,6 @@ const viewOf = (turn: ConversationTurn): TurnView => ({
 const STORAGE_FAILED = "Couldn’t use this device’s storage.";
 const TRY_AGAIN = "Try again.";
 
-const MAX_FILE_BYTES = 6 * 1024 * 1024;
 const FILE_TYPES = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
 
 /** Ask’s thread, composer and canvas for both the full page and the docked panel (D60). */
@@ -222,7 +222,7 @@ export function AskPage({
 
   /** Attaches one file as its own turn and card; returns the sentence for a refusal, or null when it went through. */
   async function attachOne(file: File, note: string): Promise<string | null> {
-    if (file.size > MAX_FILE_BYTES) return "Document exceeds the 6 MiB limit.";
+    if (file.size > MAX_DOCUMENT_BYTES) return documentLimitMessage("Document");
     if (!FILE_TYPES.includes(file.type)) return "Select a PDF, JPEG, PNG or WebP file.";
     const key = `${file.name}|${file.size}|${file.lastModified}|${note}`;
     if (attached.current?.key !== key) attached.current = { key, id: crypto.randomUUID() };

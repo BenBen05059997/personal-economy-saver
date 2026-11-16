@@ -3,9 +3,9 @@ import { logSettingProblem } from "@/lib/operator-log";
 import { and, eq, sql } from "drizzle-orm";
 import { pgSchema, text, uuid } from "drizzle-orm/pg-core";
 import { InputError } from "./input-error";
-import { checkBaseUrl, localAllowed } from "@/lib/ai/endpoint";
+import { checkBaseUrl, localCallsAllowed } from "@/lib/ai/endpoint";
 import { readCheck, type ConnectionCheck } from "@/lib/ai/check";
-import { keyOwner, providerById, wrongProviderWords } from "@/lib/ai/providers";
+import { ANTHROPIC_BASE_URL, keyOwner, providerById, wrongProviderWords } from "@/lib/ai/providers";
 import { looksLikeApiKey } from "@/lib/ai/key-text";
 import { providerFailureWords } from "@/lib/ai/provider-failure";
 import { isTested } from "@/lib/ai/tested";
@@ -16,7 +16,6 @@ import { households } from "./schema";
 
 /** Messages contain configuration names and fixed text only; safe for a response. */
 export class AiKeyError extends Error {}
-const anthropicHost = "https://api.anthropic.com";
 // The Vault secret keeps the name it was first saved under, so keys saved earlier keep working.
 const secretName = (hid: string) => `household:${hid}:anthropic`;
 // Vault is an existing private extension schema, outside the application's migrations.
@@ -38,7 +37,6 @@ const settingOf = (name: string) => {
 };
 
 /** The app's own address decides whether a model on this machine may be used (lib/ai/endpoint.ts). */
-const allowLocal = () => { const raw = process.env.APP_URL?.trim(); return raw ? localAllowed(new URL(raw)) : false; };
 
 // A saved key is sealed a second time with the Worker-only AI_KEY_SEAL_KEY before it goes into Vault (D33), the way MCP tokens
 // are sealed with MCP_TOKEN_KEY: AES-GCM, a fresh 12-byte IV, the household id as associated data (a sealed text copied to
@@ -101,7 +99,7 @@ export async function aiConnection(db: Db, householdId: string, need: ModelNeed)
       const model = need === "text" ? household.aiTextModel : household.aiDocumentModel;
       if (!model) throw NO_MODEL(need);
       let baseUrl: string;
-      try { baseUrl = checkBaseUrl(household.aiBaseUrl, { allowLocal: allowLocal() }); }
+      try { baseUrl = checkBaseUrl(household.aiBaseUrl, { allowLocal: localCallsAllowed() }); }
       catch (error) { if (error instanceof InputError) throw new AiKeyError("Your AI model's address can't be used. Choose it again in Settings."); throw error; }
       const key = household.aiKeySecretId ? await vaultKey(db, hid, household) : null;
       if (household.aiKeySecretId && !key) throw new AiKeyError("Saved AI key is unavailable. Replace it in Settings.");
@@ -116,7 +114,7 @@ export async function aiConnection(db: Db, householdId: string, need: ModelNeed)
     };
     const protocol = settingOf("AI_PROTOCOL");
     if (protocol !== "anthropic" && protocol !== "openai") { logSettingProblem("ai_not_set_up", "AI_PROTOCOL must be anthropic or openai"); throw new AiKeyError("The AI model isn’t set up on this server yet."); }
-    const baseUrl = protocol === "anthropic" ? anthropicHost : settingOf("AI_BASE_URL");
+    const baseUrl = protocol === "anthropic" ? ANTHROPIC_BASE_URL : settingOf("AI_BASE_URL");
     const key = settingOf("AI_API_KEY");
     return { protocol, baseUrl, key, ...models, own: false } satisfies Connection;
   } catch (error) {
@@ -147,7 +145,7 @@ function chosenEndpoint(input: Pick<ConnectionInput, "provider" | "baseUrl" | "k
   if (!provider) throw new AiKeyError("Choose a provider.");
   if (provider.id === "custom" && !signedIn) throw new AiKeyError("A custom address needs an account. Sign in from Settings → Account.");
   let baseUrl: string;
-  try { baseUrl = checkBaseUrl(provider.baseUrl ?? input.baseUrl, { allowLocal: allowLocal() }); }
+  try { baseUrl = checkBaseUrl(provider.baseUrl ?? input.baseUrl, { allowLocal: localCallsAllowed() }); }
   catch (error) { if (error instanceof InputError) throw new AiKeyError(error.message); throw error; }
   const newKey = input.key.trim();
   if (newKey && !KEY_SHAPE.test(newKey)) throw new AiKeyError("The key must be 1 to 500 characters with no spaces.");

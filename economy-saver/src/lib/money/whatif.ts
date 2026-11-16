@@ -11,7 +11,7 @@ import type { Change } from "@/lib/canvas/schema";
 import { latestDate } from "./horizon";
 import { minorPerUnit } from "./format";
 import type { Bill, MoneyState } from "./types";
-import { storedId } from "./repeat";
+import { storedId } from "./name-key";
 import { addDays } from "./dates";
 
 /** A what-if the engine cannot run: the message is written for the person. */

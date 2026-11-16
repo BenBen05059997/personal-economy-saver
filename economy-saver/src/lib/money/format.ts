@@ -9,7 +9,10 @@ export function group(n: number): string {
   return Math.abs(Math.round(n)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
-function currencySymbol(c: Currency): string {
+/** The first word of a name: "Ana Reyes" is "Ana". */
+export const firstName = (name: string) => name.split(" ")[0];
+
+export function currencySymbol(c: Currency): string {
   return c === "JPY" ? "¥" : "$";
 }
 
@@ -77,7 +80,7 @@ export function dayLabel(iso: string): string {
   return `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
 }
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 /** "2026-11-27" -> "Fri, Nov 27". */
 export function longDay(iso: string): string {

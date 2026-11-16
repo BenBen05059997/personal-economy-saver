@@ -5,7 +5,7 @@ import { toMinor } from "@/lib/money/format";
 import { WINDOW_DAYS } from "@/lib/money/runway";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type TableTwin, type ViewResult } from "../types";
-import { storedId } from "@/lib/money/repeat";
+import { storedId } from "@/lib/money/name-key";
 
 export const whatChangedView: Resolver<"what_changed"> = (args, ctx): ViewResult => {
   const { state, spending } = ctx;

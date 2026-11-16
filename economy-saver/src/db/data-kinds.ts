@@ -7,13 +7,15 @@ import { removeStorageFiles, type DocumentStore } from "./document-cleanup";
 import { deleteMemory, forgetEverything } from "./memory";
 import { unpinCanvas } from "./canvases";
 import { InputError } from "./input-error";
+import { Uuid } from "@/lib/stable-id";
+import { plural } from "@/lib/money/format";
 import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import * as s from "./schema";
 
 export const DATA_KINDS = ["record", "memory", "canvases", "journal", "documents", "reminders", "push_subscriptions"] as const;
 export type DataKind = (typeof DATA_KINDS)[number];
 
-const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+const uuid = (value: string) => Uuid.safeParse(value).success;
 const count = async (db: Db, table: PgTable & { householdId: AnyPgColumn }, hid: string): Promise<number> => {
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(table).where(eq(table.householdId, hid));
   return n;
@@ -168,7 +170,7 @@ export async function deleteKind(db: Db, householdId: string, kind: DataKind, by
         await tx.update(s.bills).set({ documentId: null }).where(eq(s.bills.householdId, hid));
         await tx.update(s.charges).set({ documentId: null }).where(eq(s.charges.householdId, hid));
         await tx.delete(s.documents).where(eq(s.documents.householdId, hid));
-        await recordEvent(tx, hid, { ...by, kind: "data_deleted", title: `Deleted ${rows.length} uploaded document${rows.length === 1 ? "" : "s"}` });
+        await recordEvent(tx, hid, { ...by, kind: "data_deleted", title: `Deleted ${plural(rows.length, "uploaded document")}` });
         await removeStorageFiles(hid, rows.map(r => r.path), "the documents", store); // last, as in deleteDocument
         return rows.length;
       });

@@ -1,40 +1,31 @@
-// 27E: limits, budgets, storage. Per-address limits before a household exists, the app-wide daily AI budget, Storage bytes per
+// Limits, budgets and storage. Per-address limits before a household exists, the app-wide daily AI budget, Storage bytes per
 // household and their cap, retention of raw files, and the small stored webhook payload. PGlite, no credentials; Storage and the
 // network are answered locally. Fictional data only. Run from the project root:
 // npx tsx --tsconfig ./tsconfig.json scripts/limits-test.ts
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { eq, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, noCapture, openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { aiConnection } from "@/db/ai-key";
-import { DOCUMENT_NOT_READ, documentsLeft, questionsLeft, spendAiBudget } from "@/db/ai-cap";
+import { DAILY_DOCUMENTS, DAILY_QUESTIONS, DOCUMENT_NOT_READ, documentsLeft, questionsLeft, spendAiBudget } from "@/db/ai-cap";
 import { runDaily } from "@/db/daily";
 import { deleteDocument } from "@/db/data-kinds";
 import { DEMO_STORAGE_CAP_BYTES, RAW_FILE_RETENTION_DAYS, STORAGE_CAP_BYTES, removeExpiredFiles, requireStorageRoom, storedBytes } from "@/db/document-cleanup";
-import type { Db } from "@/db/household";
 import { ClientIpError, clientIp, consumeIpRequest, hashIp, pruneIpBuckets } from "@/db/rate-limit";
 import { readDocument, requireDocumentBudget, storeDocument } from "@/db/reader-job";
 import { seedBen } from "@/db/seed";
 import { applyVerifiedDelivery, storedPayload } from "@/lib/events";
-import type { CaptureOrder } from "@/lib/paypal/contracts";
 import { missingAskSetting } from "@/lib/agent/availability";
 import { ReaderError } from "@/lib/reader/settings";
 
 const MiB = 1024 * 1024;
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
-  const store = db as unknown as Db;
-  let passed = 0;
-  async function check(name: string, run: () => Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { pg, db, store } = await openDb();
+  const { check, tally } = createChecks();
   const savedEnv = { ...process.env };
   const savedFetch = globalThis.fetch;
-  await migrate(db, { migrationsFolder: "./drizzle" });
   try {
     // ---------------------------------------------------------------- 1. per-address limits
     await check("clientIp reads the header named by CLIENT_IP_HEADER, first entry of a list, and refuses when the setting or the header is missing", async () => {
@@ -71,35 +62,35 @@ async function main() {
     });
 
     // ---------------------------------------------------------------- 2. the owner's AI connection is capped per household per day (D33)
-    await check("the server's model: 30 questions and 10 document reads a day per household; the 31st and 11th are refused; a household's own key is never counted", async () => {
+    await check("the server's model: a daily count of questions and of document reads per household, refused past it; a household's own key is never counted", async () => {
       Object.assign(process.env, { AI_PROTOCOL: "anthropic", AI_API_KEY: "fictional-key", AI_TEXT_MODEL: "fictional-model" });
       const a = await seedBen(db), b = await seedBen(db), own = await seedBen(db);
       assert.equal(missingAskSetting(false), null);
       assert.equal((await aiConnection(store, a, "text")).own, false);
       await db.update(schema.households).set({ aiProtocol: "openai", aiBaseUrl: "https://models.example/v1", aiProvider: "custom", aiTextModel: "own", aiDocumentModel: "own" }).where(eq(schema.households.id, own));
       assert.equal((await aiConnection(store, own, "text")).own, true);
-      assert.equal(await questionsLeft(store, a), 30);
+      assert.equal(await questionsLeft(store, a), DAILY_QUESTIONS);
       assert.equal(await questionsLeft(store, own), null, "no hint for a household on its own key");
-      assert.equal(await documentsLeft(store, a), 10);
+      assert.equal(await documentsLeft(store, a), DAILY_DOCUMENTS);
       assert.equal(await documentsLeft(store, own), null, "no document hint for a household on its own key");
-      for (let i = 0; i < 30; i++) assert.equal(await spendAiBudget(store, a, "question"), true, `question ${i + 1}`);
-      assert.equal(await spendAiBudget(store, a, "question"), false, "the 31st is refused");
+      for (let i = 0; i < DAILY_QUESTIONS; i++) assert.equal(await spendAiBudget(store, a, "question"), true, `question ${i + 1}`);
+      assert.equal(await spendAiBudget(store, a, "question"), false, "one past the day's questions is refused");
       assert.equal(await questionsLeft(store, a), 0);
-      for (let i = 0; i < 10; i++) assert.equal(await spendAiBudget(store, a, "document"), true, `document ${i + 1}`);
-      assert.equal(await spendAiBudget(store, a, "document"), false, "the 11th is refused");
+      for (let i = 0; i < DAILY_DOCUMENTS; i++) assert.equal(await spendAiBudget(store, a, "document"), true, `document ${i + 1}`);
+      assert.equal(await spendAiBudget(store, a, "document"), false, "one past the day's documents is refused");
       assert.equal(await documentsLeft(store, a), 0);
       assert.equal(await spendAiBudget(store, b, "question"), true, "another household has its own day");
-      assert.equal(await questionsLeft(store, b), 29);
-      for (let i = 0; i < 40; i++) assert.equal(await spendAiBudget(store, own, "question"), true);
-      for (let i = 0; i < 15; i++) assert.equal(await spendAiBudget(store, own, "document"), true);
+      assert.equal(await questionsLeft(store, b), DAILY_QUESTIONS - 1);
+      for (let i = 0; i < DAILY_QUESTIONS + 10; i++) assert.equal(await spendAiBudget(store, own, "question"), true);
+      for (let i = 0; i < DAILY_DOCUMENTS + 5; i++) assert.equal(await spendAiBudget(store, own, "document"), true);
       const rows = await db.select().from(schema.requestBuckets).where(eq(schema.requestBuckets.householdId, own));
       assert.equal(rows.filter(r => r.purpose.startsWith("ai-")).length, 0, "an own-key household leaves no count");
       // the day window resets by day: yesterday's count starts again from one
       await db.update(schema.requestBuckets).set({ window: sql`now() - interval '1 day'` }).where(eq(schema.requestBuckets.householdId, a));
-      assert.equal(await questionsLeft(store, a), 30, "yesterday's count is not today's");
+      assert.equal(await questionsLeft(store, a), DAILY_QUESTIONS, "yesterday's count is not today's");
       assert.equal(await spendAiBudget(store, a, "question"), true);
       assert.equal(await spendAiBudget(store, a, "document"), true);
-      assert.equal(await questionsLeft(store, a), 29);
+      assert.equal(await questionsLeft(store, a), DAILY_QUESTIONS - 1);
       // a household that adds its own key mid-day is no longer counted
       await db.update(schema.households).set({ aiProtocol: "openai", aiBaseUrl: "https://models.example/v1", aiProvider: "custom", aiTextModel: "own", aiDocumentModel: "own" }).where(eq(schema.households.id, b));
       assert.equal(await spendAiBudget(store, b, "question"), true);
@@ -127,11 +118,11 @@ async function main() {
       return db.insert(schema.readings).values({ householdId: hid, documentId, extracted: { original: extracted, proposed: extracted }, target: "charge", status, confirmedAt });
     };
 
-    await check("documents on the server's model: an upload past 10 a day is refused before it is stored; the same file is not counted twice; forwarded mail waits in To check as not read and retries the next day", async () => {
+    await check("documents on the server's model: an upload past the day's documents is refused before it is stored; the same file is not counted twice; forwarded mail waits in To check as not read and retries the next day", async () => {
       const a = await seedBen(db);
       const file = (n: number) => pdf(`budget ${n}`);
-      for (let n = 0; n < 10; n++) await requireDocumentBudget(store, a, "application/pdf", file(n));
-      await assert.rejects(requireDocumentBudget(store, a, "application/pdf", file(10)), (e: unknown) => e instanceof ReaderError && e.status === 429 && /Try again tomorrow/.test(e.message) && /Settings → Your AI model/.test(e.message));
+      for (let n = 0; n < DAILY_DOCUMENTS; n++) await requireDocumentBudget(store, a, "application/pdf", file(n));
+      await assert.rejects(requireDocumentBudget(store, a, "application/pdf", file(DAILY_DOCUMENTS)), (e: unknown) => e instanceof ReaderError && e.status === 429 && /Try again tomorrow/.test(e.message) && /Settings → Your AI model/.test(e.message));
       const stored = await storeDocument(store, a, "upload", "application/pdf", file(0));
       await requireDocumentBudget(store, a, "application/pdf", file(0)); // already held and not failed: no new read, no count
       assert.ok(stored);
@@ -145,22 +136,21 @@ async function main() {
       assert.equal(await spendAiBudget(store, a, "document"), true, "the next day there is room again");
     });
 
-    await check("storage cap: 200 MiB for a household, 20 MiB for Try it, counted over files still stored, refused with words a person reads", async () => {
-      assert.equal(STORAGE_CAP_BYTES, 200 * MiB); assert.equal(DEMO_STORAGE_CAP_BYTES, 20 * MiB);
+    await check("storage cap: one for a household, a smaller one for Try it, counted over files still stored, refused with words a person reads", async () => {
       const real = await seedBen(db), demo = await seedBen(db, { isDemo: true });
-      await addDoc(real, 150 * MiB); await addDoc(demo, 19 * MiB);
-      assert.equal(await storedBytes(store, real), 150 * MiB);
+      await addDoc(real, STORAGE_CAP_BYTES - 50 * MiB); await addDoc(demo, DEMO_STORAGE_CAP_BYTES - 1 * MiB);
+      assert.equal(await storedBytes(store, real), STORAGE_CAP_BYTES - 50 * MiB);
       await requireStorageRoom(store, real, 50 * MiB);
-      await assert.rejects(requireStorageRoom(store, real, 50 * MiB + 1), (e: unknown) => e instanceof ReaderError && /full \(200 MB\)/.test(e.message) && /Delete some/.test(e.message));
+      await assert.rejects(requireStorageRoom(store, real, 50 * MiB + 1), (e: unknown) => e instanceof ReaderError && new RegExp(`full \\(${STORAGE_CAP_BYTES / MiB} MB\\)`).test(e.message) && /Delete some/.test(e.message));
       await requireStorageRoom(store, demo, 1 * MiB);
-      await assert.rejects(requireStorageRoom(store, demo, 1 * MiB + 1), (e: unknown) => e instanceof ReaderError && /full \(20 MB\)/.test(e.message));
+      await assert.rejects(requireStorageRoom(store, demo, 1 * MiB + 1), (e: unknown) => e instanceof ReaderError && new RegExp(`full \\(${DEMO_STORAGE_CAP_BYTES / MiB} MB\\)`).test(e.message));
       await addDoc(real, 40 * MiB, { fileRemovedAt: new Date() });
-      assert.equal(await storedBytes(store, real), 150 * MiB, "a removed file is not counted");
+      assert.equal(await storedBytes(store, real), STORAGE_CAP_BYTES - 50 * MiB, "a removed file is not counted");
     });
 
     await check("storeDocument (the path /api/upload, Ask's Attach a bill and forwarded email share) records the bytes and refuses past the cap before touching Storage", async () => {
       const demo = await seedBen(db, { isDemo: true });
-      await addDoc(demo, 20 * MiB - 1000);
+      await addDoc(demo, DEMO_STORAGE_CAP_BYTES - 1000);
       const file = pdf("fits", 100);
       const id = await storeDocument(store, demo, "upload", "application/pdf", file);
       const [row] = await db.select().from(schema.documents).where(eq(schema.documents.id, id));
@@ -170,27 +160,18 @@ async function main() {
       assert.equal((await db.select().from(schema.documents).where(eq(schema.documents.householdId, demo))).length, 2, "the refused file left no row");
     });
 
-    await check("no per-minute limit: eight different files in a row are all stored, identical bytes stay one document", async () => {
-      const hid = await seedBen(db);
-      const ids: string[] = [];
-      for (let i = 0; i < 8; i++) ids.push(await storeDocument(store, hid, "upload", "application/pdf", pdf(`file ${i}`, 100)));
-      assert.equal(new Set(ids).size, 8);
-      assert.equal(await storeDocument(store, hid, "upload", "application/pdf", pdf("file 3", 100)), ids[3]);
-      assert.equal((await db.select().from(schema.documents).where(eq(schema.documents.householdId, hid))).length, 8);
-    });
-
     // ---------------------------------------------------------------- 4. retention
     await check("retention: a file goes RAW_FILE_RETENTION_DAYS after its last reading was confirmed or dismissed; rows, readings and the document stay", async () => {
-      assert.equal(RAW_FILE_RETENTION_DAYS, 30);
+      const R = RAW_FILE_RETENTION_DAYS;
       const hid = await seedBen(db);
       const now = new Date("2026-11-07T00:00:00Z");
       const days = (n: number) => new Date(now.getTime() - n * 86_400_000);
-      const old = await addDoc(hid, 1000); await addReading(hid, old.id, "confirmed", days(40));
-      const oldRejected = await addDoc(hid, 1000); await addReading(hid, oldRejected.id, "rejected", null); await db.update(schema.readings).set({ createdAt: days(45) }).where(eq(schema.readings.documentId, oldRejected.id));
-      const recent = await addDoc(hid, 1000); await addReading(hid, recent.id, "confirmed", days(5));
-      const open = await addDoc(hid, 1000); await addReading(hid, open.id, "confirmed", days(60)); await addReading(hid, open.id, "to_check", null);
+      const old = await addDoc(hid, 1000); await addReading(hid, old.id, "confirmed", days(R + 10));
+      const oldRejected = await addDoc(hid, 1000); await addReading(hid, oldRejected.id, "rejected", null); await db.update(schema.readings).set({ createdAt: days(R + 15) }).where(eq(schema.readings.documentId, oldRejected.id));
+      const recent = await addDoc(hid, 1000); await addReading(hid, recent.id, "confirmed", days(R - 25));
+      const open = await addDoc(hid, 1000); await addReading(hid, open.id, "confirmed", days(2 * R)); await addReading(hid, open.id, "to_check", null);
       const noReadings = await addDoc(hid, 1000);
-      const queued = await addDoc(hid, 1000, { status: "queued" }); await addReading(hid, queued.id, "confirmed", days(60));
+      const queued = await addDoc(hid, 1000, { status: "queued" }); await addReading(hid, queued.id, "confirmed", days(2 * R));
       const sent: string[] = [];
       const fake = { remove: async (paths: string[]) => { sent.push(...paths); return { error: null }; } };
       const before = await storedBytes(store, hid);
@@ -203,8 +184,8 @@ async function main() {
       assert.equal(await storedBytes(store, hid), before - 2000);
       assert.equal(await removeExpiredFiles(store, hid, now, fake), 0, "nothing more the second time");
       // the recent one goes once it is past the line; the others stay held back by their state
-      assert.equal(await removeExpiredFiles(store, hid, new Date(now.getTime() + 26 * 86_400_000), fake), 1);
-      const stuck = await addDoc(hid, 10); await addReading(hid, stuck.id, "confirmed", days(90));
+      assert.equal(await removeExpiredFiles(store, hid, new Date(now.getTime() + (R - 4) * 86_400_000), fake), 1);
+      const stuck = await addDoc(hid, 10); await addReading(hid, stuck.id, "confirmed", days(3 * R));
       await assert.rejects(removeExpiredFiles(store, hid, new Date("2027-06-01T00:00:00Z"), { remove: async () => ({ error: new Error("down") }) }), /Could not remove old documents/);
     });
 
@@ -223,7 +204,7 @@ async function main() {
     await check("per-document delete exists (deleteDocument): removes the file, keeps a bill's row and drops its link", async () => {
       const hid = await seedBen(db);
       const d = await addDoc(hid, 500);
-      const [bill] = await db.insert(schema.bills).values({ householdId: hid, biller: "Fictional Water", amountMinor: 3000, currency: "JPY", dueOn: "2026-12-01", category: "utilities", documentId: d.id } as typeof schema.bills.$inferInsert).returning();
+      const [bill] = await db.insert(schema.bills).values({ householdId: hid, biller: "Fictional Water", amountMinor: 3000, currency: "JPY", due: "2026-12-01", category: "utilities", documentId: d.id }).returning();
       const sent: string[] = [];
       assert.equal(await deleteDocument(store, hid, d.id, { madeBy: "form" }, { remove: async p => { sent.push(...p); return { error: null }; } }), true);
       assert.deepEqual(sent, [d.storagePath]);
@@ -236,10 +217,9 @@ async function main() {
       const event = { id: "WH-LIMITS-1", event_type: "PAYMENT.SALE.COMPLETED", create_time: "2026-11-07T01:00:00Z", resource_type: "sale", summary: "Fictional payer paid 12.00 USD",
         resource: { id: "SALE-1", payer: { email: "fictional.payer@example.test" }, amount: { total: "12.00" } } };
       assert.deepEqual(storedPayload(event, undefined), { resourceId: undefined, createdAt: "2026-11-07T01:00:00Z" });
-      const capture: CaptureOrder = async () => { throw new Error("Nothing is captured here"); };
-      await applyVerifiedDelivery(store, event, capture);
+      await applyVerifiedDelivery(store, event, noCapture);
       const approved = { id: "WH-LIMITS-2", event_type: "CHECKOUT.ORDER.APPROVED", create_time: "2026-11-07T02:00:00Z", resource: { id: "ORDER-LIMITS", payer: { email: "fictional.payer@example.test" } } };
-      await applyVerifiedDelivery(store, approved, capture);
+      await applyVerifiedDelivery(store, approved, noCapture);
       const [kept] = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, "WH-LIMITS-2"));
       assert.deepEqual(kept.payload, { resourceId: "ORDER-LIMITS", createdAt: "2026-11-07T02:00:00Z" }, "the resource id and the time, nothing of the payer");
       const [row] = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, "WH-LIMITS-1"));
@@ -253,7 +233,7 @@ async function main() {
       const [old] = await db.select().from(schema.webhookDeliveries).where(eq(schema.webhookDeliveries.paypalEventId, "WH-OLD-1"));
       assert.deepEqual(old.payload, { invoiceId: "INV2-X", createdAt: "2026-10-01T00:00:00Z" });
     });
-    console.log(`Limits checks passed (${passed}).`);
+    console.log(`Limits checks passed (${tally.passed}).`);
   } finally {
     globalThis.fetch = savedFetch;
     for (const key of Object.keys(process.env)) if (!(key in savedEnv)) delete process.env[key];

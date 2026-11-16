@@ -5,9 +5,9 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { engineFact, fact, forModel, personFact } from "@/lib/money/facts";
 import { CASES, TERMS, termOf } from "@/lib/money/terms";
+import { createSyncChecks } from "./fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createSyncChecks();
 
 check("every term has a label, a meaning, a unit and a case rule", () => {
   for (const term of TERMS) {
@@ -136,4 +136,4 @@ check("the words people see never say \"on time\" and say \"late\" only as the c
   assert.deepEqual(bad, []);
 });
 
-console.log(`\n${passed} checks passed`);
+console.log(`\n${tally.passed} checks passed`);

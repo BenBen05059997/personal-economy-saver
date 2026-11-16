@@ -2,7 +2,7 @@ import { env, PAYPAL_API_BASE } from "@/lib/env";
 import type { PayPalCall, PayPalRequest } from "@/lib/paypal/contracts";
 
 /** How long one PayPal call may take. */
-export const PAYPAL_TIMEOUT_MS = 8000;
+const PAYPAL_TIMEOUT_MS = 8000;
 
 export class PayPalError extends Error {
   constructor(
@@ -62,7 +62,7 @@ function base64url(value: string): string {
 }
 
 /** The act-for-seller assertion (unsigned JWT): names fipa's client id and the account the call is made for. */
-export function authAssertion(merchantId: string): string {
+function authAssertion(merchantId: string): string {
   const { PAYPAL_CLIENT_ID } = env();
   return `${base64url(JSON.stringify({ alg: "none" }))}.${base64url(JSON.stringify({ iss: PAYPAL_CLIENT_ID, payer_id: merchantId }))}.`;
 }
@@ -153,7 +153,7 @@ const READS: { method: PayPalRequest["method"]; path: RegExp }[] = [
 ];
 
 /** Whether paypalRead may make this call. Anything not on the list is refused, so no read can make or take a payment. */
-export const isReadCall = (req: Pick<PayPalRequest, "method" | "path">) =>
+const isReadCall = (req: Pick<PayPalRequest, "method" | "path">) =>
   READS.some(allowed => allowed.method === req.method && allowed.path.test(req.path));
 
 /** A PayPal call that cannot make or take a payment: only the calls on the list above get through. */

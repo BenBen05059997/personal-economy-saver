@@ -10,9 +10,9 @@ import { benMoney } from "@/lib/sample/ben";
 import { PaceLines } from "@/components/views/forms/PaceLines";
 import { monthPaceView } from "@/lib/views/v/month-pace";
 import type { ViewResult } from "@/lib/views/types";
+import { createSyncChecks } from "../fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createSyncChecks();
 const ctx = { state: benMoney, spending: benMoney };
 const pace = monthPace(benMoney, benMoney.today);
 const result = monthPaceView({}, ctx) as ViewResult<"pace_lines">;
@@ -77,4 +77,4 @@ check("the form draws one labelled group, a legend of two, the today mark and th
 });
 
 
-console.log(`month-pace: ${passed} passed`);
+console.log(`month-pace: ${tally.passed} passed`);

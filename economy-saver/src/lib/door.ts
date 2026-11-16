@@ -89,7 +89,7 @@ export function limited(hid: string, purpose: Parameters<typeof rateLimited>[2],
 }
 
 /** The most any form post may carry. The largest real form (a bill with its notes) is a few KB; a CSV statement import is JSON, not a form. */
-export const MAX_FORM_BYTES = 256 * 1024;
+const MAX_FORM_BYTES = 256 * 1024;
 
 /** The posted form, or the bad-fields answer when the body is not a form (JSON, broken multipart, nothing): `formData()` throws there. A body over `MAX_FORM_BYTES` is a 413 whatever Content-Length says. */
 export async function formOf(request: Request): Promise<FormData | Response> {

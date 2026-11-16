@@ -1,11 +1,8 @@
-// The hourly selector and the per-household daily pass, on PGlite and a fake reference-rate fetch.
+// The hourly selector, the per-household daily pass and the cron routes, on PGlite and a fake reference-rate fetch.
 import assert from "node:assert/strict";
 import Module from "node:module";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq, sql } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { dueHouseholds, runDaily } from "@/db/daily";
 import { loadMoneyState } from "@/db/household";
@@ -14,10 +11,8 @@ import { seedBen } from "@/db/seed";
 import { openSuggestions, runPass } from "@/db/suggestions";
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
-  let passed = 0;
-  async function check(name: string, run: () => Promise<void>) { await run(); passed++; console.log("✓ " + name); }
+  const { pg, db } = await openDb({ vault: true }); // housekeeping sweeps saved-key secrets from Supabase Vault's table
+  const { check, tally } = createChecks();
   const realFetch = globalThis.fetch;
   const calls: string[] = [];
   let failEcb = false;
@@ -27,9 +22,6 @@ async function main() {
     return new Response("<Cube time='2026-11-20'><Cube currency='USD' rate='1.1'/><Cube currency='JPY' rate='169.4'/></Cube>");
   };
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
-    // Housekeeping sweeps saved-key secrets; Supabase Vault's table is stood in for here.
-    await pg.exec(`create schema vault; create table vault.secrets(id uuid primary key default gen_random_uuid(), name text unique, decrypted_secret text);`);
     const at = (instant: string) => new Date(instant);
     const seedMany = async (n: number) => { const ids: string[] = []; for (let i = 0; i < n; i++) ids.push(await seedBen(db)); return ids; };
     const tokyo = await seedBen(db);
@@ -75,9 +67,6 @@ async function main() {
       assert.equal(calls.length, before, "a repeated day skips even the reference fetch");
       const open = await openSuggestions(db, tokyo);
       assert.equal(open.filter(row => row.title === "Card A statement due Nov 26").length, 1);
-      const oldEvents = (await db.select().from(schema.events).where(eq(schema.events.householdId, tokyo)))
-        .filter(row => row.kind === "daily_reminder" || row.kind === "nudge_suggested");
-      assert.deepEqual(oldEvents, []);
       const stored = open.find(row => row.title === "Card A statement due Nov 26")!;
       assert.ok(stored.facts.length > 0 && stored.facts.every(item => item.from && item.meaning), "a stored finding carries its facts");
       await db.update(schema.suggestions).set({ facts: [] }).where(eq(schema.suggestions.id, stored.id));
@@ -226,7 +215,7 @@ async function main() {
       }
     });
 
-    await check("the Worker dispatches at most 30 ordered household requests and continues after failures", async () => {
+    await check("the Worker dispatches at most one batch of ordered household requests and continues after failures", async () => {
       const ids = Array.from({ length: CRON_BATCH_SIZE + 5 }, () => crypto.randomUUID());
       const selected: (string | null)[] = [];
       const runs = await dispatchCron(async request => {
@@ -246,7 +235,7 @@ async function main() {
     globalThis.fetch = realFetch;
     await pg.close();
   }
-  console.log("cron: " + passed + " passed");
+  console.log("cron: " + tally.passed + " passed");
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

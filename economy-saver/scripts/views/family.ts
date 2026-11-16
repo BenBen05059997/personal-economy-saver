@@ -1,8 +1,6 @@
 // Who owes whom, People and the family link (D45, D52, D77): the who_owes_whom view, and the family page drawn read-only through the views.
 import assert from "node:assert/strict";
 import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { fact } from "@/lib/money/facts";
 import { splitBalance } from "@/lib/money/split";
 import type { MoneyState } from "@/lib/money/types";
@@ -13,11 +11,10 @@ import { resolveView } from "@/lib/views/resolve";
 import { whoOwesWhomView } from "@/lib/views/v/who-owes-whom";
 import type { ViewResult } from "@/lib/views/types";
 import { reads } from "../fixtures/view-reads";
+import { renderWithRouter } from "../fixtures/harness";
+import { createSyncChecks } from "../fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
-const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} };
-const render = (element: ReturnType<typeof createElement>) => renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: router as never }, element));
+const { check, tally } = createSyncChecks();
 
 // Ben and his wife, 50% each; the split began Nov 1; Ben put a shared ¥8,400 charge on his card on Nov 5.
 const two: MoneyState = {
@@ -55,7 +52,7 @@ check("the line, the table twin and the figures agree; every money figure is an 
   assert.deepEqual(owes.table!.rows.map(row => row.cells), [["Ben", "¥8,400", "¥4,200", "is owed ¥4,200"], ["Wife", "¥0", "¥4,200", "owes ¥4,200"]]);
   assert.deepEqual(owes.table!.foot, ["Together", "¥8,400", "¥8,400", ""]);
   for (const item of owes.facts) if (item.unit === "money") assert.ok(Number.isInteger(item.value), item.name);
-  const html = render(createElement(RankedBars, { result: owes }));
+  const html = renderWithRouter(createElement(RankedBars, { result: owes }));
   assert.ok(html.includes("Fair share") && html.includes("is owed ¥4,200") && html.includes("owes ¥4,200"));
 });
 
@@ -73,7 +70,7 @@ check("it takes no arguments through resolveView", () => {
   assert.throws(() => resolveView("who_owes_whom", { month: "2026-11" }, { state: two }), /does not take/);
 });
 
-const family = (state: MoneyState) => render(createElement(FamilyView, { name: "Ben's household", context: { state, spending: state } }));
+const family = (state: MoneyState) => renderWithRouter(createElement(FamilyView, { name: "Ben's household", context: { state, spending: state } }));
 const html = family(two);
 
 check("the family page draws the month by Category and Person, shared bills and who owes whom, read-only", () => {
@@ -94,4 +91,4 @@ check("the family page markup has no Ask about this, Pin or File, no Add, no ema
   assert.ok(!/Ask about this|Pin|\bFile\b|Add a /.test(alone) && !alone.includes("Who owes whom"));
 });
 
-console.log(`family: ${passed} passed`);
+console.log(`family: ${tally.passed} passed`);

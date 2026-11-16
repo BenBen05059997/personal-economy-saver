@@ -15,7 +15,7 @@ import { ConfirmButton } from "./ConfirmButton";
 import { GapFill } from "./GapFill";
 import { SavedLine } from "./SavedLine";
 import type { ViewResult } from "@/lib/views/types";
-import { storedId } from "@/lib/money/repeat";
+import { storedId } from "@/lib/money/name-key";
 
 export function CheckView({ state, inbox, own, from, saved }: {
   from?: "home"; saved?: { what: string; result: ViewResult | null };

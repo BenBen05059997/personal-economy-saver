@@ -74,7 +74,7 @@ export async function verifyWebhook(rawBody: string, headers: Headers): Promise<
  * The verify call's body with the event exactly as PayPal sent it: re-serialising a parsed event can change its number
  * formatting or escapes and fail a genuine delivery. `rawBody` has already parsed as a JSON object.
  */
-export function verificationBody(signed: Record<string, string>, webhookId: string, rawBody: string): string {
+function verificationBody(signed: Record<string, string>, webhookId: string, rawBody: string): string {
   const head = JSON.stringify({ ...signed, webhook_id: webhookId });
   return `${head.slice(0, -1)},"webhook_event":${rawBody}}`;
 }

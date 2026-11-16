@@ -3,32 +3,15 @@
 import assert from "node:assert/strict";
 import { lookBy, monthTrend, parseHomeMode } from "@/lib/money/look-by";
 import { monthByCategory } from "@/lib/money/month";
-import { monthBounds, monthsBack, spendingItems } from "@/lib/money/spending";
 import type { MoneyState } from "@/lib/money/types";
 import { benMoney } from "@/lib/sample/ben";
+import { createSyncChecks } from "./fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createSyncChecks();
 
 const ben = benMoney;
 const today = ben.today;
 const members = ben.split.members.map(m => ({ id: m.id, name: m.name }));
-
-// What Home's spendingRows gave before D74, kept here as the reference the Category rows must equal.
-function oldRows(input: MoneyState) {
-  const month = today.slice(0, 7), previous = monthsBack(month, 2);
-  const current = monthByCategory(input, today, month), last = monthByCategory(input, today, previous);
-  const { first, last: end } = monthBounds(month);
-  const items = spendingItems(input, first, end);
-  return current.categories.map(category => {
-    const matches = items.filter(item => item.category === category.category);
-    const spent = matches.filter(item => item.date <= today).reduce((sum, item) => sum + item.amountMinor, 0);
-    const coming = matches.filter(item => item.date > today && item.kind === "bill").reduce((sum, item) => sum + item.amountMinor, 0);
-    const previousAmount = last.categories.find(item => item.category === category.category)?.totalMinor ?? 0;
-    const unknown = matches.some(item => item.uncounted);
-    return { key: category.category, label: category.label, note: unknown ? "an amount is not known" : `${matches.length} ${matches.length === 1 ? "item" : "items"}`, spent, coming, total: spent + coming, previous: previousAmount, unknown };
-  }).sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
-}
 
 // A second member: card B and every bill with no owner stay as they are; card B's owner becomes m-mio, one bill gets her id.
 const two: MoneyState = {
@@ -39,14 +22,14 @@ const two: MoneyState = {
 };
 const twoMembers = two.split.members.map(m => ({ id: m.id, name: m.name }));
 
-check("Category rows equal what Home's spendingRows gave: same categories, order, amounts and notes", () => {
+check("Category rows on Ben's November: the categories by size, each with its notes, what is spent and what is still to come", () => {
   const view = lookBy(ben, today, "category", members);
   assert.equal(view.by, "category");
-  const old = oldRows(ben);
-  assert.deepEqual(view.rows.map(({ business, personal, children, change, share, ...row }) => { void business; void personal; void children; void change; void share; return row; }), old);
-  assert.equal(view.spent, old.reduce((s, r) => s + r.spent, 0));
-  assert.equal(view.coming, old.reduce((s, r) => s + r.coming, 0));
-  assert.equal(view.total, view.spent + view.coming);
+  assert.deepEqual(view.rows.map(r => [r.key, r.note, r.spent, r.coming, r.total, r.previous]), [
+    ["housing", "1 item", 0, 82_000, 82_000, 82_000], ["other", "3 items", 48_900, 0, 48_900, 7_480], ["food", "3 items", 10_700, 0, 10_700, 11_440],
+    ["phone_internet", "1 item", 0, 4_800, 4_800, 4_800], ["business_tools", "1 item", 3_850, 0, 3_850, 0], ["subscriptions", "1 item", 0, 1_980, 1_980, 1_980],
+  ]);
+  assert.deepEqual([view.spent, view.coming, view.total], [63_450, 88_780, 152_230]);
   assert.equal(view.name, "November");
   assert.equal(view.lastName, "October");
 });
@@ -77,7 +60,7 @@ check("Business: ¥32,830 business, ¥119,400 personal, ¥152,230 total, and the
   assert.equal(view.personalMinor, 119_400);
   assert.equal(view.total, 152_230);
   assert.equal(view.businessLine, "Business ¥32,830 of ¥152,230 this month");
-  assert.deepEqual(view.rows.map(r => r.key), oldRows(ben).map(r => r.key));
+  assert.deepEqual(view.rows.map(r => r.key), lookBy(ben, today, "category", members).rows.map(r => r.key));
   for (const row of view.rows) assert.equal(row.business + row.personal, row.total, row.key);
   assert.equal(view.rows.reduce((s, r) => s + r.business, 0), 32_830);
   assert.equal(view.rows.reduce((s, r) => s + r.personal, 0), 119_400);
@@ -158,4 +141,4 @@ check("The remembered choice: Home keeps chart or table", () => {
   assert.equal(parseHomeMode("junk"), "chart");
 });
 
-console.log(`\n${passed} checks passed`);
+console.log(`\n${tally.passed} checks passed`);

@@ -24,13 +24,14 @@ import { memoryBlock } from "@/lib/agent/memory-prompt";
 import { BriefSchema, briefContext, type BriefRecord } from "@/lib/agent/brief";
 import { ContextTurn, contextTail, THREAD_CONTEXT_MAX, turnWords } from "@/lib/agent/context";
 import { DEVICE_MEMORY_SOURCE_LABEL, splitSources, storeSources } from "@/lib/schema/turn";
+import { QUESTION_MAX } from "@/lib/question-limit";
 import { MemoryItem } from "@/lib/schema/memory";
 import type { DeviceMemory, MemoryChange } from "@/lib/store/memory-ops";
 import { appUrl } from "@/lib/supabase-auth";
 import { ASK_SCREEN_NAMES, type AskScreen } from "@/lib/agent/screen";
 
 export const askInput = z.object({
-  id: z.string().uuid(), conversationId: z.string().uuid(), text: z.string().trim().min(1).max(320),
+  id: z.string().uuid(), conversationId: z.string().uuid(), text: z.string().trim().min(1).max(QUESTION_MAX),
   spaceId: z.string().uuid().optional(),
   source: z.enum(["voice", "manual"]),
   screen: z.enum(Object.keys(ASK_SCREEN_NAMES) as [AskScreen, ...AskScreen[]]).optional(),

@@ -1,3 +1,4 @@
+// What caused the forecast's low point (forecastCosts) on Ben's sample. Pure, no database. Not run alone: db-test.ts imports it.
 import assert from "node:assert/strict";
 import { benMoney } from "@/lib/sample/ben";
 import { forecastCosts } from "@/lib/money/forecast-causes";

@@ -15,14 +15,13 @@ import { deleteHouseholdKey } from "./ai-key";
 import { removeHouseholdDocuments } from "./document-cleanup";
 import { clockForHousehold, householdMoment, type ClockHousehold } from "./clock";
 import { addDays, daysBetween } from "@/lib/money/dates";
+import { Uuid } from "@/lib/stable-id";
 
 // Both the postgres.js client and PGlite (tests) fit this.
 export type Db = PgDatabase<PgQueryResultHKT, typeof s>;
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export function requireHousehold(householdId: string | null | undefined): string {
-  if (!householdId || !UUID.test(householdId)) throw new Error("A household id is required");
+  if (!householdId || !Uuid.safeParse(householdId).success) throw new Error("A household id is required");
   return householdId;
 }
 

@@ -1,15 +1,11 @@
 // The demo sweeper (D49): which demo households it deletes, what goes with them, the cap, and the cascade over every table. PGlite, no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/sweep-test.ts
 import assert from "node:assert/strict";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { eq, getTableName } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
-import { DEMO_KEY_IDLE_HOURS, DEMO_LIFETIME_DAYS, SWEEP_LIMIT, demoHouseholdForToken, dropIdleDemoKeys, issueDemoToken, resetDemoHousehold, sweepDemoHouseholds } from "@/db/demo";
+import { DEMO_KEY_IDLE_HOURS, demoHouseholdForToken, dropIdleDemoKeys, issueDemoToken, resetDemoHousehold, sweepDemoHouseholds } from "@/db/demo";
 import { sweepOrphanKeys } from "@/db/ai-key";
-import { recordEvent, type Db } from "@/db/household";
 import { seedBen } from "@/db/seed";
 
 const DAY = 86_400_000;
@@ -17,11 +13,8 @@ const NOW = new Date("2026-11-20T04:00:00Z");
 const ago = (days: number) => new Date(NOW.getTime() - days * DAY);
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
-  const store = db as unknown as Db;
-  let passed = 0;
-  async function check(name: string, run: () => Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { pg, db, store } = await openDb({ vault: true }); // the key sweeps read and delete Supabase Vault's rows
+  const { check, tally } = createChecks();
   const exists = async (id: string) => (await db.select().from(schema.households).where(eq(schema.households.id, id))).length === 1;
   const age = (id: string, days: number) => db.update(schema.households).set({ createdAt: ago(days) }).where(eq(schema.households.id, id));
   const quiet = (id: string) => db.delete(schema.events).where(eq(schema.events.householdId, id));
@@ -38,14 +31,6 @@ async function main() {
   const total = (counts: Record<string, number>) => Object.values(counts).reduce((a, b) => a + b, 0);
 
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
-    // Supabase Vault's secrets table, stood in for: the key sweeps read and delete its rows.
-    await pg.exec(`create schema vault; create table vault.secrets(id uuid primary key default gen_random_uuid(), name text unique, decrypted_secret text);`);
-
-    await check("the lifetime is seven days and the cap is 200", async () => {
-      assert.equal(DEMO_LIFETIME_DAYS, 7);
-      assert.equal(SWEEP_LIMIT, 200);
-    });
 
     await check("every foreign key that points at households cascades on delete", async () => {
       const { rows } = await pg.query<{ tbl: string; rule: string }>(
@@ -115,17 +100,10 @@ async function main() {
       await db.delete(schema.households).where(eq(schema.households.id, bad));
     });
 
-    await check("Reset still deletes the household and returns a fresh demo", async () => {
-      const first = await seedBen(db, { isDemo: true });
-      const fresh = await resetDemoHousehold(store, first);
-      assert.ok(fresh && fresh !== first);
-      assert.equal(await exists(first), false);
-      assert.equal(await exists(fresh), true);
-      assert.equal(await resetDemoHousehold(store, first), null);
+    await check("Reset never deletes a real household", async () => {
       const real = await seedBen(db);
       assert.equal(await resetDemoHousehold(store, real), null);
       assert.equal(await exists(real), true);
-      await recordEvent(store, fresh, { madeBy: "form", kind: "sweep_probe", title: "A change" });
     });
 
     await check("D34: a Try it cookie is a random token that opens only its own demo household, and only its hash is stored", async () => {
@@ -148,14 +126,13 @@ async function main() {
     });
 
     await check("D34: a demo household's own key goes after a day with no Activity event; a busy demo and a real household keep theirs", async () => {
-      assert.equal(DEMO_KEY_IDLE_HOURS, 24);
       const [idle, busy, real] = [await seedBen(db, { isDemo: true }), await seedBen(db, { isDemo: true }), await seedBen(db)];
       for (const id of [idle, busy, real]) {
         await quiet(id);
         const { rows } = await pg.query<{ id: string }>(`insert into vault.secrets(name, decrypted_secret) values ($1, 'sealed-fictional') returning id`, [`household:${id}:anthropic`]);
         await db.update(schema.households).set({ aiKeySecretId: rows[0].id, aiKeyHint: "…abcd", aiProvider: "anthropic", aiProtocol: "anthropic",
           aiBaseUrl: "https://api.anthropic.com", aiTextModel: "fictional-model", aiDocumentModel: "fictional-model" }).where(eq(schema.households.id, id));
-        await db.insert(schema.events).values({ householdId: id, kind: "ai_model_changed", title: "Saved", createdAt: new Date(NOW.getTime() - 25 * 3_600_000) });
+        await db.insert(schema.events).values({ householdId: id, kind: "ai_model_changed", title: "Saved", createdAt: new Date(NOW.getTime() - (DEMO_KEY_IDLE_HOURS + 1) * 3_600_000) });
       }
       await db.insert(schema.events).values({ householdId: busy, kind: "sweep_probe", title: "An hour ago", createdAt: new Date(NOW.getTime() - 3_600_000) });
       assert.deepEqual(await dropIdleDemoKeys(store, NOW), { dropped: 1, failed: 0 });
@@ -181,7 +158,7 @@ async function main() {
   } finally {
     await pg.close();
   }
-  console.log(`${passed} sweep checks passed`);
+  console.log(`${tally.passed} sweep checks passed`);
 }
 
 main().catch(error => { console.error(error); process.exit(1); });

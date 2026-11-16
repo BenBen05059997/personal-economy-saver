@@ -3,10 +3,7 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/checks-test.ts
 import assert from "node:assert/strict";
 import { and, eq } from "drizzle-orm";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { householdDate } from "@/db/account";
 import { loadMoneyState } from "@/db/household";
@@ -23,11 +20,11 @@ import { latestDate } from "@/lib/money/horizon";
 import { benMoney, benStoredBills } from "@/lib/sample/ben";
 import type { MoneyState, StoredBill } from "@/lib/money/types";
 import { addDays, daysBetween } from "@/lib/money/dates";
+import { DEMO_DATE } from "@/db/clock";
 
-const TODAY = "2026-11-14";
-const END = addDays(TODAY, planWindow(benMoney) - 1);
+const END = addDays(DEMO_DATE, planWindow(benMoney) - 1);
 const stored = (over: Partial<StoredBill> & Pick<StoredBill, "id" | "biller">): StoredBill => ({ amount: null, due: null, category: "utilities", businessBp: 0, status: "confirmed", ...over });
-const stateWith = (bills: StoredBill[]): MoneyState => ({ ...benMoney, storedBills: [...benStoredBills, ...bills], bills: expandBills([...benStoredBills, ...bills], TODAY, END, "JPY") });
+const stateWith = (bills: StoredBill[]): MoneyState => ({ ...benMoney, storedBills: [...benStoredBills, ...bills], bills: expandBills([...benStoredBills, ...bills], DEMO_DATE, END, "JPY") });
 const proposal = (over: Partial<Proposal> = {}): Proposal => ({
   source: "reading", id: "r1", kind: "bill", name: "Kawa Gym", amountMinor: 6_000, currency: "JPY", date: "2026-12-27", repeat: "month", category: "health", cardId: null, ...over,
 });
@@ -35,8 +32,7 @@ const kinds = (checks: Check[]) => checks.map(c => c.kind);
 const only = (checks: Check[], kind: string) => checks.find(c => c.kind === kind);
 
 async function main() {
-  let passed = 0;
-  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { check, tally } = createChecks();
   const base = benMoney;
 
   await check("constants and order", () => {
@@ -133,8 +129,8 @@ async function main() {
     const c = only(checksFor(proposal({ date: "2026-11-10" }), base), "past_due")!;
     assert.equal(c.words, "The due date, Nov 10, has passed.");
     assert.deepEqual(c.choices.map(x => x.label), ["Paid already", "Not paid yet, count it today", "Fix the date"]);
-    assert.deepEqual(c.choices[1].step, { do: "date", date: TODAY });
-    assert.equal(only(checksFor(proposal({ date: TODAY }), base), "past_due"), undefined);
+    assert.deepEqual(c.choices[1].step, { do: "date", date: DEMO_DATE });
+    assert.equal(only(checksFor(proposal({ date: DEMO_DATE }), base), "past_due"), undefined);
     assert.equal(only(checksFor(proposal({ date: "2026-11-10", kind: "charge", repeat: null }), base), "past_due"), undefined);
     assert.equal(only(checksFor(proposal({ date: null }), base), "past_due"), undefined);
   });
@@ -215,10 +211,8 @@ async function main() {
   });
 
   // ---------------------------------------------------------------- the to_check tool (PGlite)
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true });
     const tool = checkTools.find(t => t.name === "to_check")!;
     const ctxOf = (hid: string): ToolContext => ({ madeBy: "mcp", db, householdId: hid, state: async () => loadMoneyState(db, hid, await householdDate(db, hid)), appUrl: new URL("http://127.0.0.1:3123") });
@@ -275,7 +269,7 @@ async function main() {
       assert.equal((await run(a)).items.find(i => i.name === "Hikari Denki")!.from, "ask");
     });
 
-    await check("the plan window (27D): a yearly bill due past the window is seen by already saved and repeat not known", async () => {
+    await check("the plan window: a yearly bill due past the window is seen by already saved and repeat not known", async () => {
       const fresh = await seedBen(db, { isDemo: true });
       const today = await householdDate(db, fresh);
       const dueOn = addDays(today, 240); // about eight months on: far past the window
@@ -295,7 +289,7 @@ async function main() {
       assert.equal(only(checksFor({ ...again, date: addDays(dueOn, 365) }, ended), "already_saved"), undefined, "no occurrence after the last payment");
     });
 
-    await check("the plan window (27D): the default state is the window as before; a later day is reached by stateThrough", async () => {
+    await check("the plan window: the default state is the window as before; a later day is reached by stateThrough", async () => {
       const fresh = await seedBen(db, { isDemo: true });
       const today = await householdDate(db, fresh);
       const dueOn = "2026-12-31";
@@ -319,7 +313,7 @@ async function main() {
   } finally {
     await pg.close();
   }
-  console.log(`Checks tests passed (${passed}).`);
+  console.log(`Checks tests passed (${tally.passed}).`);
 }
 
 main().catch(error => { console.error(error); process.exit(1); });

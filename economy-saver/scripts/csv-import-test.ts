@@ -1,14 +1,11 @@
 // Statement import (D53): the CSV reader in lib/import/csv.ts (quotes, BOM, CRLF, Japanese headers, Shift_JIS, the date
 // shapes, credits and unreadable rows, the limits) and importCharges in PGlite (rows added once, a second import skips them
-// all, another household's card refused, one Activity event). Fictional data only (D20); no credentials.
+// all, one Activity event, the refused rows). Fictional data only (D20); no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/csv-import-test.ts
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { importCharges } from "@/db/import-charges";
 import { InputError } from "@/db/input-error";
@@ -27,8 +24,7 @@ function statementOf(bytes: Uint8Array) {
 }
 
 async function main() {
-  let passed = 0;
-  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { check, tally } = createChecks();
 
   // ------------------------------------------------------------ the reader, pure
   await check("parseCsv: quoted commas, doubled quotes, a line break inside quotes, CRLF, CR, a BOM and blank lines", () => {
@@ -105,10 +101,8 @@ async function main() {
   });
 
   // ------------------------------------------------------------ importCharges, PGlite
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const A = await seedBen(db, { isDemo: true, name: "Import A household" });
     const cardOf = async (hid: string, label: string) => (await db.select().from(schema.cards).where(and(eq(schema.cards.householdId, hid), eq(schema.cards.label, label))))[0].id;
     const cardB = await cardOf(A, "Card B");
@@ -153,7 +147,7 @@ async function main() {
       await assert.rejects(importCharges(db, A, cardB, [], { madeBy: "import" }));
       assert.equal(await countOn(A, cardB), n);
     });
-    console.log(`CSV import checks passed (${passed}).`);
+    console.log(`CSV import checks passed (${tally.passed}).`);
   } finally {
     await pg.close();
   }

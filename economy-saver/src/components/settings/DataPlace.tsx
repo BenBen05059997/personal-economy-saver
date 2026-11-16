@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { MEMORY_SPACES } from "@/lib/links";
 import { useRouter } from "next/navigation";
 import { useAskPanel } from "@/components/shell/AskWorkspace";
 import { wordsOf } from "@/components/ui/words";
@@ -111,7 +112,7 @@ export function DataPlace({ householdId, kind, place, cloudCount, name, unit, wh
     <p>{name} · {n === null ? "…" : plural(n, unit[0], unit[1])}</p>
     <p className="ui-hint">{onDevice ? "On this device only." : "In our cloud, Tokyo."} {description}</p>
     {kind === "journal" && !onDevice && <p className="ui-hint">Deleting Ask conversations removes each named space with its notes and pins kept in our cloud.</p>}
-    {onDevice && journalSpaceCount !== undefined && <p className="ui-hint">{journalSpaceCount} named {pluralWord(journalSpaceCount, "space")} in our cloud. Delete spaces one at a time in <Link href="/memory?tab=spaces">Memory → Spaces</Link>.</p>}
+    {onDevice && journalSpaceCount !== undefined && <p className="ui-hint">{journalSpaceCount} named {pluralWord(journalSpaceCount, "space")} in our cloud. Delete spaces one at a time in <Link href={MEMORY_SPACES}>Memory → Spaces</Link>.</p>}
     {onDevice
       ? <p className="ui-hint">Other devices and connected assistants (MCP) see none of it. Clearing this browser’s data deletes it. The export file holds only what our cloud has, so Export from this device adds this to the file.</p>
       : <p className="ui-hint">You can keep this on this device only instead.</p>}

@@ -1,3 +1,5 @@
+import { Uuid } from "@/lib/stable-id";
+
 type PanelPreferences = { open: boolean; spaceId: string | null };
 export type PanelChoice = { open: boolean | null; spaceId: string | null };
 export const CLOSED_PANEL: PanelPreferences = { open: false, spaceId: null };
@@ -9,7 +11,7 @@ export function readPanelChoice(storage: Pick<Storage, "getItem">, householdId: 
   try {
     const value = JSON.parse(storage.getItem(panelKey(householdId)) ?? "null");
     const open = typeof value?.open === "boolean" ? value.open : null;
-    const spaceId = typeof value?.spaceId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.spaceId) ? value.spaceId : null;
+    const spaceId = typeof value?.spaceId === "string" && Uuid.safeParse(value.spaceId).success ? value.spaceId : null;
     return { open, spaceId };
   } catch {
     return { open: null, spaceId: null };

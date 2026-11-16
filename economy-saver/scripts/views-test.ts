@@ -2,10 +2,9 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/views-test.ts
 import { readdirSync } from "node:fs";
 import { join } from "node:path";
+import { stubStylesheets } from "./fixtures/harness";
 
-// Components import stylesheets; the test only renders markup, so a stylesheet loads as nothing (a CSS module as its own class names).
-const extensions = require.extensions as unknown as Record<string, (module: { exports: unknown }) => void>;
-extensions[".css"] = module => { module.exports = new Proxy({}, { get: (_, key) => String(key) }); };
+stubStylesheets();
 
 const dir = join(process.cwd(), "scripts", "views");
 const files = readdirSync(dir).filter(name => name.endsWith(".ts")).sort();

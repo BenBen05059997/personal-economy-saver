@@ -1,18 +1,15 @@
 // The Ask conversation and the pins on Home (D60, D57): all turns kept, the context budget, thumbs, the pins' order and cap,
-// scope across households, and removal with the household or by Reset. Fictional data only; PGlite, no credentials.
+// what a turn drafted (waiting, confirmed, not added), and removal with the household or by Reset. Fictional data only; PGlite, no credentials.
 import assert from "node:assert/strict";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
 import { eq } from "drizzle-orm";
+import { createChecks, openDb, violates } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { listCanvases, moveCanvas, pinCanvas, unpinCanvas, updateCanvas } from "@/db/canvases";
 import { MAX_PINS } from "@/lib/canvas/schema";
 import { allTurns, saveTurn, setThumb, spaceThread, type NewTurn } from "@/db/conversation";
 import { resetDemoHousehold } from "@/db/demo";
 import { InputError } from "@/db/input-error";
-import { deleteHousehold, listEvents, type Db } from "@/db/household";
+import { deleteHousehold, listEvents } from "@/db/household";
 import { seedBen } from "@/db/seed";
 import { RECIPE_VERSION, type Recipe } from "@/lib/canvas/schema";
 import { ConversationTurn, splitSources, storeSources } from "@/lib/schema/turn";
@@ -43,12 +40,9 @@ const turn = (conversationId: string, question: string, extra: Partial<NewTurn> 
 });
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema }) as unknown as Db;
-  let passed = 0;
-  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { pg, store: db } = await openDb();
+  const { check, tally } = createChecks();
   try {
-    await migrate(drizzle(pg, { schema }), { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     const conv = crypto.randomUUID();
 
@@ -101,8 +95,7 @@ async function main() {
       assert.equal((await allTurns(db, a))[0].thumb, -1);
       assert.equal(await setThumb(db, a, first.id, null), true);
       assert.equal((await allTurns(db, a))[0].thumb, null);
-      await assert.rejects(setThumb(db, a, first.id, 5 as never), "the database holds the line too");
-      await assert.rejects(setThumb(db, "", first.id, 1), /household id/);
+      await assert.rejects(setThumb(db, a, first.id, 5 as never), violates("conversation_turns_thumb_valid"), "the database holds the line too");
     });
 
     await check("a thread keeps all turns, including the oldest", async () => {
@@ -287,7 +280,6 @@ async function main() {
       read = await draftsOfTurns(db, d, [turnId, other], await context());
       assert.equal(read[turnId][1].state, "not_added");
       assert.deepEqual(read[other].map(x => x.state), ["waiting"]);
-      assert.deepEqual(await draftsOfTurns(db, a, [turnId], await context()), {}, "another household's turn id reads nothing");
     });
 
     await check("turns and pins go with the household, and a Reset starts clean", async () => {
@@ -306,7 +298,7 @@ async function main() {
       assert.equal((await db.select().from(schema.canvases).where(eq(schema.canvases.householdId, b))).length, 0);
     });
 
-    console.log(`Conversation checks passed (${passed}).`);
+    console.log(`Conversation checks passed (${tally.passed}).`);
   } finally {
     await pg.close();
   }

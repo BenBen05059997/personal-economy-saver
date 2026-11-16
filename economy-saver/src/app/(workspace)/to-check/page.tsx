@@ -11,7 +11,7 @@ import { resolveView } from "@/lib/views/resolve";
 import { ViewError } from "@/lib/views/types";
 import { dayLabel, formatter } from "@/lib/money/format";
 import type { MoneyState } from "@/lib/money/types";
-import { storedId } from "@/lib/money/repeat";
+import { storedId } from "@/lib/money/name-key";
 
 type Search = { from?: string | string[]; saved?: string | string[] };
 

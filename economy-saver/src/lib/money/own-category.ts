@@ -8,7 +8,7 @@ export const OWN_CATEGORY_CAP = 40; // own categories a household may keep
 export const OWN_NAME_MAX = 40; // characters in a name
 
 export const OWN_CAP_WORDS = `You can keep up to ${OWN_CATEGORY_CAP} of your own categories. Remove one first.`;
-export const OWN_NAME_LENGTH_WORDS = `Give your category a name of 1 to ${OWN_NAME_MAX} characters.`;
+const OWN_NAME_LENGTH_WORDS = `Give your category a name of 1 to ${OWN_NAME_MAX} characters.`;
 
 /** "Food › Coffee", or "Food" for an item with no own category. */
 export const ownLabel = (category: CategoryKey, own?: { name: string } | null): string =>

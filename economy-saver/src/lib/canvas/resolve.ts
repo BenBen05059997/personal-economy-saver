@@ -28,7 +28,7 @@ import { eventWords, ifCase, ifClientsPay, NOTHING_SCHEDULED } from "@/lib/views
 import { ViewError, type FormData, type RankedRow, type TableTwin, type Tone, type ViewResult } from "@/lib/views/types";
 import type { IncomeRow, PotFill } from "@/lib/money/types";
 import { problemWords, RecipeSchema, ScenarioSchema, type Block, type Query, type Recipe, type Scenario, type ScenarioRef } from "./schema";
-import { storedId } from "@/lib/money/repeat";
+import { storedId } from "@/lib/money/name-key";
 import { addDays, daysBetween } from "@/lib/money/dates";
 
 /** A recipe that cannot be drawn: the message is written for the person (or for the agent to fix its recipe). */
@@ -60,9 +60,9 @@ export type TimelineData = { caption: string; rows: TimelineRow[]; empty: string
 type TableRow = { cells: string[]; tone: "short" | "up" | "down" | "plain" };
 export type TableData = { title: string | null; caption: string | null; head: string[]; rows: TableRow[]; foot: string[] | null; empty: string | null };
 type CompareRow = { key: string; label: string; aLabel: string; bLabel: string; aMinor: number; bMinor: number; change: string };
-export type CompareData = { view: ViewResult<"ranked_bars">; aName: string; bName: string; aTotal: string; bTotal: string; difference: string; rows: CompareRow[]; empty: string | null };
+type CompareData = { view: ViewResult<"ranked_bars">; aName: string; bName: string; aTotal: string; bTotal: string; difference: string; rows: CompareRow[]; empty: string | null };
 /** D57, D52, D45: the month by category, whose each part is (Shared, then each member), and who owes whom. `view` draws the chart; `table` is the same figures as a table. */
-export type ByPersonData = {
+type ByPersonData = {
   view: ViewResult<"ranked_bars">;
   month: string;
   table: TableData;

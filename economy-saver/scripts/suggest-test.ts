@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
+import { createChecks, eventsOf, noCapture } from "./fixtures/harness";
 import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
 import { readMigrationFiles } from "drizzle-orm/migrator";
@@ -28,17 +29,17 @@ import { FINDING_RULE, findingAction, findingsBySpace, type Finding } from "@/li
 import { benMoney } from "@/lib/sample/ben";
 import type { Bill, MoneyState } from "@/lib/money/types";
 import { daysBetween } from "@/lib/money/dates";
+import { DEMO_DATE } from "@/db/clock";
 
 const day = (date: string) => new Date(date + "T00:00:00Z");
-const today = "2026-11-14";
+const today = DEMO_DATE;
 const sampleBill = { id: "fictional-bill", status: "pending", biller: "Kumo Water", due: "2026-11-17", amount: 2_500,
   category: "utilities", businessBp: 0 } satisfies Bill;
 
 async function main() {
   const pg = new PGlite({ extensions: { pg_trgm } });
   const db = drizzle(pg, { schema });
-  let passed = 0;
-  async function check(name: string, run: () => Promise<void> | void) { await run(); passed++; console.log("✓ " + name); }
+  const { check, tally } = createChecks();
 
   try {
     const steps = readMigrationFiles({ migrationsFolder: "./drizzle" });
@@ -114,13 +115,13 @@ async function main() {
     const quiet: MoneyState = { ...benMoney, bills: [], storedBills: [], invoices: [], statements: [], charges: [], pots: [] };
     const find = (state: MoneyState, rules = defaultRules()) => findSuggestions(state, rules);
     const kinds = (state: MoneyState, rules = defaultRules()) => find(state, rules).map(row => row.kind);
-    await check("a sent invoice is late once the forecast's own expected pay day is the rule's days behind, with one finding and exact day boundaries", () => {
+    await check("a sent invoice is overdue once the forecast's own expected pay day is the rule's days behind, with one finding and exact day boundaries", () => {
       const client = { ...benMoney.clients[0], daysToPay: [], termsDays: 0 };
       const invoice = { ...benMoney.invoices[0], clientId: client.id, sentOn: "2026-10-30", dueOn: "2026-11-10" };
       const state = { ...quiet, clients: [client], invoices: [invoice] };
-      assert.equal(daysBetween(invoice.dueOn, state.today), 4, "the rule is 3 days: 4 days past is late");
+      assert.equal(daysBetween(invoice.dueOn, state.today), 4, "the rule is 3 days: 4 days past is overdue");
       assert.deepEqual(kinds(state), ["invoice_nudge"]);
-      assert.deepEqual(kinds({ ...state, invoices: [{ ...invoice, dueOn: "2026-11-11" }] }), [], "exactly the rule's days is not yet late");
+      assert.deepEqual(kinds({ ...state, invoices: [{ ...invoice, dueOn: "2026-11-11" }] }), [], "exactly the rule's days is not yet overdue");
       assert.deepEqual(kinds({ ...state, invoices: [{ ...invoice, hasLink: false }] }), [], "no payment link, no nudge");
       assert.deepEqual(kinds({ ...state, invoices: [{ ...invoice, status: "paid" }] }), []);
       const rules = defaultRules();
@@ -128,7 +129,7 @@ async function main() {
       assert.deepEqual(kinds(state, rules), []);
     });
 
-    await check("late follows the client's usual days to pay, and the reason says the usual-day fact", () => {
+    await check("overdue follows the client's usual days to pay, and the reason says the usual-day fact", () => {
       const client = { ...benMoney.clients[0], daysToPay: [9, 9, 9], termsDays: 0 };
       const invoice = { ...benMoney.invoices[0], clientId: client.id, sentOn: "2026-11-02", dueOn: "2026-11-03" };
       const at = (today: string) => ({ ...quiet, today, clients: [client], invoices: [invoice] });
@@ -326,7 +327,7 @@ async function main() {
     const demo = await seedBen(db, { isDemo: true });
     const other = await seedBen(db, { isDemo: true });
     const history = (id: string) => db.select().from(schema.suggestions).where(eq(schema.suggestions.householdId, id));
-    const events = (id: string, kind: string) => db.select().from(schema.events).where(and(eq(schema.events.householdId, id), eq(schema.events.kind, kind)));
+    const events = eventsOf(db);
     const pending = async (id: string, name = sampleBill.biller) => (await db.insert(schema.bills).values({
       householdId: id, biller: name, amountMinor: 2_500, currency: "JPY", due: "2026-11-17", category: "utilities", status: "pending",
     }).returning())[0];
@@ -443,7 +444,7 @@ async function main() {
       assert.equal((await history(other)).find(saved => saved.id === row.id)?.status, "resolved");
     });
 
-    await check("a late invoice with a payment link suggests sending the link again; only that set is remindable, and offering it closes the suggestion", async () => {
+    await check("an overdue invoice with a payment link suggests sending the link again; only that set is remindable, and offering it closes the suggestion", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const [invoice] = await db.update(schema.invoices).set({ sentOn: "2026-10-26", payToken: "tok-" + crypto.randomUUID() })
         .where(and(eq(schema.invoices.householdId, hid), eq(schema.invoices.number, "1042"))).returning();
@@ -452,7 +453,7 @@ async function main() {
       const [nudge] = await openSuggestions(db, hid);
       assert.deepEqual([nudge.kind, nudge.action, nudge.refId, nudge.title], ["invoice_nudge", "remind", invoice.id, "Send Acme Corp the link again"]);
       assert.match(nudge.reason, /since the link was made/);
-      // Without a link or not yet late, nothing is remindable.
+      // Without a link or not yet overdue, nothing is remindable.
       for (const change of [{ payToken: null }, { sentOn: "2026-11-05" }]) {
         const other = await seedBen(db, { isDemo: true });
         await setStandingRule(db, other, "nudge_after", { enabled: true, threshold: 4, currency: null });
@@ -468,7 +469,7 @@ async function main() {
       assert.ok(!(await openSuggestions(db, hid)).some(row => row.kind === "invoice_nudge"), "the nudge fires once per invoice");
     });
 
-    await check("an old late_client row resolves on the next pass", async () => {
+    await check("an open row of a retired kind resolves on the next pass", async () => {
       const hid = await seedBen(db, { isDemo: true });
       await db.insert(schema.suggestions).values({ householdId: hid, kind: "late_client" as never, key: "late:old", title: "Acme Corp is past their usual payment day",
         reason: "Old.", action: "invoice" as never, refId: null, urgency: 2, createdOn: today });
@@ -477,12 +478,11 @@ async function main() {
       assert.equal(old.status, "resolved");
     });
     const form = { madeBy: "form" } as const;
-    const noCapture = async () => { throw new Error("A completed capture takes no payment"); };
     const capturePayment = (id: string, orderId: string, invoice: { id: string; amountMinor: number }) => ({ id, event_type: "PAYMENT.CAPTURE.COMPLETED",
       create_time: "2026-11-14T03:00:00Z", resource: { id: "CAP-" + id, status: "COMPLETED", custom_id: invoice.id,
         amount: { currency_code: "USD", value: (invoice.amountMinor / 100).toFixed(2) }, supplementary_data: { related_ids: { order_id: orderId } } } });
     const ask = () => ({ madeBy: "ask" as const, askId: crypto.randomUUID() });
-    const lateInvoice = async (hid: string, paypalOrderId: string | null = null) => {
+    const overdueInvoice = async (hid: string, paypalOrderId: string | null = null) => {
       const [row] = await db.update(schema.invoices).set({ sentOn: "2026-10-26", dueOn: "2026-11-10", paypalOrderId, payToken: "tok-" + crypto.randomUUID() })
         .where(and(eq(schema.invoices.householdId, hid), eq(schema.invoices.number, "1042"))).returning();
       return row;
@@ -561,10 +561,10 @@ async function main() {
       assert.deepEqual((await history(hid)).map(row => [row.id, row.status]), [[low.id, "resolved"]]);
     });
 
-    await check("a full verified PayPal payment resolves its late invoice immediately and a partial payment does not", async () => {
+    await check("a full verified PayPal payment resolves its overdue invoice immediately and a partial payment does not", async () => {
       const hid = await seedBen(db, { isDemo: true });
       const remote = "ORDER-FICTIONAL-NOTICING";
-      const invoice = await lateInvoice(hid, remote);
+      const invoice = await overdueInvoice(hid, remote);
       await run(hid);
       const before = await openSuggestions(db, hid);
       assert.deepEqual(before.map(row => [row.kind, row.refId]), [["invoice_nudge", invoice.id]]);
@@ -583,7 +583,7 @@ async function main() {
       const hid = await seedBen(db, { isDemo: true });
       const resetFrom = await seedBen(db, { isDemo: true });
       const remote = "ORDER-FICTIONAL-PASS-FAILURE";
-      const invoice = await lateInvoice(hid, remote);
+      const invoice = await overdueInvoice(hid, remote);
       await run(hid);
       assert.ok((await openSuggestions(db, hid)).some(row => row.refId === invoice.id));
       const potId = await savePot(db, hid, potInput.parse({ id: crypto.randomUUID(), name: "Fictional camera", saved: "0", memberId: null }), "pending", ask());
@@ -631,22 +631,22 @@ async function main() {
       assert.ok(!(await openSuggestions(db, hid)).some(row => row.refId === invoice.id));
     });
 
-    await check("mark paid outside PayPal resolves its late invoice finding", async () => {
+    await check("mark paid outside PayPal resolves its overdue invoice finding", async () => {
       const hid = await seedBen(db, { isDemo: true });
-      const invoice = await lateInvoice(hid);
+      const invoice = await overdueInvoice(hid);
       await run(hid);
-      const [late] = await openSuggestions(db, hid);
-      assert.deepEqual([late.kind, late.refId], ["invoice_nudge", invoice.id]);
-      assert.deepEqual(await openSuggestions(db, hid), [late]);
+      const [overdue] = await openSuggestions(db, hid);
+      assert.deepEqual([overdue.kind, overdue.refId], ["invoice_nudge", invoice.id]);
+      assert.deepEqual(await openSuggestions(db, hid), [overdue]);
       assert.equal(await markPaidOutside(db, hid, invoice.id, today), true);
       assert.equal(await markPaidOutside(db, hid, invoice.id, today), false);
       assert.deepEqual(await openSuggestions(db, hid), []);
-      assert.deepEqual((await history(hid)).map(row => [row.id, row.status]), [[late.id, "resolved"]]);
+      assert.deepEqual((await history(hid)).map(row => [row.id, row.status]), [[overdue.id, "resolved"]]);
     });
   } finally {
     await pg.close();
   }
-  console.log("suggestions: " + passed + " passed");
+  console.log("suggestions: " + tally.passed + " passed");
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

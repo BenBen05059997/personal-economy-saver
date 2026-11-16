@@ -5,6 +5,7 @@ import { loadMoneyState, withHousehold, type Db } from "@/db/household";
 import { InputError } from "@/db/input-error";
 import { authenticateMcpToken } from "@/db/mcp-tokens";
 import { limited } from "@/db/rate-limit";
+import { NO_STORE } from "@/lib/form-fetch";
 import { logCall } from "@/lib/agent/log";
 import { MODEL_RULES } from "@/lib/agent/rules";
 import { tools } from "@/lib/agent/tools";
@@ -57,7 +58,7 @@ export async function mcpRequest(request: Request, connection: () => Db) {
   try {
     await server.connect(transport);
     const response = await transport.handleRequest(request);
-    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
     return response;
   } finally { await server.close(); }
 }

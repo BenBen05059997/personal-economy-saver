@@ -21,7 +21,7 @@ import { potInput, savePot } from "@/db/pots";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { loadPeriodBills, loadSpending } from "@/db/spending";
 import { clients, invoices } from "@/db/schema";
-import { fromMinor, toMinor } from "@/lib/money/format";
+import { fromMinor, plural, toMinor } from "@/lib/money/format";
 import { dayView } from "@/lib/money/window";
 import { gapAmountWords, gapDateWords, gapQuestion, openGaps } from "@/lib/money/gaps";
 import { lowFacts, outlookFacts, spendReading } from "@/lib/money/ask";
@@ -459,7 +459,7 @@ export const tools: Tool[] = [
     run: async ctx => {
       const groups = await listOwnCategoriesGrouped(ctx.db, ctx.householdId);
       if (groups.length === 0) return "This household has no categories of its own yet. Only the person can make one, in Spending → Your categories.";
-      const part = (o: (typeof groups)[number]["categories"][number]) => `${o.name} (${o.businessBp === null ? "no default business share" : `default business share ${o.businessBp / 100}%`}, ${o.items} ${o.items === 1 ? "item" : "items"})`;
+      const part = (o: (typeof groups)[number]["categories"][number]) => `${o.name} (${o.businessBp === null ? "no default business share" : `default business share ${o.businessBp / 100}%`}, ${plural(o.items, "item")})`;
       return groups.map(g => `Under ${g.label}: ${g.categories.map(part).join("; ")}.`).join("\n");
     },
   }),

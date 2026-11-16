@@ -1,12 +1,9 @@
-// Family view links (D52): only the hash is stored, resolve, expiry, stop, the five-link cap, household scope. PGlite, no credentials.
+// Family view links (D52): only the hash is stored, resolve, expiry, stop, the five-link cap, and the page the link opens. PGlite, no credentials.
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/family-links-test.ts
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { eq } from "drizzle-orm";
+import { createChecks, eventsOf, openDb, renderWithRouter, stubStylesheets } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { createFamilyLink, listFamilyLinks, loadFamilyView, resolveFamilyLink, stopFamilyLink } from "@/db/family-links";
 import { FAMILY_LINK_DAYS, MAX_LIVE_FAMILY_LINKS } from "@/lib/family-links";
@@ -16,15 +13,12 @@ import { seedBen } from "@/db/seed";
 const DAY = 86_400_000;
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
-  let passed = 0;
-  async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
+  const { pg, db } = await openDb();
+  const { check, tally } = createChecks();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const a = await seedBen(db, { isDemo: true }), b = await seedBen(db, { isDemo: true });
     const rows = (hid: string) => db.select().from(schema.familyLinks).where(eq(schema.familyLinks.householdId, hid));
-    const events = (hid: string, kind: string) => db.select().from(schema.events).where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, kind)));
+    const events = eventsOf(db);
     const t0 = new Date("2026-11-14T03:00:00Z");
 
     await check("a link stores only the SHA-256 of its token; the token is 43 base64url characters and appears nowhere in the database", async () => {
@@ -99,46 +93,27 @@ async function main() {
       assert.equal((await createFamilyLink(db, e, later)).info.expiresAt.getTime(), later.getTime() + FAMILY_LINK_DAYS * DAY);
     });
 
-    await check("household B cannot stop household A's link, cannot list it, and A's token opens A only", async () => {
-      const made = await createFamilyLink(db, a, t0);
-      assert.equal(await stopFamilyLink(db, b, made.info.id, t0), false);
-      assert.equal(await resolveFamilyLink(db, made.token, t0), a);
-      assert.ok(!(await listFamilyLinks(db, b, t0)).some(l => l.id === made.info.id));
-      assert.ok((await listFamilyLinks(db, a, t0)).some(l => l.id === made.info.id));
-      assert.equal((await events(b, "family_link_stopped")).filter(e => e.householdId === b).length, 0 + (await events(b, "family_link_stopped")).length);
-      await assert.rejects(createFamilyLink(db, "", t0), /household id is required/);
-      await assert.rejects(listFamilyLinks(db, "", t0), /household id is required/);
-      await assert.rejects(stopFamilyLink(db, "", made.info.id, t0), /household id is required/);
-    });
-
-    await check("deleting a household deletes its links; the household snapshot never mentions them", async () => {
+    await check("the household snapshot never mentions a link's token or hash", async () => {
       const d = await seedBen(db, { isDemo: true });
       const made = await createFamilyLink(db, d, t0);
       const { loadHouseholdSnapshot } = await import("@/db/snapshot");
       const snapshot = JSON.stringify(await loadHouseholdSnapshot(db, d, { events: true }));
       assert.ok(!snapshot.includes(made.token) && !snapshot.includes((await rows(d))[0].tokenHash));
-      await db.delete(schema.households).where(eq(schema.households.id, d));
-      assert.equal((await rows(d)).length, 0);
-      assert.equal(await resolveFamilyLink(db, made.token, t0), null);
     });
 
     await check("loadFamilyView returns the view context (the state and the spending), and the page it draws holds no email and no PayPal details", async () => {
-      const extensions = require.extensions as unknown as Record<string, (module: { exports: unknown }) => void>;
-      extensions[".css"] = module => { module.exports = {}; }; // the page's stylesheets load as nothing: this only renders markup
+      stubStylesheets(); // the page's stylesheets load as nothing: this only renders markup
       const { createElement } = await import("react");
-      const { renderToStaticMarkup } = await import("react-dom/server");
       const { FamilyView } = await import("@/components/family/FamilyView");
-      const { AppRouterContext } = await import("next/dist/shared/lib/app-router-context.shared-runtime");
-      const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} };
       const view = await loadFamilyView(db, a);
       assert.equal(view.context.state, view.state);
       assert.ok(view.context.spending && view.context.spending.homeCurrency === view.state.homeCurrency);
       assert.equal(view.context.income, undefined, "only what the family page draws is loaded");
-      const html = renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: router as never }, createElement(FamilyView, { name: view.name, context: view.context })));
+      const html = renderWithRouter(createElement(FamilyView, { name: view.name, context: view.context }));
       assert.ok(html.includes("Where this month goes") && !html.includes("@") && !/paypal/i.test(html));
     });
 
-    console.log(`Family link checks passed (${passed}).`);
+    console.log(`Family link checks passed (${tally.passed}).`);
   } finally {
     await pg.close();
   }

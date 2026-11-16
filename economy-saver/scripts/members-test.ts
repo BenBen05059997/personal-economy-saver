@@ -1,12 +1,9 @@
-// Stage 30A (D68). PGlite with fictional verified Auth identities and direct route calls.
+// Invitations and member sign-in (D68). PGlite with fictional verified Auth identities and direct route calls; runs invite-auth-test.ts at its end.
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import Module from "node:module";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
 import { and, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { createChecks, openDb } from "./fixtures/harness";
 
 const ORIGIN = "https://saver.example.test";
 const NOW = new Date("2026-11-14T03:00:00Z");
@@ -17,16 +14,10 @@ type Identity = ReturnType<typeof identity>;
 
 async function main() {
   const schema = await import("@/db/schema"); // tables only; it reaches no auth module
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   const loaded: { tokenFor?: (cookie: string | null) => Promise<string | null> } = {}; // the Try it cookie is a token (D34), set once the app modules are loaded
   const tokenFor = (cookie: string | null) => loaded.tokenFor!(cookie);
-  let passed = 0;
-  async function check(name: string, run: () => Promise<void>) {
-    await run();
-    passed++;
-    console.log("✓ " + name);
-  }
+  const { check, tally } = createChecks();
 
   let signedIn: Identity | null = null;
   let demoCookie: string | null = null;
@@ -59,7 +50,7 @@ async function main() {
     return realLoad.call(this, request, parent, isMain);
   };
   // The app modules load after the harness is in place: a module that reached @supabase/ssr earlier would keep the real client.
-  const { accountHousehold, accountMembership, deleteOwnedHousehold, finishSetup, setupForm } = await import("@/db/account");
+  const { accountHousehold, accountMembership, finishSetup, setupForm } = await import("@/db/account");
   const { acceptInvite, activeInvites, cancelInvite, createInvite, inviteMatchesEmail, inviteView, leaveHousehold } = await import("@/db/invites");
   const { addMember } = await import("@/db/people");
   const { seedBen } = await import("@/db/seed");
@@ -72,7 +63,6 @@ async function main() {
   };
 
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const makeHousehold = async (name: string) => {
       const owner = identity(name.toLowerCase().replaceAll(" ", "-"));
       const householdId = await finishSetup(db, owner.uid, setupForm.parse({ name, timeZone: "Asia/Tokyo", currency: "USD", bank: "1250" }), null);
@@ -138,7 +128,6 @@ async function main() {
       assert.equal(await acceptInvite(db, token, { ...guest, uid: randomUUID() }, NOW), null);
       assert.equal((await db.select().from(schema.users).where(and(eq(schema.users.householdId, hid), eq(schema.users.memberId, existing)))).length, 1);
       await assert.rejects(createInvite(db, hid, guest.uid, { email: emailFor("no-invite"), name: "Fictional Refused" }, NOW));
-      assert.equal(await deleteOwnedHousehold(db, guest.uid), false);
     });
 
     await check("new people can be invited, and expiry or cancellation revokes the link", async () => {
@@ -329,7 +318,6 @@ async function main() {
         currency: "USD", due: "2026-11-16", category: "utilities",
       }).returning();
       const memberBefore = (await people()).find(person => person.id === existing)!;
-      assert.equal(await leaveHousehold(db, b.householdId, guest.uid), false);
       assert.equal(await leaveHousehold(db, hid, a.owner.uid), false);
       signedIn = guest;
       assert.equal((await invitations(form("/api/invites", { kind: "leave" }))).status, 303);
@@ -411,7 +399,7 @@ async function main() {
     restoreHarness();
     await pg.close();
   }
-  console.log(String(passed) + " member checks passed");
+  console.log(String(tally.passed) + " member checks passed");
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

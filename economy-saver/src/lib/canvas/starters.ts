@@ -1,5 +1,6 @@
 // The starter recipes (D57): the app's own screens as canvases, written in code, each built from this household's own clients and months.
 // They are ordinary recipes: the same schema, the same resolver. Nothing here holds an amount of its own.
+import { firstName } from "@/lib/money/format";
 import { monthName, monthsBack } from "@/lib/money/spending";
 import { CASES } from "@/lib/money/terms";
 import { toCheck } from "@/lib/money/to-check";
@@ -10,15 +11,13 @@ type Starter = { id: string; title: string; summary: string; recipe: Recipe };
 
 const SLIDER_DAYS = 30;
 
-const first = (name: string) => name.split(" ")[0];
-
 /** The one PayPal or review step to offer, where one exists: invoice finished work, send a late client the link again, or open To check. */
 function nextAction(state: MoneyState, nudgeIds: readonly string[]): Block | null {
   const nudged = nudgeIds.map(id => state.invoices.find(i => i.id === id && i.status === "sent")).find(i => i !== undefined);
   const unbilled = state.invoices.find(i => i.status === "unbilled");
   for (const [invoice, verb] of [[nudged, "Send"], [unbilled, "Invoice"]] as const) {
     const client = invoice && state.clients.find(c => c.id === invoice.clientId);
-    if (invoice && client) return { type: "action", label: (verb === "Send" ? `Send ${first(client.name)} the link again` : `${verb} ${first(client.name)}`).slice(0, 60), href: `/invoices/${invoice.id}` };
+    if (invoice && client) return { type: "action", label: (verb === "Send" ? `Send ${firstName(client.name)} the link again` : `${verb} ${firstName(client.name)}`).slice(0, 60), href: `/invoices/${invoice.id}` };
   }
   return toCheck(state).length > 0 ? { type: "action", label: "Open To check", href: "/to-check" } : null;
 }

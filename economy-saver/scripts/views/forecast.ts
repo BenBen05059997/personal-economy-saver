@@ -1,8 +1,6 @@
 // The forecast view and the step line (D77), on Ben's sample.
 import assert from "node:assert/strict";
 import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
-import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
 import { HomeViews } from "@/components/home/HomeViews";
 import { fact } from "@/lib/money/facts";
 import { low, safeToSpend, series } from "@/lib/money/runway";
@@ -10,10 +8,10 @@ import { benMoney } from "@/lib/sample/ben";
 import { forecastView } from "@/lib/views/v/forecast";
 import type { ViewResult } from "@/lib/views/types";
 import { reads } from "../fixtures/view-reads";
+import { renderWithRouter } from "../fixtures/harness";
+import { createSyncChecks } from "../fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
-const router = { push() {}, replace() {}, refresh() {}, back() {}, forward() {}, prefetch() {} };
+const { check, tally } = createSyncChecks();
 const result = forecastView({}, { state: benMoney }) as ViewResult<"step_line">;
 
 check("the low and safe to spend match the engine", () => {
@@ -76,7 +74,7 @@ check("one case draws one line and no band", () => {
 });
 
 check("the Home panel has the legend, the aria summary and the table rows for event days", () => {
-  const render = () => renderToStaticMarkup(createElement(AppRouterContext.Provider, { value: router as never }, createElement(HomeViews, { state: benMoney, result, bankBalance: null })));
+  const render = () => renderWithRouter(createElement(HomeViews, { state: benMoney, result, bankBalance: null }));
   const html = render();
   assert.match(html, /If clients pay late \(what safe to spend uses\)/);
   assert.match(html, /If as usual/);
@@ -112,4 +110,4 @@ check("with days, safe to spend is that period's, as safe to spend for a period"
   assert.deepEqual(f.period, { from: "2026-11-14", to: "2026-11-20" });
   assert.equal(fact(week.facts!, "safe_to_spend"), null);
 });
-console.log(`forecast: ${passed} checks passed`);
+console.log(`forecast: ${tally.passed} checks passed`);

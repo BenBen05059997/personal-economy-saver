@@ -4,19 +4,21 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { once } from "node:events";
 import { randomBytes } from "node:crypto";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
+import { openDb } from "./fixtures/harness";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { and, eq, inArray, like } from "drizzle-orm";
 import { seedBen } from "@/db/seed";
 import * as s from "@/db/schema";
+import { DEMO_DATE } from "@/db/clock";
+import { loadMoneyState } from "@/db/household";
 import { MCP_TOKEN_LIMIT, issueMcpToken, listMcpTokens, revokeMcpToken } from "@/db/mcp-tokens";
 import { consumeRequest } from "@/db/rate-limit";
 import { mcpRequest } from "@/lib/mcp/server";
 import { MODEL_RULES } from "@/lib/agent/rules";
+import { tools } from "@/lib/agent/tools";
+import { draftedLabel, toCheck } from "@/lib/money/to-check";
+import { SNAPSHOT_VERSION } from "@/lib/schema/household";
 
 let stage = "database setup";
 const logged: Record<string, unknown>[] = [];
@@ -24,8 +26,7 @@ const realInfo = console.info;
 console.info = (...args: unknown[]) => { const first = String(args[0]); if (first.startsWith('{"at":')) logged.push(JSON.parse(first)); else realInfo(...args); };
 async function main() {
   process.env.MCP_TOKEN_KEY = randomBytes(32).toString("base64url");
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema: s });
+  const { pg, db } = await openDb();
   const http = createServer(async (incoming, outgoing) => {
     try {
       const bytes: Buffer[] = [];
@@ -44,7 +45,6 @@ async function main() {
   });
   const client = new Client({ name: "terminal-demo", version: "1.0.0" });
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const hid = await seedBen(db, { isDemo: true });
     const other = await seedBen(db, { isDemo: true });
     http.listen(0, "127.0.0.1");
@@ -63,7 +63,7 @@ async function main() {
     assert.equal(instructions, MODEL_RULES);
     stage = "list tools";
     const list = await client.listTools();
-    assert.deepEqual(list.tools.map(tool => tool.name).sort(), ["add_bill", "add_bills", "add_pot", "bills_for_month", "can_i_spend", "draft_invoice", "forget", "goals", "household_snapshot", "list_clients_and_cards", "list_invoices", "list_spaces", "log_charge", "log_charges", "make_canvas", "open_gaps", "options_when_short", "own_categories", "plan_for", "recall", "remember", "search_history", "search_spending", "set_whose", "show", "suggestions", "timeline", "to_check", "update_bank_balance", "what_if"]);
+    assert.deepEqual(list.tools.map(tool => tool.name).sort(), tools.filter(tool => tool.scope !== "ask").map(tool => tool.name).sort(), "every read and draft tool of the catalogue, and none of the conversation's own");
     stage = "own categories over MCP";
     const ownTool = list.tools.find(tool => tool.name === "own_categories");
     assert.ok(ownTool, "own_categories is offered");
@@ -97,7 +97,7 @@ async function main() {
     const snapshotCall = await client.callTool({ name: "household_snapshot", arguments: {} });
     assert.ok(!snapshotCall.isError);
     const snapshot = JSON.parse((snapshotCall.content as { text: string }[])[0].text);
-    assert.equal(snapshot.version, 4);
+    assert.equal(snapshot.version, SNAPSHOT_VERSION);
     assert.equal(snapshot.household.id, hid);
     assert.equal(snapshot.clients.length, 3);
     assert.ok(!("events" in snapshot));
@@ -108,12 +108,14 @@ async function main() {
     assert.ok((await showFacts("bills_calendar", { days: 30 })).facts.some(f => f.name === "due"), "what is due, through show");
     const [ownClient] = await db.select().from(s.clients).where(eq(s.clients.householdId, hid)).limit(1);
     const draft = { clientId: ownClient.id, item: "Poster layout", amount: "18.52", note: "" };
-    assert.ok(!(await client.callTool({ name: "draft_invoice", arguments: draft })).isError);
+    const drafted = await client.callTool({ name: "draft_invoice", arguments: draft });
+    assert.ok(!drafted.isError);
     const drafts = () => db.select().from(s.invoices).where(and(eq(s.invoices.householdId, hid), eq(s.invoices.item, "Poster layout")));
     const [saved] = await drafts();
     assert.equal(saved.amountMinor, 1852);
     assert.equal(saved.status, "draft");
     assert.deepEqual([saved.madeBy, saved.askId], ["mcp", null]);
+    assert.match((drafted.content as { text: string }[])[0].text, new RegExp(`^Review the draft at http://127\\.0\\.0\\.1:${address.port}/invoices/${saved.id}\\. `), "the reply sends the person to the draft in the app");
     // The draft's id comes from the request's own id: the same request sent again is the same draft, another request is another.
     const raw = (id: number) => fetch(endpoint, { method: "POST", headers: { Authorization: "Bearer " + token, "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
       body: JSON.stringify({ jsonrpc: "2.0", id, method: "tools/call", params: { name: "draft_invoice", arguments: { ...draft, item: "Resent poster" } } }) }).then(response => response.json() as Promise<{ result?: { isError?: boolean } }>);
@@ -137,6 +139,8 @@ async function main() {
     assert.equal(bulkBills.length, 2);
     assert.equal(bulkCharges.length, 3);
     assert.ok([...bulkBills, ...bulkCharges].every(r => r.status === "pending" && r.madeBy === "mcp" && r.askId === null));
+    const waiting = toCheck(await loadMoneyState(db, hid, DEMO_DATE)).find(row => row.title === billItems[0].biller);
+    assert.equal(draftedLabel(waiting?.madeBy), "Drafted through MCP", "To check says the bill came through MCP");
     const refused = await client.callTool({ name: "add_bills", arguments: { items: [billItem(2), { ...billItem(3), due: "2099-01-01" }] } });
     assert.equal(refused.isError, true);
     assert.equal((await db.select().from(s.bills).where(and(eq(s.bills.householdId, hid), like(s.bills.biller, "MCP bulk bill %")))).length, 2, "a bad item saves none");
@@ -155,14 +159,13 @@ async function main() {
     const readClient = new Client({ name: "read-test", version: "1.0.0" });
     try {
       await readClient.connect(new StreamableHTTPClientTransport(endpoint, { requestInit: { headers: { Authorization: "Bearer " + readOnly } } }));
-      assert.ok(!(await readClient.listTools()).tools.some(t => t.name === "draft_invoice" || t.name === "add_bills" || t.name === "log_charges" || t.name === "update_bank_balance" || t.name === "add_pot"));
-      assert.ok((await readClient.listTools()).tools.some(t => t.name === "own_categories"), "own_categories is a read tool");
+      assert.deepEqual((await readClient.listTools()).tools.map(t => t.name).sort(), tools.filter(t => t.scope === "read").map(t => t.name).sort(), "a read-only token is offered the read tools and no draft tool");
     } finally { await readClient.close(); }
 
     stage = "token cap";
     const capHousehold = await seedBen(db, { isDemo: true });
     for (let i = 0; i < MCP_TOKEN_LIMIT; i++) await issueMcpToken(db, capHousehold, { name: `Cap ${i}`, scopes: ["read"] });
-    await assert.rejects(issueMcpToken(db, capHousehold, { name: "One too many", scopes: ["read"] }), /already has 10 live access tokens/);
+    await assert.rejects(issueMcpToken(db, capHousehold, { name: "One too many", scopes: ["read"] }), new RegExp(`already has ${MCP_TOKEN_LIMIT} live access tokens`));
     const [capped] = await listMcpTokens(db, capHousehold);
     assert.equal(await revokeMcpToken(db, capHousehold, capped.id), true);
     await issueMcpToken(db, capHousehold, { name: "After a revoke", scopes: ["read"] });

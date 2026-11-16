@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
+import { MEMORY_SPACES } from "@/lib/links";
 import { usePathname } from "next/navigation";
 import { ApiForm } from "@/components/ui/ApiForm";
 import { CloseIcon } from "@/components/ui/icons";
@@ -42,7 +43,7 @@ export function SpaceDrawer({
       </button>
     </div>
     <div className="ask-drawer-body">
-      <Link href="/memory?tab=spaces" prefetch={false} className="ui-button ask-drawer-spaces">Spaces</Link>
+      <Link href={MEMORY_SPACES} prefetch={false} className="ui-button ask-drawer-spaces">Spaces</Link>
       {!legacyId && brief}
       {!space.isGeneral && pins.length > 0 && <div className="ask-space-pins">
         <h2>Pinned in this space</h2>

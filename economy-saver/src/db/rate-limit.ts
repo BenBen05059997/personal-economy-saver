@@ -1,4 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
+import { NO_STORE } from "@/lib/form-fetch";
 import { sha256Hex } from "@/lib/stable-id";
 import { requireHousehold, withHousehold, type Db } from "./household";
 import { ipBuckets, requestBuckets } from "./schema";
@@ -20,7 +21,7 @@ export async function consumeRequest(db: Db, hid: string, purpose: "ask" | "mcp"
 
 /** The answer to a request over its rate limit: 429 with the message, a one-minute Retry-After and no caching. */
 export function tooMany(message: string) {
-  return new Response(message, { status: 429, headers: { "Cache-Control": "private, no-store", "Retry-After": "60" } });
+  return new Response(message, { status: 429, headers: { ...NO_STORE, "Retry-After": "60" } });
 }
 
 /** Spends one request of a purpose for this household. Null when there is room; otherwise the 429 to return, with `message`. */

@@ -11,7 +11,8 @@ import { amountMinorSchema, idSchema, monthSchema, viewBlockSchema } from "@/lib
 export const RECIPE_VERSION = 1;
 /** The most blocks one recipe holds. */
 export const MAX_BLOCKS = 12;
-const TITLE_MAX = 80;
+/** The longest title of a recipe or a pinned canvas, in characters. */
+export const TITLE_MAX = 80;
 export const MAX_CHANGES = 10;
 const MAX_SLIDER_DAYS = 60;
 

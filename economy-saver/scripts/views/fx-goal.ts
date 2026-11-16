@@ -2,11 +2,6 @@
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PGlite } from "@electric-sql/pglite";
-import { pg_trgm } from "@electric-sql/pglite/contrib/pg_trgm";
-import { drizzle } from "drizzle-orm/pglite";
-import { migrate } from "drizzle-orm/pglite/migrator";
-import * as schema from "@/db/schema";
 import { foreignCostInputs } from "@/db/fx-cost";
 import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
@@ -20,24 +15,22 @@ import { ViewError, type ViewResult } from "@/lib/views/types";
 import { GoalLine } from "@/components/views/forms/GoalLine";
 import { StackedColumns } from "@/components/views/forms/StackedColumns";
 import { reads } from "../fixtures/view-reads";
+import { createChecks, openDb } from "../fixtures/harness";
+import { DEMO_DATE } from "@/db/clock";
 
-let passed = 0;
-async function check(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`); }
-const TODAY = "2026-11-14";
+const { check, tally } = createChecks();
 
 async function main() {
-  const pg = new PGlite({ extensions: { pg_trgm } });
-  const db = drizzle(pg, { schema });
+  const { pg, db } = await openDb();
   try {
-    await migrate(db, { migrationsFolder: "./drizzle" });
     const ben = await seedBen(db, { isDemo: true });
-    const state = await loadMoneyState(db, ben, TODAY);
-    const costs = foreignCosts(await foreignCostInputs(db, ben, TODAY));
+    const state = await loadMoneyState(db, ben, DEMO_DATE);
+    const costs = foreignCosts(await foreignCostInputs(db, ben, DEMO_DATE));
     const ctx = { state, foreignCosts: costs };
 
     await check("fx_cost: the monthly payout costs sum to the total, ¥111,637, and the view has no page", () => {
       assert.equal(costs.payoutTotals.costMinor, 111_637);
-      const months = fxByMonth(costs, TODAY, 6);
+      const months = fxByMonth(costs, DEMO_DATE, 6);
       assert.deepEqual(months.map(m => m.month), ["2026-06", "2026-07", "2026-08", "2026-09", "2026-10", "2026-11"]);
       assert.equal(months.reduce((sum, m) => sum + m.payoutMinor, 0), 111_637);
       const result = resolveView("fx_cost", {}, ctx) as ViewResult<"stacked_columns">;
@@ -54,7 +47,7 @@ async function main() {
 
     await check("fx_cost: an estimated card cost is marked about, in the column, the table and the line; an unknown one is counted, not priced", () => {
       const input = {
-        today: TODAY, homeCurrency: "JPY", rates: [{ date: "2026-01-01", perUsd: 150 }], cards: [{ id: "c1", label: "Card A", currency: "JPY", foreignFeeBp: 220 }, { id: "c2", label: "Card B", currency: "JPY", foreignFeeBp: null }],
+        today: DEMO_DATE, homeCurrency: "JPY", rates: [{ date: "2026-01-01", perUsd: 150 }], cards: [{ id: "c1", label: "Card A", currency: "JPY", foreignFeeBp: 220 }, { id: "c2", label: "Card B", currency: "JPY", foreignFeeBp: null }],
         charges: [
           { id: "x1", cardId: "c1", merchant: "Hotel", date: "2026-10-12", amountMinor: 15_000, original: { amountMinor: 10_000, currency: "USD" }, fxEstimated: true },
           { id: "x2", cardId: "c2", merchant: "Cafe", date: "2026-10-13", amountMinor: 1_500, original: { amountMinor: 1_000, currency: "USD" }, fxEstimated: true },
@@ -70,7 +63,7 @@ async function main() {
     });
 
     await check("fx_cost: nothing foreign yet says what shows it", () => {
-      const none = resolveView("fx_cost", {}, { state, foreignCosts: foreignCosts({ today: TODAY, homeCurrency: "JPY", rates: [], cards: [], charges: [], invoices: [] }) });
+      const none = resolveView("fx_cost", {}, { state, foreignCosts: foreignCosts({ today: DEMO_DATE, homeCurrency: "JPY", rates: [], cards: [], charges: [], invoices: [] }) });
       assert.equal(none.data, null);
       assert.match(none.empty!.words, /once a client has paid you in dollars/);
     });
@@ -89,26 +82,26 @@ async function main() {
       assert.equal(result.data!.projection!.date, goal.reachedOn);
       assert.equal(result.line, goal.summary);
       assert.equal(fact(result.facts, "goal_pace")!.value, goal.deltaMinor);
-      reads(result, TODAY);
+      reads(result, DEMO_DATE);
       assert.equal(result.table!.rows.length, 4);
     });
 
     await check("goal_pace on a behind and a reached pot reads clean; goal_pace carries one signed amount and the date at this pace", () => {
       const behind = pot({ saved: 1_000 }), goal = goalPace(behind, state)!;
       const result = resolveView("goal_pace", { potId: behind.id }, withPots(behind)) as ViewResult;
-      reads(result, TODAY);
+      reads(result, DEMO_DATE);
       assert.ok(goal.deltaMinor < 0);
       assert.equal(result.facts!.filter(f => f.name === "goal_pace").length, 1);
       assert.equal(result.facts!.find(f => f.name === "goal_pace")!.value, goal.deltaMinor);
       assert.equal(result.facts!.find(f => f.name === "goal_reaches_on")!.value, goal.reachedOn);
-      reads(resolveView("goal_pace", { potId: "pot-trip" }, withPots(pot({ saved: 60_000 }))) as ViewResult, TODAY);
-      reads(resolveView("goal_pace", { potId: "pot-trip" }, withPots(pot({ saved: 30_000, startedOn: "2026-06-01" }))) as ViewResult, TODAY);
+      reads(resolveView("goal_pace", { potId: "pot-trip" }, withPots(pot({ saved: 60_000 }))) as ViewResult, DEMO_DATE);
+      reads(resolveView("goal_pace", { potId: "pot-trip" }, withPots(pot({ saved: 30_000, startedOn: "2026-06-01" }))) as ViewResult, DEMO_DATE);
     });
 
     await check("goal_pace: a reached target draws today as the projection; a pot with no target or date is not a goal; unknown pot refused", () => {
       const done = resolveView("goal_pace", { potId: "pot-trip" }, withPots(pot({ saved: 60_000 }))) as ViewResult<"goal_line">;
       assert.equal(done.line, "Target reached.");
-      assert.equal(done.data!.projection!.date, TODAY);
+      assert.equal(done.data!.projection!.date, DEMO_DATE);
       for (const bare of [pot({ target: undefined }), pot({ targetDate: undefined })]) {
         const none = resolveView("goal_pace", { potId: bare.id }, withPots(bare));
         assert.equal(none.data, null);
@@ -130,7 +123,7 @@ async function main() {
   } finally {
     await pg.close();
   }
-  console.log(`\n${passed} checks passed`);
+  console.log(`\n${tally.passed} checks passed`);
 }
 
 export const done = main();

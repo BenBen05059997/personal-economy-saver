@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { type Db, ownerFirst, requireHousehold, recordEvent } from "./household";
 import { InputError } from "./input-error";
-import { minorMoney, percentToBp } from "@/lib/money/format";
+import { minorMoney, percentToBp, plural } from "@/lib/money/format";
 import { Currency } from "@/lib/catalogue/types";
 import { parseMinor } from "./money";
 import { bills, cards, charges, households, members } from "./schema";
@@ -124,7 +124,7 @@ export async function removeCard(db: Db, householdId: string, id: string): Promi
     const [gone] = await tx.select({ charges: sql<number>`count(*)::int` }).from(charges).where(and(eq(charges.householdId, hid), eq(charges.cardId, cardId)));
     await tx.delete(cards).where(and(eq(cards.householdId, hid), eq(cards.id, cardId)));
     await recordEvent(tx, hid, { madeBy: "form", kind: "settings_updated", title: `${card.label} removed`,
-      body: `${gone.charges} charge${gone.charges === 1 ? "" : "s"} and its statements went with it` });
+      body: `${plural(gone.charges, "charge")} and its statements went with it` });
     await observeRunway(tx, hid);
     return true;
   });

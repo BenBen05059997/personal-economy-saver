@@ -7,8 +7,8 @@ import { minorMoney, minorPerUnit, plural, toMinor } from "./format";
 import { AMOUNT_NOT_KNOWN, gapUncountedWords } from "./gaps";
 import { CATEGORIES, categoryLabel, type CategoryKey } from "./categories";
 import { ownLabel } from "./own-category";
-import { normalise } from "./name-key";
-import { amountOn, datesIn, nextAmountOf, realBillsBySeries, storedId, unpricedBySeries, variesOccurrences } from "./repeat";
+import { normalise, storedId } from "./name-key";
+import { amountOn, datesIn, nextAmountOf, realBillsBySeries, unpricedBySeries, variesOccurrences } from "./repeat";
 import type { Bill, Card, Charge, RepeatUnit, SplitMember } from "./types";
 
 /** D55: true when there are items and none of them has a known amount: a total of them is not ¥0, it is not known. */

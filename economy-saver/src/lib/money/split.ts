@@ -110,9 +110,12 @@ export function splitBalance(split: SplitState, today: string): SplitBalance {
 
 export const transferLine = (t: Transfer, currency: Currency) => `${t.fromName} owes ${t.toName} ${minorMoney(t.amountMinor, currency)}`;
 
+/** What the split says when no money moves between people. */
+export const NOBODY_OWES = "Nobody owes anyone anything.";
+
 /** One short sentence for the agent and the screen, built in code. */
 export function splitSummary(split: SplitState, balance: SplitBalance, currency: Currency): string {
   if (split.members.length < 2) return "Only one person is in this household, so there is nothing to split.";
-  if (!balance.transfers.length) return "Nobody owes anyone anything.";
+  if (!balance.transfers.length) return NOBODY_OWES;
   return balance.transfers.map(t => transferLine(t, currency)).join(". ") + ".";
 }

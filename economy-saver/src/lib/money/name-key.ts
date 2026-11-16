@@ -91,3 +91,6 @@ export function sameName(a: string, b: string): boolean {
   const keys = nameKeys(b);
   return nameKeys(a).some(key => keys.includes(key));
 }
+
+/** The stored bill an occurrence belongs to: the occurrences of a repeating bill have the id "<stored id>@<date>"; a one-off has no "@". */
+export const storedId = (id: string): string => id.split("@")[0];

@@ -9,9 +9,9 @@ import { ViewFigure } from "@/components/views/ViewFigure";
 import { resolveView } from "@/lib/views/resolve";
 import { ViewError, type ViewResult } from "@/lib/views/types";
 import { reads } from "../fixtures/view-reads";
+import { createSyncChecks } from "../fixtures/harness";
 
-let passed = 0;
-function check(name: string, run: () => void) { run(); passed++; console.log(`✓ ${name}`); }
+const { check, tally } = createSyncChecks();
 const ctx = { state: benMoney };
 const card = (cardId: string, amountMinor?: number) => resolveView("card_cycle", { cardId, ...(amountMinor === undefined ? {} : { amountMinor }) }, ctx) as ViewResult<"tracks">;
 const track = (result: ViewResult<"tracks">, key: string) => result.data!.tracks.find(t => t.key === key)!;
@@ -97,4 +97,4 @@ check("the table twin lists the days in order and the figure draws every label",
   const html = renderToStaticMarkup(createElement(ViewFigure, { result: a }));
   for (const word of ["This cycle", "You pay", "Covered by", "This purchase, today", "Closes", "Building", "Dec 26", "Nov 26", "Today"]) assert.ok(html.includes(word), word);
 });
-console.log(`card cycle: ${passed} checks passed`);
+console.log(`card cycle: ${tally.passed} checks passed`);

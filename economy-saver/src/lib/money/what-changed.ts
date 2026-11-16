@@ -11,7 +11,7 @@ import { splitBalance } from "./split";
 import type { Bill, Charge, MoneyState, Pot, SplitState } from "./types";
 import { cardSummary } from "./card-summary";
 import { labelOf } from "./terms";
-import { storedId } from "./repeat";
+import { storedId } from "./name-key";
 
 /** A problem in the item asked about, written for the person. */
 export class WhatChangedError extends Error {}
