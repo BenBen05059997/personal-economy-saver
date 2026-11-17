@@ -3,7 +3,7 @@ import { withHousehold } from "@/db/household";
 import { requireCloud } from "@/db/place";
 import { moveCanvas, pinCanvas, unpinCanvas, updateCanvas } from "@/db/canvases";
 import { badFields, failure, householdForm, limited, returnPath, text, TOO_MANY_CHANGES } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { Uuid } from "@/lib/stable-id";
 
 const MAX_RECIPE = 40_000;

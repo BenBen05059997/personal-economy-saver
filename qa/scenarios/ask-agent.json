@@ -1126,6 +1126,32 @@
     ]
   },
   {
+    "id": "ASK-076",
+    "area": "Ask",
+    "action": "See Ask's own request limit refuse a question in the browser",
+    "user_goal": "Too many questions a minute should be refused in words",
+    "type": "negative",
+    "priority": "P3",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026) at 1440px",
+      "A working model (the server's or the Codex bridge)"
+    ],
+    "steps": [
+      "Send short questions in Ask until the limit answers (more than 30 inside one minute)"
+    ],
+    "expected": [
+      "The red line under the box reads \"Ask again in a minute.\"; the HTTP status and the per-household bucket are checked by db:ask-routes-test"
+    ],
+    "refs": [
+      "db:ask-routes-test",
+      "db:limits-test"
+    ]
+  },
+  {
     "id": "ASK-078",
     "area": "Ask",
     "action": "Type a question longer than 320 characters",

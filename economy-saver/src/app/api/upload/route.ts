@@ -5,7 +5,7 @@ import { readDocumentInBackground } from "@/db/reader-background";
 import { readUpload } from "@/lib/reader/accept";
 import { ReaderError } from "@/lib/reader/settings";
 import { text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { householdRequest } from "@/lib/session";
 
 export async function POST(request: Request) {

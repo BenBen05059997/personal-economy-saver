@@ -1,6 +1,6 @@
 import { HOUSEHOLD_COOKIE, UPGRADE_DEMO_COOKIE } from "@/lib/supabase-auth";
 import { NO_REFERRER, sameOriginOnly, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { routeAuth } from "@/lib/auth-request";
 
 export async function POST(request: Request) {

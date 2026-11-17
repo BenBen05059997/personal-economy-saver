@@ -18,6 +18,7 @@ import { seedBen } from "@/db/seed";
 import { applyVerifiedDelivery, storedPayload } from "@/lib/events";
 import { missingAskSetting } from "@/lib/agent/availability";
 import { ReaderError } from "@/lib/reader/settings";
+import { MAX_PINS } from "@/lib/canvas/schema";
 
 const MiB = 1024 * 1024;
 
@@ -27,6 +28,13 @@ async function main() {
   const savedEnv = { ...process.env };
   const savedFetch = globalThis.fetch;
   try {
+    await check("the limits DECISIONS.md states as numbers keep those values (D33, D54, D25/D57)", async () => {
+      assert.deepEqual([DAILY_QUESTIONS, DAILY_DOCUMENTS], [30, 10]);
+      assert.deepEqual([STORAGE_CAP_BYTES, DEMO_STORAGE_CAP_BYTES], [200 * MiB, 20 * MiB]);
+      assert.equal(RAW_FILE_RETENTION_DAYS, 30);
+      assert.equal(MAX_PINS, 8);
+    });
+
     // ---------------------------------------------------------------- 1. per-address limits
     await check("clientIp reads the header named by CLIENT_IP_HEADER, first entry of a list, and refuses when the setting or the header is missing", async () => {
       delete process.env.CLIENT_IP_HEADER;

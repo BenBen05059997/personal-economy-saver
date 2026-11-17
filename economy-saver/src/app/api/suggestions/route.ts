@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { dismiss, notNow } from "@/db/suggestions";
 import { badFields, formOf, limited, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { householdRequest } from "@/lib/session";
 import { Uuid } from "@/lib/stable-id";
 

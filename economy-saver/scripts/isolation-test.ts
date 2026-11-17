@@ -431,7 +431,7 @@ async function main() {
         assert.ok(fp.standing_rules.length > 0, `${t.name} has no standing rules`);
       }
       const [a, b] = [await needlesOf(A), await needlesOf(B)];
-      assert.ok(a.strings.length > 0 && b.strings.length > 0);
+      assert.ok(a.strings.length >= 190 && b.strings.length >= 190, "the leak search has about 199 strings per household");
       assert.equal(a.strings.filter(s => b.strings.includes(s)).length, 0, "no id or name is in both households");
     });
 

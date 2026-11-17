@@ -1,5 +1,5 @@
 import { missingDatabase, NO_REFERRER, sameOriginOnly } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { verifiedUid } from "@/lib/auth-request";
 import { db } from "@/db/client";
 import { seedBen } from "@/db/seed";

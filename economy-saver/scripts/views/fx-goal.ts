@@ -37,6 +37,9 @@ async function main() {
       assert.equal(result.data!.columns.reduce((sum, c) => sum + c.total, 0), 111_637);
       for (const c of result.data!.columns) assert.equal(c.parts.reduce((a, b) => a + b, 0), c.total);
       assert.equal(fact(result.facts, "foreign_cost")!.value, 111_637);
+      assert.equal(fact(result.facts, "foreign_cost_receiving")!.value, costs.payoutTotals.costMinor);
+      assert.equal(fact(result.facts, "foreign_cost_card")!.value, costs.chargeTotals.exactMinor + costs.chargeTotals.estimatedMinor);
+      assert.deepEqual(result.facts!.filter(f => f.name === "foreign_cost" && f.about).map(f => [f.about!.name, f.value]).sort(), [["Acme Corp", 52_545], ["Beacon Studio", 22_242], ["Northwind", 36_850]]);
       assert.equal(result.table!.foot![3], "¥111,637");
       assert.equal(result.table!.rows.length, 6);
       assert.equal(VIEW_META.fx_cost.home, null, "D77: foreign costs have no page, so a reply that shows them offers no See it in");

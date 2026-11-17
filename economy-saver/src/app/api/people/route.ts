@@ -2,7 +2,7 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { addMember, addMemberInput, removeMember, removeMemberInput, savePeople, savePeopleInput } from "@/db/people";
 import { badFields, failure, householdForm, limited, returnPath, text, TOO_MANY_CHANGES } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { hasHouseholdOwnerAccess, HOUSEHOLD_OWNER_REQUIRED } from "@/lib/session";
 
 /** Household → People (D45): `kind=add` adds a person (equal shares again) and returns to `returnTo`; `kind=people` saves every name and share in one go, fields named `name:<member id>` and, with two or more people, `share:<member id>` in percent; `kind=remove` removes the person `id` (the rule is on `removeMember`). */

@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { markPaidOutside } from "@/db/invoice-paid";
 import { badFields, failure, householdForm, limited, text, TOO_MANY_REQUESTS } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { Uuid } from "@/lib/stable-id";
 import { hrefFor } from "@/lib/links";
 

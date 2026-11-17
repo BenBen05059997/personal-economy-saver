@@ -5,7 +5,7 @@ import { db } from "@/db/client";
 import { InputError } from "@/db/input-error";
 import { verifiedUid } from "@/lib/auth-request";
 import { formOf, missingDatabase, NO_REFERRER, sameOriginOnly, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { demoResponse } from "@/lib/session";
 import { demoHouseholdForToken } from "@/db/demo";
 import { SETTINGS_ACCOUNT } from "@/lib/links";

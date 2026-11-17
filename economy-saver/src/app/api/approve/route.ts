@@ -6,7 +6,7 @@ import { usdRate, withHousehold } from "@/db/household";
 import { fromRateMicro } from "@/db/money";
 import { createOrder } from "@/lib/paypal/send";
 import { formOf, limited, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { ownerRequest } from "@/lib/session";
 import { Uuid } from "@/lib/stable-id";
 import { hrefFor } from "@/lib/links";

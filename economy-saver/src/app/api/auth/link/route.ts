@@ -1,6 +1,6 @@
 import { cookies } from "next/headers";
 import { formOf, ipLimited, missingDatabase, NO_REFERRER, sameOriginOnly, text, tooMany } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { db } from "@/db/client";
 import { INVITE_TOKEN, inviteMatchesEmail } from "@/db/invites";
 import { z } from "zod";

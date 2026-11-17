@@ -4,7 +4,7 @@ import { requireCloud } from "@/db/place";
 import { requireSpace } from "@/db/spaces";
 import { addMemory, deleteMemory, editMemory, forgetEverything } from "@/db/memory";
 import { badFields, failure, householdForm, returnPath, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { Uuid } from "@/lib/stable-id";
 
 /** Profile or space notes (D58, D70): add, edit, delete one thing, or clear the selected scope. */

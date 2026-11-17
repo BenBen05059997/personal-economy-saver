@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import { billEditInput, billInput, fillGapFromText, insertBill, updateBill } from "@/db/bills";
 import { badFields, categoryFieldsFromForm, failure, householdForm, returnPath, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 
 /**
  * Adds a bill (no `kind`, or `kind=add`), or edits one from its page under Bills (`kind=edit`: name, amount, due date, category, business

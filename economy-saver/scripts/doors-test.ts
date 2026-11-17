@@ -34,7 +34,7 @@ import { logged, noteHousehold, routePattern } from "@/lib/request-log";
 import { HORIZON_MESSAGE, latestDate } from "@/lib/money/horizon";
 import { changeStandingRule, rulesFor } from "@/db/rules";
 import { seedBen } from "@/db/seed";
-import { loadMoneyState } from "@/db/household";
+import { loadMoneyState, recordEvent } from "@/db/household";
 import { cancelNotices, expandBills, lastOneWords, lastPayment, nextOccurrenceAfter, occurrenceDates } from "@/lib/money/repeat";
 import { loadNavigationData } from "@/db/workspace";
 import { draftedLabel, toCheck } from "@/lib/money/to-check";
@@ -272,6 +272,17 @@ async function main() {
       const shared = bill();
       await insertBill(db, a, shared, "confirmed", { madeBy: "form" });
       assert.equal((await first(db.select().from(schema.bills).where(eq(schema.bills.id, shared.id)))).memberId, null);
+    });
+
+    await check("one notification per local day: only the first notifying event keeps the flag; invoice_paid and payment_received are exempt", async () => {
+      await db.update(schema.households).set({ notificationDay: null }).where(eq(schema.households.id, a));
+      const notified = async (kind: string, title: string) => {
+        const id = await db.transaction(tx => recordEvent(tx, a, { madeBy: "form", kind, title, notify: true }));
+        return (await first(db.select().from(schema.events).where(eq(schema.events.id, id)))).notify;
+      };
+      assert.deepEqual([await notified("daily_reminder", "Fictional first"), await notified("daily_reminder", "Fictional second")], [true, false]);
+      assert.equal(await notified("invoice_paid", "Fictional paid"), true);
+      assert.equal(await notified("payment_received", "Fictional received"), true);
     });
 
     await check("insertBill pending waits in To check with a notified to_check event and no runway observation", async () => {

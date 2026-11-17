@@ -6,6 +6,7 @@ import { guessCategory } from "./categorise";
 import { addMonths } from "./dates";
 import { dayLabel, minorMoney, ordinal, plural } from "./format";
 import { AMOUNT_NOT_KNOWN } from "./gaps";
+import { VIEW_META } from "@/lib/views/catalogue";
 import { normalise } from "./name-key";
 import { monthBounds, monthName } from "./spending";
 
@@ -61,7 +62,7 @@ type BillsForMonth = {
 };
 
 /** Where counting stays (D63): a bill with no period is counted by its due date, which is what the month_by_category view reads. */
-const NO_PERIOD_NOTE = "Only bills that name the month they are for are listed here. A bill with no period is counted by its due or paid date: show the month_by_category view for the month money was paid.";
+const NO_PERIOD_NOTE = `Only bills that name the month they are for are listed here. A bill with no period is counted by its due or paid date. For the month the money was paid, see \u201c${VIEW_META.month_by_category.question}\u201d.`;
 
 /** True when the bill's period shares at least one day with the month (YYYY-MM). */
 const periodOverlaps = (period: Period, month: string): boolean => {

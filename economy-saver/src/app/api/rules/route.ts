@@ -3,7 +3,7 @@ import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
 import { changeStandingRule } from "@/db/rules";
 import { badFields, failure, formOf, limited, returnPath } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { RULE_KINDS } from "@/lib/money/suggestion-types";
 import { householdRequest } from "@/lib/session";
 import { Uuid } from "@/lib/stable-id";

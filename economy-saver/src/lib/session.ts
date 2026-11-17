@@ -1,7 +1,8 @@
 import { cache } from "react";
 import { accountHousehold, accountMembership } from "@/db/account";
 import { verifiedUid } from "./auth-request";
-import { NO_STORE, redirectTo } from "./form-fetch";
+import { NO_STORE } from "./form-fetch";
+import { redirectTo } from "./form-redirect";
 import { COOKIE_AGE, cookiePolicy, hasAuthCookie, HOUSEHOLD_COOKIE } from "./supabase-auth";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";

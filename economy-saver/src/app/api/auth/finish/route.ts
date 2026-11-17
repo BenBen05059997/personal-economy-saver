@@ -2,7 +2,7 @@ import { HOUSEHOLD_COOKIE, UPGRADE_DEMO_COOKIE } from "@/lib/supabase-auth";
 import { cookies } from "next/headers";
 import { accountHousehold } from "@/db/account";
 import { NO_REFERRER } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { db } from "@/db/client";
 import { InputError } from "@/db/input-error";
 import { INVITE_TOKEN, acceptInvite } from "@/db/invites";

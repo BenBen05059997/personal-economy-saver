@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import { requestFromMember } from "@/db/member-request";
 import { badFields, failure, limited, ownerForm, TOO_MANY_REQUESTS } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { Uuid } from "@/lib/stable-id";
 import { hrefFor } from "@/lib/links";
 

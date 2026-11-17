@@ -1,6 +1,6 @@
 import { HOUSEHOLD_COOKIE, UPGRADE_DEMO_COOKIE } from "@/lib/supabase-auth";
 import { DEMO_SESSION_REQUIRED, NO_REFERRER, sameOriginOnly, settingFailure, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { db } from "@/db/client";
 import { deleteDemoHousehold } from "@/db/demo";
 import { currentHouseholdId } from "@/lib/session";

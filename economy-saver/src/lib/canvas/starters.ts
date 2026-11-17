@@ -2,7 +2,7 @@
 // They are ordinary recipes: the same schema, the same resolver. Nothing here holds an amount of its own.
 import { firstName } from "@/lib/money/format";
 import { monthName, monthsBack } from "@/lib/money/spending";
-import { CASES } from "@/lib/money/terms";
+import { CASES, labelOf, termOf } from "@/lib/money/terms";
 import { toCheck } from "@/lib/money/to-check";
 import type { MoneyState } from "@/lib/money/types";
 import { RECIPE_VERSION, type Block, type Recipe } from "./schema";
@@ -33,7 +33,7 @@ export function starterRecipes(state: MoneyState, nudgeIds: readonly string[] = 
     blocks: [
       { type: "sentence", query: { q: "sentence" } },
       { type: "number", label: "Safe to spend", query: { q: "safe_to_spend" }, note: `The lowest your balance gets in the next 30 days, if clients pay ${CASES.late.label}.` },
-      { type: "number", label: "Cash today", query: { q: "cash" }, note: "Bank and PayPal, less your pots." },
+      { type: "number", label: labelOf("cash_to_spend"), query: { q: "cash" }, note: termOf("cash_to_spend").meaning },
       { type: "number", label: "Lowest point", query: { q: "low_point" } },
       { type: "view", view: "forecast", args: {} },
       { type: "timeline", query: { q: "events" } },

@@ -1,7 +1,7 @@
 import { HOUSEHOLD_COOKIE, UPGRADE_DEMO_COOKIE } from "@/lib/supabase-auth";
 import { cookies } from "next/headers";
 import { formOf, NO_REFERRER, sameOriginOnly, settingFailure, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { finishSetup, setupForm } from "@/db/account";
 import { db } from "@/db/client";
 import { verifiedUid } from "@/lib/auth-request";

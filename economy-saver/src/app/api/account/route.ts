@@ -1,6 +1,6 @@
 import { db } from "@/db/client";
 import { formOf, NO_REFERRER, sameOriginOnly, settingFailure, SIGN_IN_TO_CONTINUE, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { verifiedUid } from "@/lib/auth-request";
 import { cookies } from "next/headers";
 import { AUTH_COOKIE, HOUSEHOLD_COOKIE, MissingAuthSetting, UPGRADE_DEMO_COOKIE } from "@/lib/supabase-auth";

@@ -342,7 +342,7 @@ async function main() {
       const toReview = starterRecipes({ ...state, invoices: [] })[0].recipe.blocks.find(b => b.type === "action");
       assert.deepEqual(toReview, { type: "action", label: "Open To check", href: "/to-check" });
       assert.equal(block(resolved, "sentence").source, "Worked out from your records");
-      assert.equal(resolved.find(r => r.type === "number" && r.data.label === "Cash today")!.source, "From your records");
+      assert.equal(resolved.find(r => r.type === "number" && r.data.label === "Cash to spend")!.source, "From your records");
     });
 
     await check("the flow's low point equals low(series(...)) for both cases, and the low_point number agrees", () => {
@@ -581,7 +581,7 @@ async function main() {
         assert.deepEqual(block.data.head, ["Bill", "Amount", "Due"]);
         assert.deepEqual(block.data.rows.map(r => r.cells), [["Harbor Energy (11月分)", "¥9,800", "Dec 27"], ["Harbor Gas (11月分)", "amount not known", "date not known"]]);
         assert.deepEqual(block.data.foot, ["Total", "¥9,800", ""]);
-        assert.match(block.data.caption ?? "", /show the month_by_category view/);
+        assert.match(block.data.caption ?? "", /Where is my money going this month/);
       }
       const [dec] = resolveRecipe(table("2026-12"), ctx);
       assert.ok(dec.type === "table" && dec.data.rows.length === 0 && /No bill names December 2026/.test(dec.data.empty ?? ""));

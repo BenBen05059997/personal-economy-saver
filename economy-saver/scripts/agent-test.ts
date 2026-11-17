@@ -589,7 +589,7 @@ async function main() {
       assert.match(nov.summary, /waiting in To check/);
       assert.deepEqual(billsForMonth(bills, "2026-11", "ENERGY").items.map(i => i.id), ["span", "nov", "unknown"], "a recognized term matches its category");
       assert.deepEqual(billsForMonth(bills, "2026-11", "harbor").items.map(i => i.id), ["nov", "unknown"]);
-      assert.match(nov.note, /show the month_by_category view/);
+      assert.match(nov.note, /Where is my money going this month/);
       assert.deepEqual(billsForMonth([], "2026-11").items, []);
     });
 
@@ -617,7 +617,7 @@ async function main() {
       assert.deepEqual(JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-11", text: "gas" }) as never)).items.map((i: { biller: string }) => i.biller), ["Harbor Energy", "Harbor Energy Gas"]);
       const noPeriod = JSON.parse(await tool.run(ctx, tool.input.parse({ month: "2026-11", text: "rent" }) as never));
       assert.deepEqual(noPeriod.items, [], "Ben's rent has no period");
-      assert.match(noPeriod.note, /show the month_by_category view/);
+      assert.match(noPeriod.note, /Where is my money going this month/);
       await assert.rejects(() => tool.run(ctx, tool.input.parse({ month: "2029-01", text: "" }) as never), (error: unknown) => error instanceof InputError);
       // The model path: the tool is called by name and its words are shown.
       const run = transport([() => reply("tool_use", [toolUse("b", "bills_for_month", { month: "2026-11", text: "electricity" })]), () => reply("end_turn", [text("The two electricity bills came to ¥12,900.")])]);

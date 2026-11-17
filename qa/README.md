@@ -102,7 +102,7 @@ Spending → Over time → Regular costs (under the months), before confirming H
 
 ### AA1. Your data, fresh counts
 
-"Your data" says "What the app keeps about you, where it is kept, and how to delete it. A question you ask goes to the household’s AI model." Its seven rows show "In our cloud, Tokyo." and these fresh Try it counts: "Your numbers · <its item count>", "What the assistant remembers · 0 things", "Canvases pinned to Home · 0 canvases", "Ask conversations · 0 items", "Reminder history · 0 deliveries", "Push subscriptions · 0 devices", and "Uploaded documents · 0 documents". Your numbers says "Deleted only with everything else." and has no Delete. Export my data, Import and Delete everything follow the rows. A row with nothing in it has no Delete.
+"Your data" says "What the app keeps about you, where it is kept, and how to delete it. A question you ask goes to the household’s AI model." Its seven rows show "In our cloud, Tokyo." and these fresh Try it counts: "Your numbers · 46 items", "What the assistant remembers · 0 things", "Canvases pinned to Home · 0 canvases", "Ask conversations · 0 items", "Reminder history · 0 deliveries", "Push subscriptions · 0 devices", and "Uploaded documents · 0 documents". Your numbers says "Deleted only with everything else." and has no Delete. Export my data, Import and Delete everything follow the rows. A row with nothing in it has no Delete.
 
 ### AE. What foreign money costs
 

@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import { ConnectError, startConnect } from "@/db/paypal-connection";
 import { limited, text, TOO_MANY_TRIES } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { didNotAnswer, PAYPAL_DID_NOT_ANSWER, paypalRead } from "@/lib/paypal/client";
 import { ownerRequest } from "@/lib/session";
 

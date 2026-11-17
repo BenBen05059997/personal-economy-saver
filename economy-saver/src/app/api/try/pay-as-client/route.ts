@@ -3,7 +3,7 @@ import { ApprovalError } from "@/db/approval";
 import { db } from "@/db/client";
 import { payInvoiceAsTestClient } from "@/db/try-pay";
 import { formOf, limited, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { payWithSandboxTestCard } from "@/lib/paypal/send";
 import { ownerRequest } from "@/lib/session";
 import { Uuid } from "@/lib/stable-id";

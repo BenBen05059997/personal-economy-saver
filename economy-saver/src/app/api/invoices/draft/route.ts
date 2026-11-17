@@ -3,7 +3,7 @@ import { withHousehold } from "@/db/household";
 import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
 import { InputError } from "@/db/input-error";
 import { failure, formOf, limited, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { householdRequest } from "@/lib/session";
 import { hrefFor } from "@/lib/links";
 

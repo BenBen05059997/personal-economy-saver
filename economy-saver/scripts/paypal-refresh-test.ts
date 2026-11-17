@@ -54,12 +54,10 @@ async function test() {
       const [household] = await tx.select().from(s.households).where(eq(s.households.id, untouched)).for("update");
       assert.deepEqual({ ...clockForHousehold(household), currency: household.homeCurrency }, await householdClock(tx, untouched));
       queries.length = 0;
-      await loadMoneyState(tx, untouched, clockForHousehold(household).today);
-      const reading = queries.length;
       queries.length = 0;
       const money = await loadMoneyState(tx, untouched, clockForHousehold(household).today, household);
       await observeRunway(tx, untouched, money, household);
-      assert.ok(queries.length <= reading, "passing the household in saves the money load its household read, which pays for the baseline update");
+      assert.equal(queries.length, 13, "workspace reuses its household for twelve money queries and one baseline update");
       assert.ok(!queries.some(query => /from "households"|for update/i.test(query)), "no repeated household reads or locks");
       await assert.rejects(loadMoneyState(tx, a, money.today, household), /does not match/);
       await assert.rejects(observeRunway(tx, a, money, household), /does not match/);

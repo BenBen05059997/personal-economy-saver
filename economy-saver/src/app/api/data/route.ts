@@ -4,7 +4,7 @@ import { withHousehold } from "@/db/household";
 import { DATA_KINDS, deleteConversation, deleteKind, deleteOne } from "@/db/data-kinds";
 import { isMovable, requireCloud } from "@/db/place";
 import { badFields, failure, householdForm, limited, returnPath, text, TOO_MANY_REQUESTS } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { Uuid } from "@/lib/stable-id";
 
 const What = z.enum(DATA_KINDS);

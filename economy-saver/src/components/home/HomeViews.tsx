@@ -44,7 +44,7 @@ export function HomeViews({ state, result, bankBalance }: { state: MoneyState; r
   const mode = parseHomeMode(stored);
   if (hasNothingToForecast(state)) return <section id="next-30-days" className="home-panel hv-panel hv-blank"><header><div><h2>Your next 30 days</h2><p>Nothing to forecast yet. Add a bill or a client and your next 30 days show here.</p></div></header><div className="hv-blank-actions"><AddLink kind="bill" className="home-button home-primary">Add a bill</AddLink><AddLink kind="client" className="home-button">Add a client</AddLink></div>{bankBalance}</section>;
   return <section id="next-30-days" className="home-panel hv-panel">
-    <PanelHeader title="Your next 30 days" hint={`${labelOf("cash")}, ${CASES.as_usual.label} and ${CASES.late.label}`} question="What does my cash forecast show?" />
+    <PanelHeader title="Your next 30 days" hint={`${labelOf("cash_to_spend")}, ${CASES.as_usual.label} and ${CASES.late.label}`} question="What does my cash forecast show?" />
     <div className="hv-controls"><Segmented label="Display" value={mode} options={DISPLAY_OPTIONS} onPick={save} /></div>
     <Forecast state={state} result={result} mode={mode} bankBalance={bankBalance} />
   </section>;

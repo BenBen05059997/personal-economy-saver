@@ -5,7 +5,7 @@ import { CHECK_ORDER, type CheckKind } from "@/lib/money/checks";
 import { reviewReading } from "@/db/readings";
 import { confirmPending } from "@/db/confirm";
 import { householdForm, returnPath, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { ownChoiceFromForm } from "@/lib/reader/own-choices";
 import { StatementChargeError } from "@/db/statement-charge";
 import { Uuid } from "@/lib/stable-id";

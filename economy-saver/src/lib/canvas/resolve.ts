@@ -272,7 +272,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
       aria: `${row.label}: ${now} ${row.bLabel}, ${tick} ${row.aLabel}, ${row.change}.`,
     }));
     const line = `${now} ${plain.bTotal} against ${tick} ${plain.aTotal}: ${plain.difference}.`;
-    const base = { view: "month_by_category" as const, args: { a: query.a, b: query.b }, form: "ranked_bars" as const, title: `${now} against ${tick}`, question: VIEW_META.month_by_category.question, hint: VIEW_META.month_by_category.hint, currency, strip: null, source: "Worked out from your records", facts: [moneyFact("month_total", a.totalMinor, { period: monthPeriod(query.a) }), moneyFact("month_total", b.totalMinor, { period: monthPeriod(query.b) }), moneyFact("difference_between_months", b.totalMinor - a.totalMinor, { period: monthPeriod(query.b) })] };
+    const base = { view: "month_by_category" as const, args: { a: query.a, b: query.b }, form: "ranked_bars" as const, title: `${now} against ${tick}`, question: VIEW_META.month_by_category.question, hint: "One month against another, category by category", currency, strip: null, source: "Worked out from your records", facts: [moneyFact("month_total", a.totalMinor, { period: monthPeriod(query.a) }), moneyFact("month_total", b.totalMinor, { period: monthPeriod(query.b) }), moneyFact("difference_between_months", b.totalMinor - a.totalMinor, { period: monthPeriod(query.b) })] };
     const view: ViewResult<"ranked_bars"> = plain.empty
       ? { ...base, data: null, table: null, line: null, facts: [], aria: plain.empty, empty: { words: plain.empty, add: null, addLabel: null } }
       : { ...base, data: { segments: [{ key: "now", legend: now, tone: "main" }], tick: { legend: tick }, rows }, table, line, aria: `${now} against ${tick}, category by category. ${line}`, empty: null };
@@ -283,7 +283,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
     const view = viewOf(query.month), month = monthText(query.month);
     const members = state.split.members;
     const none = { table: { title: null, caption: null, head: [], rows: [], foot: null, empty: null }, owes: null };
-    const baseView = { view: "month_by_category" as const, args: { month: query.month, by: "person" }, form: "ranked_bars" as const, title: `${month} by category and whose it is`, question: VIEW_META.month_by_category.question, hint: VIEW_META.month_by_category.hint, currency, strip: null, source: "Worked out from your records" };
+    const baseView = { view: "month_by_category" as const, args: { month: query.month, by: "person" }, form: "ranked_bars" as const, title: `${month} by category and whose it is`, question: VIEW_META.month_by_category.question, hint: "Each category, split by whose it is", currency, strip: null, source: "Worked out from your records" };
     const emptyOf = (words: string): ByPersonData => ({ month, ...none, empty: words, view: { ...baseView, data: null, table: null, line: null, aria: words, facts: [], empty: { words, add: null, addLabel: null } } });
     if (members.length < 2) return emptyOf(`Only ${members[0]?.name ?? "you"} in this household. Add a person in Household → People to split.`);
     if (view.categories.length === 0) return emptyOf(`Nothing confirmed in ${monthName(query.month)}.`);

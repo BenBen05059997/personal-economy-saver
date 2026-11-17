@@ -1,7 +1,7 @@
 import { db } from "@/db/client";
 import { removePot } from "@/db/pots";
 import { badFields, failure, householdForm, returnPath } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { Uuid } from "@/lib/stable-id";
 
 export async function POST(request: Request) {

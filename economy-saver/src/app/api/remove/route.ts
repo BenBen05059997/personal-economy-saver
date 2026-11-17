@@ -4,7 +4,7 @@ import { removeBill } from "@/db/bills";
 import { removeCharge } from "@/db/charges";
 import { removeCard } from "@/db/settings";
 import { badFields, failure, householdForm, limited, returnPath, text } from "@/lib/door";
-import { redirectTo } from "@/lib/form-fetch";
+import { redirectTo } from "@/lib/form-redirect";
 import { Uuid } from "@/lib/stable-id";
 
 const input = z.object({ kind: z.enum(["bill", "charge", "card"]), id: Uuid });

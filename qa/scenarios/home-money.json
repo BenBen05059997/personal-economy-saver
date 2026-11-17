@@ -1713,7 +1713,7 @@
       "Come back to Home"
     ],
     "expected": [
-      "Your next 30 days shows no chart, no chart, no Chart / Table switch and no Ask about this button",
+      "Your next 30 days shows no chart, no Chart / Table switch and no Ask about this button",
       "It says 'Nothing to forecast yet. Add a bill or a client and your next 30 days show here.' with Add a bill (primary) and Add a client buttons",
       "The Bank balance row with its Update stays in the panel, and the hints card Set today's bank balance still opens its form",
       "After the bill is saved the chart and the Chart / Table switch are back"
