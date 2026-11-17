@@ -31,7 +31,7 @@ export async function demoHouseholdForToken(db: Db, token: string): Promise<stri
 
 /** Whether an id is a demo household (never a credential: the cookie holds a token, see demoHouseholdForToken). */
 export async function findDemoHousehold(db: Db, id: string): Promise<string | null> {
-  if (!z.string().uuid().safeParse(id).success) return null;
+  if (!z.uuid().safeParse(id).success) return null;
   const [demo] = await withHousehold(db, id, async tx => tx.select({ id: households.id }).from(households)
     .where(and(eq(households.id, requireHousehold(id)), eq(households.isDemo, true))));
   return demo?.id ?? null;
@@ -39,7 +39,7 @@ export async function findDemoHousehold(db: Db, id: string): Promise<string | nu
 
 // Whether a demo household is Ben's Try it (it has a fixed date, D51) rather than a blank one; null when the id is no demo household.
 export async function tryItKind(db: Db, id: string): Promise<"try-it" | "blank" | null> {
-  if (!z.string().uuid().safeParse(id).success) return null;
+  if (!z.uuid().safeParse(id).success) return null;
   const [row] = await db.select({ fixedToday: households.fixedToday }).from(households)
     .where(and(eq(households.id, requireHousehold(id)), eq(households.isDemo, true)));
   return row ? (row.fixedToday ? "try-it" : "blank") : null;

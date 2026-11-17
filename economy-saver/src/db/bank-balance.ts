@@ -9,7 +9,7 @@ import { minorMoney } from "@/lib/money/format";
 import { Currency } from "@/lib/catalogue/types";
 
 export const bankBalanceInput = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   amount: z.string().trim(), // the new balance in the household's home currency; zero and negative are allowed, as in Settings
 });
 

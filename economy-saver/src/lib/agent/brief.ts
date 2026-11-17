@@ -7,8 +7,8 @@ import { QUOTED_DATA } from "./memory-prompt";
 export const BRIEF_MAX = 2_000;
 const line = z.string().trim().min(1).max(BRIEF_MAX).refine(value => !/[\r\n]/.test(value), "Keep each entry on one line.");
 const source = z.string().trim().min(1).max(80).refine(value =>
-  /^[a-z][a-z0-9_]*$/.test(value) || z.string().uuid().safeParse(value).success, "Use a tool name or a memory note ID as the source.");
-const ids = z.array(z.string().uuid());
+  /^[a-z][a-z0-9_]*$/.test(value) || z.uuid().safeParse(value).success, "Use a tool name or a memory note ID as the source.");
+const ids = z.array(z.uuid());
 const refs = { bills: ids.default([]), clients: ids.default([]), pots: ids.default([]), documents: ids.default([]) };
 /** What a brief can point at, in the order it is shown. */
 export const BRIEF_REF_KINDS = Object.keys(refs) as (keyof typeof refs)[];
@@ -19,7 +19,7 @@ export const BriefFields = z.object({
   decisions: z.array(line).default([]),
   open_questions: z.array(line).default([]),
   check_next: z.array(line).default([]),
-  refs: z.object(refs).strict().default({}),
+  refs: z.object(refs).strict().prefault({}),
 }).strict();
 
 /** Who last wrote a brief: the assistant's proposal or the person's form. */
@@ -37,7 +37,7 @@ export const BriefSchema = BriefFields.superRefine((brief, ctx) => {
   if (JSON.stringify(brief).length > BRIEF_MAX) ctx.addIssue({
     code: "custom", message: `Keep the whole brief to ${group(BRIEF_MAX)} characters.`,
   });
-  if (briefWords(brief).some(hasLongNumber) || brief.state.some(row => !z.string().uuid().safeParse(row.source).success && hasLongNumber(row.source))) {
+  if (briefWords(brief).some(hasLongNumber) || brief.state.some(row => !z.uuid().safeParse(row.source).success && hasLongNumber(row.source))) {
     ctx.addIssue({ code: "custom", message: SECRET_REFUSAL });
   }
   if (looksLikeApiKey(JSON.stringify(brief))) ctx.addIssue({ code: "custom", message: KEY_TEXT_WORDS });

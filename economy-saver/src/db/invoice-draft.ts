@@ -5,8 +5,8 @@ import { recordEvent, requireHousehold, type Db, type Maker } from "./household"
 import { clients, invoices } from "./schema";
 
 export const draftInput = z.object({
-  id: z.string().uuid(),
-  clientId: z.string().uuid(),
+  id: z.uuid(),
+  clientId: z.uuid(),
   item: z.string().trim().min(1).max(200),
   amount: z.string().trim().min(1).max(20),
   note: z.string().trim().max(3900).default(""),

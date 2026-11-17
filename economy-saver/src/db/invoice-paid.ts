@@ -23,7 +23,7 @@ const OUTSIDE_STATUSES = ["draft", "unbilled", "sent"] as const;
 export async function markPaidOutside(db: Db, householdId: string, invoiceId: string, today: string): Promise<boolean> {
   const hid = requireHousehold(householdId);
   const day = z.string().date().parse(today);
-  const id = z.string().uuid().parse(invoiceId);
+  const id = z.uuid().parse(invoiceId);
   const saved = await withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ id: households.id, currency: households.homeCurrency, bank: households.bankBalanceMinor, previous: households.runwayShort })
       .from(households).where(eq(households.id, hid)).for("update");

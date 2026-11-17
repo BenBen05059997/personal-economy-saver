@@ -10,7 +10,7 @@ import { households, invites, members, pushSubscriptions, reminderSettings, user
 export const INVITE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const SEVEN_DAYS = 7 * 86_400_000;
 const Email = z.string().trim().toLowerCase().max(254).email();
-const InviteInput = z.object({ email: Email, memberId: z.string().uuid().optional(), name: z.string().trim().min(1).max(80).optional() })
+const InviteInput = z.object({ email: Email, memberId: z.uuid().optional(), name: z.string().trim().min(1).max(80).optional() })
   .refine(input => Boolean(input.memberId) !== Boolean(input.name), "Choose an existing person or enter one name.");
 type InvitationInput = z.input<typeof InviteInput>;
 type Identity = { uid: string; email: string | null };

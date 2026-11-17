@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   if (!hid) return text(HOUSEHOLD_SESSION_REQUIRED, 401);
   const params = new URL(request.url).searchParams;
   const input = params.get("since");
-  if (input !== null && !z.string().datetime({ offset: true }).safeParse(input).success) {
+  if (input !== null && !z.iso.datetime({ offset: true }).safeParse(input).success) {
     return text("since must be an ISO timestamp", 400);
   }
   const query = z.object({ before: Uuid.optional(), limit: z.coerce.number().int().min(1).max(100).default(100) })

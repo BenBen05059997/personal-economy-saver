@@ -20,7 +20,7 @@ const importRow = z.object({
   category: CategoryKeySchema,
   ...ownChoiceFields, // D75: an own category of the row's category (an id, or a new name made in this import); absent = none
 });
-export const importInput = z.object({ cardId: z.string().uuid(), rows: z.array(importRow).min(1).max(IMPORT_BATCH) });
+export const importInput = z.object({ cardId: z.uuid(), rows: z.array(importRow).min(1).max(IMPORT_BATCH) });
 
 /**
  * The key two charges on one card share when they are the same line of a statement: date, amount and the name through the one

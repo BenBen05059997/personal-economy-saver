@@ -30,7 +30,7 @@ export function reminderSettings() {
     const { publicKey: pub, privateKey: key, subject } = push.value;
     if (!publicKey.test(pub)) push = { value: null, problem: "WEB_PUSH_PUBLIC_KEY must be a base64url P-256 public key.", words: PUSH_WORDS };
     else if (!privateKey.test(key)) push = { value: null, problem: "WEB_PUSH_PRIVATE_KEY must be a base64url P-256 private key.", words: PUSH_WORDS };
-    else if (!(subject.startsWith("mailto:") && z.string().email().safeParse(subject.slice(7)).success)
+    else if (!(subject.startsWith("mailto:") && z.email().safeParse(subject.slice(7)).success)
       && !(URL.canParse(subject) && new URL(subject).protocol === "https:")) {
       push = { value: null, problem: "WEB_PUSH_SUBJECT must be a mailto or HTTPS URL.", words: PUSH_WORDS };
     }

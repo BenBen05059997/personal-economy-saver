@@ -11,7 +11,7 @@ import { closeByRef, refreshSuggestions } from "./suggestions";
  */
 export async function endPaymentLink(db: Db, householdId: string, invoiceId: string): Promise<boolean> {
   const hid = requireHousehold(householdId);
-  const id = z.string().uuid().parse(invoiceId);
+  const id = z.uuid().parse(invoiceId);
   const ended = await withHousehold(db, hid, async tx => {
     // Lock order, as in every money writer: the household row, then the invoice row; the status is read after the lock.
     await lockHousehold(tx, hid);

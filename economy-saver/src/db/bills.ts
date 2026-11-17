@@ -27,7 +27,7 @@ export function dueLabel(due: string, today: string) {
 }
 
 export const billInput = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   biller: z.string().trim().min(1).max(160),
   amount: z.string().trim().default(""), // empty is refused unless amountUnknown
   due: z.string().date().nullable(), // null is refused unless dueUnknown
@@ -36,8 +36,8 @@ export const billInput = z.object({
   category: CategoryKeySchema, // D46: a key from lib/money/categories.ts
   businessBp: BusinessBp.default(0), // D46: business share in basis points
   ...ownChoiceFields, // D75: an own category of this category (an id, or a new name made in the same save); absent = none
-  memberId: z.string().uuid().nullable().default(null), // null = shared
-  paidByMemberId: z.string().uuid().nullable().default(null), // D45: who pays a shared bill, for every occurrence; needs memberId null and two or more members
+  memberId: z.uuid().nullable().default(null), // null = shared
+  paidByMemberId: z.uuid().nullable().default(null), // D45: who pays a shared bill, for every occurrence; needs memberId null and two or more members
   repeat: RepeatUnitSchema.nullable().default(null), // D48: month = every month on the due date's day (D41), year = every year on its month and day; null = one-off
   nextAmount: z.string().trim().nullable().default(null), // D48: the amount from nextAmountFrom on; needs a repeat
   nextAmountFrom: z.string().date().nullable().default(null), // after the due date
@@ -242,7 +242,7 @@ export async function previewLink(db: Db, householdId: string, bill: { biller: s
  */
 export async function linkToSeries(db: Db, householdId: string, billId: string): Promise<string | null> {
   const hid = requireHousehold(householdId);
-  const id = z.string().uuid().parse(billId);
+  const id = z.uuid().parse(billId);
   const [row] = await db.select({ bill: bills, isDemo: households.isDemo, fixedToday: households.fixedToday, timeZone: households.timeZone }).from(bills)
     .innerJoin(households, eq(households.id, bills.householdId)).where(and(eq(bills.householdId, hid), eq(bills.id, id)));
   if (!row || row.bill.status !== "confirmed" || row.bill.repeatUnit !== null || row.bill.seriesBillId !== null || row.bill.due === null) return null;
@@ -262,7 +262,7 @@ export async function linkToSeries(db: Db, householdId: string, billId: string):
  */
 export async function removeBill(db: Db, householdId: string, id: string): Promise<boolean> {
   const hid = requireHousehold(householdId);
-  const billId = z.string().uuid().parse(id);
+  const billId = z.uuid().parse(id);
   return withHousehold(db, hid, async tx => {
     const household = await lockHousehold(tx, hid);
     const target = and(eq(bills.householdId, hid), eq(bills.id, billId));
@@ -291,7 +291,7 @@ export const billEditInput = billInput.pick({ id: true, biller: true, amount: tr
   .extend({
     amountFrom: z.string().date().nullable().default(null),
     amountVaries: z.boolean().optional(), // D54, a monthly bill: absent = unchanged
-    seriesBillId: z.string().uuid().nullable().optional(), // D54, a one-off: the amount-varies series it is part of; null = none, absent = unchanged
+    seriesBillId: z.uuid().nullable().optional(), // D54, a one-off: the amount-varies series it is part of; null = none, absent = unchanged
     cancelBy: z.string().date().nullable().optional(), // D48: the last day to cancel; null = none, absent = unchanged
     repeatUntil: z.string().date().nullable().optional(), // D41: the last payment; null = none, absent = unchanged
     periodStart: z.string().date().nullable().optional(), // a one-off: the first day the bill covers; null = none, absent = unchanged (both period dates or neither)
@@ -443,7 +443,7 @@ async function estimateFor(tx: Db, hid: string, billId: string, today: string, c
  */
 export async function fillGap(db: Db, householdId: string, billId: string, fill: { amountMinor?: number; due?: string }, by: Maker = { madeBy: "form" }): Promise<boolean> {
   const hid = requireHousehold(householdId);
-  const id = z.string().uuid().parse(billId);
+  const id = z.uuid().parse(billId);
   const due = fill.due === undefined ? undefined : z.string().date().parse(fill.due);
   const result = await withHousehold(db, hid, async tx => {
     const household = await lockHousehold(tx, hid);

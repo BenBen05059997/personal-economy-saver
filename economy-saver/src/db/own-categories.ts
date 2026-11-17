@@ -16,7 +16,7 @@ export type OwnCategory = { id: string; kind: CategoryKey; name: string; busines
 /** The own categories of one category, in the order of the fourteen. */
 export type OwnCategoryGroup = { kind: CategoryKey; label: string; categories: OwnCategory[] };
 
-const id = z.string().uuid();
+const id = z.uuid();
 const businessShare = BusinessBp.nullable();
 export const addOwnCategoryInput = z.object({ id: id.optional(), kind: CategoryKeySchema, name: z.string(), businessBp: businessShare.optional() });
 export const saveOwnCategoryInput = z.object({ id, name: z.string().optional(), businessBp: businessShare.optional() }); // absent = unchanged, null = clear the share

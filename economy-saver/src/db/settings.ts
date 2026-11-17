@@ -13,10 +13,10 @@ import { clockForHousehold } from "./clock";
 class SettingsError extends InputError {}
 const name = z.string().trim().min(1).max(80);
 const amount = z.string().trim().min(1).max(16); // read by parseMinor: separators and full-width digits are fine; the limit and the decimals are checked there
-const memberId = z.union([z.string().uuid(), z.literal("")]);
+const memberId = z.union([z.uuid(), z.literal("")]);
 export const settingsInput = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("household"), name }),
-  z.object({ kind: z.literal("card"), id: z.union([z.string().uuid(), z.literal("")]), label: name,
+  z.object({ kind: z.literal("card"), id: z.union([z.uuid(), z.literal("")]), label: name,
     memberId, closingDay: z.coerce.number().int().min(1).max(31), dueDay: z.coerce.number().int().min(1).max(31),
     limit: z.union([amount, z.literal("")]),
     foreignFee: z.string().trim().max(6).optional() }), // D62: a percentage with up to two decimals ("" = not entered, absent = unchanged)
@@ -114,7 +114,7 @@ export async function updateSettings(db: Db, householdId: string, input: z.infer
  */
 export async function removeCard(db: Db, householdId: string, id: string): Promise<boolean> {
   const hid = requireHousehold(householdId);
-  const cardId = z.string().uuid().parse(id);
+  const cardId = z.uuid().parse(id);
   return db.transaction(async tx => {
     const [household] = await tx.select({ id: households.id }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) throw new SettingsError("Household no longer exists");

@@ -23,7 +23,7 @@ const room = (ctx: ToolContext) => {
 };
 
 const recall = z.object({ space: z.string().trim().min(1).max(60).nullish() });
-const forget = z.object({ id: z.string().uuid().describe("The id of the remembered item, from the memory text or from recall.") });
+const forget = z.object({ id: z.uuid().describe("The id of the remembered item, from the memory text or from recall.") });
 
 export const memoryTools: Tool[] = [
   {

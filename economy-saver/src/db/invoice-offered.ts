@@ -12,7 +12,7 @@ import { closeByRef } from "./suggestions";
  */
 export async function recordLinkOffered(db: Db, householdId: string, invoiceId: string): Promise<boolean> {
   const hid = requireHousehold(householdId);
-  const id = z.string().uuid().parse(invoiceId);
+  const id = z.uuid().parse(invoiceId);
   return withHousehold(db, hid, async tx => {
     const [row] = await tx.select({ invoice: invoices, client: clients.name }).from(invoices)
       .innerJoin(clients, and(eq(clients.householdId, hid), eq(clients.id, invoices.clientId)))

@@ -15,13 +15,13 @@ import { minorMoney, percentText, percentToBp } from "@/lib/money/format";
 import { fillShare } from "@/lib/money/pots";
 
 export const potInput = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string().trim().min(1).max(60),
   target: z.string().trim().nullable().default(null), // plain number in the home currency
   targetDate: z.string().date().nullable().default(null),
   saved: z.string().trim().default("0"), // saved so far; zero is fine
   fillPct: z.string().trim().nullable().default(null), // share of each client payment, "25" or "12.5"
-  memberId: z.string().uuid().nullable().default(null),
+  memberId: z.uuid().nullable().default(null),
 });
 
 type PotInput = z.infer<typeof potInput>;
@@ -149,7 +149,7 @@ export async function confirmPot(tx: Db, householdId: string, id: string): Promi
 /** Removes a pot. Its money goes back to cash that can be spent. False when this household has no such pot. */
 export async function removePot(db: Db, householdId: string, id: string): Promise<boolean> {
   const hid = requireHousehold(householdId);
-  const potId = z.string().uuid().parse(id);
+  const potId = z.uuid().parse(id);
   return withHousehold(db, hid, async tx => {
     const household = await lockHousehold(tx, hid);
     if (household.previous === null) await observeRunway(tx, hid);

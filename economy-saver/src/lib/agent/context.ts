@@ -3,9 +3,9 @@ import { ConversationTurn } from "@/lib/schema/turn";
 
 export const THREAD_CONTEXT_MAX = 12_000;
 
-export const ContextTurn = ConversationTurn.pick({
+export const ContextTurn = z.object(ConversationTurn.pick({
   id: true, conversationId: true, spaceId: true, question: true, reply: true, kind: true, documentId: true, createdAt: true,
-}).strip();
+}).shape); // plain object: unknown keys are dropped, not refused
 export type ContextTurn = z.infer<typeof ContextTurn>;
 
 export function turnWords(turn: ContextTurn): string {

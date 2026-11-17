@@ -17,9 +17,9 @@ import { ConversationTurn } from "@/lib/schema/turn";
 /** Version 4 adds the person's own categories (D75) and the one each bill and charge is filed under. Version 3 added the spaces of the Ask journal (D69), in the export only. */
 export const SNAPSHOT_VERSION = 4;
 
-const id = z.string().uuid();
+const id = z.uuid();
 const day = z.string().date().describe("A calendar day, YYYY-MM-DD.");
-const moment = z.string().datetime().describe("An instant, ISO 8601 in UTC.");
+const moment = z.iso.datetime().describe("An instant, ISO 8601 in UTC.");
 const currency = z.string().regex(/^[A-Z]{3}$/).describe("ISO 4217 code, for example JPY or USD.");
 const minor = z.number().int().safe().describe("Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out.");
 const rateMicro = z.number().int().safe().describe("An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency.");

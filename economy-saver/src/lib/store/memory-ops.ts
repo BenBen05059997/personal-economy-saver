@@ -12,7 +12,7 @@ export const MAX_MEMORY_CHANGES = 20;
 /** What `remember` and `forget` did to the list the question carried; the browser applies it to its own copy. */
 export const MemoryChange = z.discriminatedUnion("op", [
   z.object({ op: z.literal("add"), item: MemoryItem }).strict(),
-  z.object({ op: z.literal("forget"), id: z.string().uuid() }).strict(),
+  z.object({ op: z.literal("forget"), id: z.uuid() }).strict(),
 ]);
 export type MemoryChange = z.infer<typeof MemoryChange>;
 

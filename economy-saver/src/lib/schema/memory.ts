@@ -31,13 +31,13 @@ export const MEMORY_KINDS: Record<MemoryKind, { label: string; help: string; exa
 export const MemoryText = z.string().trim().min(1, "Write something for the assistant to remember.").max(MEMORY_TEXT_MAX, `Keep it under ${MEMORY_TEXT_MAX + 1} characters.`);
 
 export const MemoryItem = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   kind: MemoryKind,
   text: MemoryText,
   madeBy: z.enum(["form", "ask", "mcp"]),
-  askId: z.string().uuid().nullable(),
-  spaceId: z.string().uuid().optional(),
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  askId: z.uuid().nullable(),
+  spaceId: z.uuid().optional(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime(),
 }).strict();
 export type MemoryItem = z.infer<typeof MemoryItem>;

@@ -1,6 +1,6 @@
 // The committed JSON Schemas (schema/*.json) are generated from the zod definitions with the same library the agent's tool
-// schemas use (zod-to-json-schema). `npm run schema` writes them; snapshot-test fails on drift.
-import { zodToJsonSchema } from "zod-to-json-schema";
+// schemas use (z.toJSONSchema). `npm run schema` writes them; snapshot-test fails on drift.
+import { z } from "zod";
 import { recipeJsonSchema } from "@/lib/canvas/schema";
 import { CashFlowEvent } from "./cash-flow";
 import { HouseholdSnapshot } from "./household";
@@ -9,8 +9,8 @@ import { ConversationTurn } from "./turn";
 
 export const SCHEMA_FILE = "schema/household.v4.json";
 
-function titled(schema: Parameters<typeof zodToJsonSchema>[0], title: string): string {
-  const { $schema, description, ...rest } = zodToJsonSchema(schema, { $refStrategy: "none" }) as Record<string, unknown>;
+function titled(schema: z.ZodType, title: string): string {
+  const { $schema, description, ...rest } = z.toJSONSchema(schema, { target: "draft-07", io: "input", reused: "inline", unrepresentable: "any" }) as Record<string, unknown>;
   return JSON.stringify({ $schema, title, ...(description ? { description } : {}), ...rest }, null, 2) + "\n";
 }
 

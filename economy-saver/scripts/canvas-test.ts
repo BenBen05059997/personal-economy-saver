@@ -594,7 +594,7 @@ async function main() {
         { type: "table", title: "By client and card", query: { q: "foreign_costs" } },
       ] };
       assert.ok(RecipeSchema.safeParse(recipe).success);
-      assert.equal(JSON.parse(recipeJsonSchema()).definitions === undefined && JSON.stringify(JSON.parse(recipeJsonSchema())).includes("foreign_costs"), true, "the JSON Schema names the query");
+      assert.ok(JSON.stringify(JSON.parse(recipeJsonSchema())).includes("foreign_costs"), "the JSON Schema names the query");
       assert.ok(!RecipeSchema.safeParse({ version: 1, title: "x", blocks: [{ type: "progress", label: "x", query: { q: "foreign_costs" }, targetMinor: 1000 }] }).success, "not a progress query");
       assert.ok(blockWords(recipe.blocks[1]).includes("foreign money"));
       // Without the query the loader reads no inputs, and drawing the query fails in words.

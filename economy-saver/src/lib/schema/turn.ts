@@ -12,7 +12,7 @@ export function memorySourceLabel(text: string): string {
   const line = text.replace(/\s+/g, " ").trim();
   return line.length <= 60 ? line : `${line.slice(0, 59).replace(/[\uD800-\uDBFF]$/, "")}…`;
 }
-export const MemorySource = z.object({ kind: z.literal("memory"), id: z.string().uuid(), label: sourceLabel }).strict();
+export const MemorySource = z.object({ kind: z.literal("memory"), id: z.uuid(), label: sourceLabel }).strict();
 export type MemorySource = z.infer<typeof MemorySource>;
 export const TurnSource = z.union([LinkSource, MemorySource]);
 export type TurnSource = z.infer<typeof TurnSource>;
@@ -34,10 +34,10 @@ export type TurnKind = z.infer<typeof TurnKind>;
 
 export const ConversationTurn = z.object({
   version: z.literal(TURN_VERSION),
-  id: z.string().uuid(),
-  conversationId: z.string().uuid(),
+  id: z.uuid(),
+  conversationId: z.uuid(),
   /** A device turn in a space carries its scope so a later deletion cannot turn it into a legacy conversation. */
-  spaceId: z.string().uuid().optional(),
+  spaceId: z.uuid().optional(),
   question: z.string().min(1).max(QUESTION_MAX),
   kind: TurnKind,
   reply: z.string().min(1),
@@ -45,7 +45,7 @@ export const ConversationTurn = z.object({
   recipe: RecipeSchema.nullable(),
   sources: z.array(StoredSource),
   /** D60: the file attached in Ask (kind document); absent on every other turn. */
-  documentId: z.string().uuid().nullable().optional(),
+  documentId: z.uuid().nullable().optional(),
   thumb: z.union([z.literal(1), z.literal(-1)]).nullable(),
   createdAt: z.string(),
 }).strict();

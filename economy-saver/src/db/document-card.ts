@@ -19,7 +19,7 @@ import { TURN_VERSION, type ConversationTurn, type TurnKind } from "@/lib/schema
 // A turn kind, not an Activity event kind: written as a constant so the doors scan for `kind: "…"` does not take it for one.
 const DOCUMENT: TurnKind = "document";
 
-const uuid = z.string().uuid();
+const uuid = z.uuid();
 
 type Stored = { proposed: unknown; confirmed?: unknown; targetId?: string };
 

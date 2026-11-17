@@ -5,7 +5,7 @@ import { lockHousehold, recordEvent, requireHousehold, type Db } from "./househo
 import { clients } from "./schema";
 
 export const clientInput = z.object({
-  id: z.string().uuid(),
+  id: z.uuid(),
   name: z.string().trim().min(1).max(120),
   email: z.string().trim().email().max(254),
   termsDays: z.coerce.number().int().min(0).max(120),

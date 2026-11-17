@@ -14,6 +14,30 @@
       "maxLength": 80
     },
     "scenario": {
+      "description": "The recipe's own live scenario: any query that says `scenario: \"canvas\"` uses it, and the sliders change its client_late days.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/__schema0"
+        }
+      ]
+    },
+    "blocks": {
+      "minItems": 1,
+      "maxItems": 12,
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/__schema6"
+      }
+    }
+  },
+  "required": [
+    "version",
+    "title",
+    "blocks"
+  ],
+  "additionalProperties": false,
+  "definitions": {
+    "__schema0": {
       "type": "object",
       "properties": {
         "case": {
@@ -25,1387 +49,1533 @@
           "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
         },
         "changes": {
+          "maxItems": 10,
           "type": "array",
           "items": {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "client_late"
-                  },
-                  "clientId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 80
-                  },
-                  "days": {
-                    "type": "integer",
-                    "minimum": 0,
-                    "maximum": 60,
-                    "description": "Days later than usual."
-                  }
-                },
-                "required": [
-                  "kind",
-                  "clientId",
-                  "days"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "remove_bill"
-                  },
-                  "billId": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 80,
-                    "description": "Bill id, or `<id>@<date>`."
-                  }
-                },
-                "required": [
-                  "kind",
-                  "billId"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "change_bill"
-                  },
-                  "billId": {
-                    "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId"
-                  },
-                  "amountMinor": {
-                    "type": "integer",
-                    "exclusiveMinimum": 0,
-                    "maximum": 100000000,
-                    "description": "Minor units."
-                  }
-                },
-                "required": [
-                  "kind",
-                  "billId",
-                  "amountMinor"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "add_cost"
-                  },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 80
-                  },
-                  "amountMinor": {
-                    "$ref": "#/properties/scenario/properties/changes/items/anyOf/2/properties/amountMinor"
-                  },
-                  "date": {
-                    "type": "string",
-                    "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
-                    "description": "YYYY-MM-DD."
-                  }
-                },
-                "required": [
-                  "kind",
-                  "name",
-                  "amountMinor",
-                  "date"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "kind": {
-                    "type": "string",
-                    "const": "add_income"
-                  },
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 80
-                  },
-                  "amountMinor": {
-                    "$ref": "#/properties/scenario/properties/changes/items/anyOf/2/properties/amountMinor"
-                  },
-                  "date": {
-                    "$ref": "#/properties/scenario/properties/changes/items/anyOf/3/properties/date",
-                    "description": "Tomorrow on."
-                  }
-                },
-                "required": [
-                  "kind",
-                  "name",
-                  "amountMinor",
-                  "date"
-                ],
-                "additionalProperties": false
-              }
-            ]
-          },
-          "maxItems": 10
+            "$ref": "#/definitions/__schema1"
+          }
         }
       },
       "required": [
         "case",
         "changes"
       ],
-      "additionalProperties": false,
-      "description": "The recipe's own live scenario: any query that says `scenario: \"canvas\"` uses it, and the sliders change its client_late days."
+      "additionalProperties": false
     },
-    "blocks": {
-      "type": "array",
-      "items": {
-        "anyOf": [
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "sentence"
-              },
-              "query": {
-                "type": "object",
-                "properties": {
-                  "q": {
-                    "type": "string",
-                    "const": "sentence"
-                  },
-                  "scenario": {
-                    "anyOf": [
-                      {
-                        "$ref": "#/properties/scenario"
-                      },
-                      {
-                        "type": "string",
-                        "const": "canvas"
-                      }
-                    ]
-                  }
+    "__schema1": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "client_late"
+            },
+            "clientId": {
+              "$ref": "#/definitions/__schema2"
+            },
+            "days": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 60,
+              "description": "Days later than usual."
+            }
+          },
+          "required": [
+            "kind",
+            "clientId",
+            "days"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "remove_bill"
+            },
+            "billId": {
+              "description": "Bill id, or `<id>@<date>`.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/__schema2"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "billId"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "change_bill"
+            },
+            "billId": {
+              "$ref": "#/definitions/__schema2"
+            },
+            "amountMinor": {
+              "$ref": "#/definitions/__schema3"
+            }
+          },
+          "required": [
+            "kind",
+            "billId",
+            "amountMinor"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "add_cost"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "amountMinor": {
+              "$ref": "#/definitions/__schema3"
+            },
+            "date": {
+              "$ref": "#/definitions/__schema5"
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "amountMinor",
+            "date"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "add_income"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "amountMinor": {
+              "$ref": "#/definitions/__schema3"
+            },
+            "date": {
+              "description": "Tomorrow on.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/__schema5"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "name",
+            "amountMinor",
+            "date"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "__schema2": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "__schema3": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 100000000,
+      "description": "Minor units.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/__schema4"
+        }
+      ]
+    },
+    "__schema4": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
+    },
+    "__schema5": {
+      "type": "string",
+      "pattern": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+      "description": "YYYY-MM-DD."
+    },
+    "__schema6": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "sentence"
+            },
+            "query": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string",
+                  "const": "sentence"
                 },
-                "required": [
-                  "q"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "type",
-              "query"
-            ],
-            "additionalProperties": false
+                "scenario": {
+                  "$ref": "#/definitions/__schema7"
+                }
+              },
+              "required": [
+                "q"
+              ],
+              "additionalProperties": false
+            }
           },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "number"
-              },
-              "label": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 60
-              },
-              "query": {
-                "anyOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "q": {
-                        "type": "string",
-                        "const": "safe_to_spend"
-                      },
-                      "scenario": {
-                        "$ref": "#/properties/blocks/items/anyOf/0/properties/query/properties/scenario"
-                      }
-                    },
-                    "required": [
-                      "q"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "q": {
-                        "type": "string",
-                        "const": "cash"
-                      }
-                    },
-                    "required": [
-                      "q"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "q": {
-                        "type": "string",
-                        "const": "low_point"
-                      },
-                      "scenario": {
-                        "$ref": "#/properties/blocks/items/anyOf/0/properties/query/properties/scenario"
-                      }
-                    },
-                    "required": [
-                      "q"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "q": {
-                        "type": "string",
-                        "const": "month_total"
-                      },
-                      "month": {
-                        "type": "string",
-                        "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
-                        "description": "A calendar month, YYYY-MM, within the last twelve months or this one."
-                      }
-                    },
-                    "required": [
-                      "q",
-                      "month"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "q": {
-                        "type": "string",
-                        "const": "foreign_costs"
-                      }
-                    },
-                    "required": [
-                      "q"
-                    ],
-                    "additionalProperties": false
-                  }
-                ]
-              },
-              "note": {
-                "type": "string",
-                "maxLength": 200
-              }
+          "required": [
+            "type",
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "number"
             },
-            "required": [
-              "type",
-              "label",
-              "query"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "flow_chart"
-              },
-              "query": {
-                "type": "object",
-                "properties": {
-                  "q": {
-                    "type": "string",
-                    "const": "flow"
-                  },
-                  "days": {
-                    "type": "integer",
-                    "minimum": 7,
-                    "maximum": 60,
-                    "description": "How many days from today; the usual 30 when left out."
-                  },
-                  "scenario": {
-                    "$ref": "#/properties/blocks/items/anyOf/0/properties/query/properties/scenario"
-                  }
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "query": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/__schema8"
                 },
-                "required": [
-                  "q"
-                ],
-                "additionalProperties": false
-              },
-              "mark": {
-                "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId",
-                "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
-              }
-            },
-            "required": [
-              "type",
-              "query"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "timeline"
-              },
-              "query": {
-                "type": "object",
-                "properties": {
-                  "q": {
-                    "type": "string",
-                    "const": "events"
-                  },
-                  "days": {
-                    "$ref": "#/properties/blocks/items/anyOf/2/properties/query/properties/days"
-                  },
-                  "scenario": {
-                    "$ref": "#/properties/blocks/items/anyOf/0/properties/query/properties/scenario"
-                  }
+                {
+                  "$ref": "#/definitions/__schema9"
                 },
-                "required": [
-                  "q"
-                ],
-                "additionalProperties": false
-              },
-              "mark": {
-                "$ref": "#/properties/blocks/items/anyOf/2/properties/mark"
-              }
-            },
-            "required": [
-              "type",
-              "query"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "table"
-              },
-              "title": {
-                "type": "string",
-                "maxLength": 80
-              },
-              "query": {
-                "anyOf": [
-                  {
-                    "$ref": "#/properties/blocks/items/anyOf/3/properties/query"
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "q": {
-                        "type": "string",
-                        "const": "month_by_category"
-                      },
-                      "month": {
-                        "$ref": "#/properties/blocks/items/anyOf/1/properties/query/anyOf/3/properties/month"
-                      }
-                    },
-                    "required": [
-                      "q",
-                      "month"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "q": {
-                        "type": "string",
-                        "const": "compare_months"
-                      },
-                      "a": {
-                        "type": "string",
-                        "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
-                        "description": "The earlier month, the base."
-                      },
-                      "b": {
-                        "type": "string",
-                        "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
-                        "description": "The month compared with it; the change is b minus a."
-                      }
-                    },
-                    "required": [
-                      "q",
-                      "a",
-                      "b"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "q": {
-                        "type": "string",
-                        "const": "spending_search"
-                      },
-                      "text": {
-                        "type": "string",
-                        "maxLength": 80
-                      },
-                      "months": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 12
-                      }
-                    },
-                    "required": [
-                      "q",
-                      "text",
-                      "months"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "q": {
-                        "type": "string",
-                        "const": "regular_costs"
-                      },
-                      "months": {
-                        "type": "integer",
-                        "minimum": 2,
-                        "maximum": 24
-                      }
-                    },
-                    "required": [
-                      "q"
-                    ],
-                    "additionalProperties": false
-                  },
-                  {
-                    "$ref": "#/properties/blocks/items/anyOf/1/properties/query/anyOf/4"
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "q": {
-                        "type": "string",
-                        "const": "bills_for_month"
-                      },
-                      "month": {
-                        "type": "string",
-                        "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
-                        "description": "The month the bills are FOR (their period), YYYY-MM; a bill for November is usually paid in December."
-                      },
-                      "text": {
-                        "type": "string",
-                        "maxLength": 80
-                      }
-                    },
-                    "required": [
-                      "q",
-                      "month"
-                    ],
-                    "additionalProperties": false
-                  }
-                ]
-              }
-            },
-            "required": [
-              "type",
-              "query"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "compare"
-              },
-              "query": {
-                "$ref": "#/properties/blocks/items/anyOf/4/properties/query/anyOf/2"
-              }
-            },
-            "required": [
-              "type",
-              "query"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "by_person"
-              },
-              "query": {
-                "type": "object",
-                "properties": {
-                  "q": {
-                    "type": "string",
-                    "const": "month_by_person"
-                  },
-                  "month": {
-                    "$ref": "#/properties/blocks/items/anyOf/1/properties/query/anyOf/3/properties/month"
-                  }
-                },
-                "required": [
-                  "q",
-                  "month"
-                ],
-                "additionalProperties": false
-              }
-            },
-            "required": [
-              "type",
-              "query"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "progress"
-              },
-              "label": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 60
-              },
-              "query": {
-                "anyOf": [
-                  {
-                    "$ref": "#/properties/blocks/items/anyOf/1/properties/query/anyOf/0"
-                  },
-                  {
-                    "$ref": "#/properties/blocks/items/anyOf/1/properties/query/anyOf/1"
-                  },
-                  {
-                    "$ref": "#/properties/blocks/items/anyOf/1/properties/query/anyOf/3"
-                  }
-                ]
-              },
-              "targetMinor": {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 100000000,
-                "description": "The person's own target, in minor units of the home currency."
-              }
-            },
-            "required": [
-              "type",
-              "label",
-              "query",
-              "targetMinor"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "note"
-              },
-              "text": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 600
-              },
-              "by": {
-                "type": "string",
-                "enum": [
-                  "you",
-                  "assistant"
-                ]
-              }
-            },
-            "required": [
-              "type",
-              "text",
-              "by"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "letter"
-              },
-              "text": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 4000
-              }
-            },
-            "required": [
-              "type",
-              "text"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "sliders"
-              },
-              "controls": {
-                "type": "array",
-                "items": {
+                {
                   "type": "object",
                   "properties": {
-                    "clientId": {
-                      "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId"
+                    "q": {
+                      "type": "string",
+                      "const": "low_point"
                     },
-                    "maxDays": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 60
+                    "scenario": {
+                      "$ref": "#/definitions/__schema7"
                     }
                   },
                   "required": [
-                    "clientId",
-                    "maxDays"
+                    "q"
                   ],
                   "additionalProperties": false
                 },
-                "minItems": 1,
-                "maxItems": 4
-              }
-            },
-            "required": [
-              "type",
-              "controls"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "action"
-              },
-              "label": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 60
-              },
-              "href": {
-                "type": "string",
-                "maxLength": 200
-              }
-            },
-            "required": [
-              "type",
-              "label",
-              "href"
-            ],
-            "additionalProperties": false
-          },
-          {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "const": "progress"
-              },
-              "query": {
-                "type": "object",
-                "properties": {
-                  "q": {
-                    "type": "string",
-                    "const": "goals"
-                  }
+                {
+                  "$ref": "#/definitions/__schema10"
                 },
-                "required": [
-                  "q"
-                ],
-                "additionalProperties": false
-              }
+                {
+                  "$ref": "#/definitions/__schema13"
+                }
+              ]
             },
-            "required": [
-              "type",
-              "query"
-            ],
-            "additionalProperties": false
+            "note": {
+              "type": "string",
+              "maxLength": 200
+            }
           },
-          {
-            "anyOf": [
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "forecast"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "case": {
-                        "type": "string",
-                        "enum": [
-                          "usual",
-                          "late"
-                        ]
-                      },
-                      "days": {
-                        "type": "integer",
-                        "minimum": 1,
-                        "maximum": 90
-                      },
-                      "mark": {
-                        "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId"
-                      }
+          "required": [
+            "type",
+            "label",
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "flow_chart"
+            },
+            "query": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string",
+                  "const": "flow"
+                },
+                "days": {
+                  "$ref": "#/definitions/__schema14"
+                },
+                "scenario": {
+                  "$ref": "#/definitions/__schema7"
+                }
+              },
+              "required": [
+                "q"
+              ],
+              "additionalProperties": false
+            },
+            "mark": {
+              "$ref": "#/definitions/__schema16"
+            }
+          },
+          "required": [
+            "type",
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "timeline"
+            },
+            "query": {
+              "$ref": "#/definitions/__schema17"
+            },
+            "mark": {
+              "$ref": "#/definitions/__schema16"
+            }
+          },
+          "required": [
+            "type",
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "table"
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "query": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/__schema17"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "q": {
+                      "type": "string",
+                      "const": "month_by_category"
                     },
-                    "additionalProperties": false
-                  }
+                    "month": {
+                      "$ref": "#/definitions/__schema11"
+                    }
+                  },
+                  "required": [
+                    "q",
+                    "month"
+                  ],
+                  "additionalProperties": false
                 },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
+                {
+                  "$ref": "#/definitions/__schema18"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "q": {
+                      "type": "string",
+                      "const": "spending_search"
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 80
+                    },
+                    "months": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 12
+                    }
+                  },
+                  "required": [
+                    "q",
+                    "text",
+                    "months"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "q": {
+                      "type": "string",
+                      "const": "regular_costs"
+                    },
+                    "months": {
+                      "type": "integer",
+                      "minimum": 2,
+                      "maximum": 24
+                    }
+                  },
+                  "required": [
+                    "q"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "$ref": "#/definitions/__schema13"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "q": {
+                      "type": "string",
+                      "const": "bills_for_month"
+                    },
+                    "month": {
+                      "description": "The month the bills are FOR (their period), YYYY-MM; a bill for November is usually paid in December.",
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema12"
+                        }
+                      ]
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 80
+                    }
+                  },
+                  "required": [
+                    "q",
+                    "month"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "compare"
+            },
+            "query": {
+              "$ref": "#/definitions/__schema18"
+            }
+          },
+          "required": [
+            "type",
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "by_person"
+            },
+            "query": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string",
+                  "const": "month_by_person"
+                },
+                "month": {
+                  "$ref": "#/definitions/__schema11"
+                }
               },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
+              "required": [
+                "q",
+                "month"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "type",
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "progress"
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "query": {
+              "oneOf": [
+                {
+                  "$ref": "#/definitions/__schema8"
+                },
+                {
+                  "$ref": "#/definitions/__schema9"
+                },
+                {
+                  "$ref": "#/definitions/__schema10"
+                }
+              ]
+            },
+            "targetMinor": {
+              "description": "The person's own target, in minor units of the home currency.",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/__schema3"
+                }
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "label",
+            "query",
+            "targetMinor"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "note"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 600
+            },
+            "by": {
+              "type": "string",
+              "enum": [
+                "you",
+                "assistant"
+              ]
+            }
+          },
+          "required": [
+            "type",
+            "text",
+            "by"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "letter"
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            }
+          },
+          "required": [
+            "type",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "sliders"
+            },
+            "controls": {
+              "minItems": 1,
+              "maxItems": 4,
+              "type": "array",
+              "items": {
+                "$ref": "#/definitions/__schema19"
+              }
+            }
+          },
+          "required": [
+            "type",
+            "controls"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "action"
+            },
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "href": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "type",
+            "label",
+            "href"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "progress"
+            },
+            "query": {
+              "type": "object",
+              "properties": {
+                "q": {
+                  "type": "string",
+                  "const": "goals"
+                }
+              },
+              "required": [
+                "q"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "type",
+            "query"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "forecast"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "case": {
+                      "type": "string",
+                      "enum": [
+                        "usual",
+                        "late"
+                      ]
+                    },
+                    "days": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema20"
+                        }
+                      ]
+                    },
+                    "mark": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema2"
+                        }
+                      ]
+                    }
                   },
-                  "view": {
-                    "type": "string",
-                    "const": "what_if"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "amountMinor": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0
-                      },
-                      "date": {
-                        "type": "string",
-                        "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
-                      },
-                      "late": {
-                        "type": "object",
-                        "properties": {
-                          "clientId": {
-                            "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId"
-                          },
-                          "days": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 120
-                          }
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "what_if"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "amountMinor": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema4"
+                        }
+                      ]
+                    },
+                    "date": {
+                      "type": "string",
+                      "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                    },
+                    "late": {
+                      "type": "object",
+                      "properties": {
+                        "clientId": {
+                          "$ref": "#/definitions/__schema2"
                         },
-                        "required": [
-                          "clientId",
-                          "days"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "position"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "month_by_category"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "month": {
-                        "type": "string",
-                        "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+                        "days": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 120
+                        }
                       },
-                      "by": {
-                        "type": "string",
-                        "enum": [
-                          "category",
-                          "business",
-                          "person"
-                        ]
-                      },
-                      "open": {
-                        "type": "string",
-                        "enum": [
-                          "housing",
-                          "utilities",
-                          "phone_internet",
-                          "subscriptions",
-                          "food",
-                          "transport",
-                          "travel",
-                          "health",
-                          "insurance",
-                          "family_shared",
-                          "government_tax",
-                          "business_tools",
-                          "debt",
-                          "other"
-                        ]
-                      }
+                      "required": [
+                        "clientId",
+                        "days"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "position"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "month_by_category"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "month": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema12"
+                        }
+                      ]
                     },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "month_trend"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "months": {
-                        "type": "integer",
-                        "minimum": 2,
-                        "maximum": 12
-                      }
+                    "by": {
+                      "type": "string",
+                      "enum": [
+                        "category",
+                        "business",
+                        "person"
+                      ]
                     },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
+                    "open": {
+                      "type": "string",
+                      "enum": [
+                        "housing",
+                        "utilities",
+                        "phone_internet",
+                        "subscriptions",
+                        "food",
+                        "transport",
+                        "travel",
+                        "health",
+                        "insurance",
+                        "family_shared",
+                        "government_tax",
+                        "business_tools",
+                        "debt",
+                        "other"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
               },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "month_trend"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "months": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema21"
+                        }
+                      ]
+                    }
                   },
-                  "view": {
-                    "type": "string",
-                    "const": "month_pace"
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "month_pace"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "month": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema12"
+                        }
+                      ]
+                    }
                   },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "month": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/3/properties/args/properties/month"
-                      }
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "fixed_costs"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "months": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema21"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "search_months"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 80
                     },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
+                    "months": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema21"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "text"
+                  ],
+                  "additionalProperties": false
+                }
               },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "money_flow"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "month": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema12"
+                        }
+                      ]
+                    }
                   },
-                  "view": {
-                    "type": "string",
-                    "const": "fixed_costs"
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "savings_rate"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "months": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema21"
+                        }
+                      ]
+                    }
                   },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "months": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/4/properties/args/properties/months"
-                      }
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "buffer_months"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "income_months"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "months": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema21"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "client_pace"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "clientId": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema2"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "fx_cost"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "months": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema21"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "goal_pace"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "potId": {
+                      "$ref": "#/definitions/__schema2"
+                    }
+                  },
+                  "required": [
+                    "potId"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "bills_calendar"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "days": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema20"
+                        }
+                      ]
                     },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
+                    "whose": {
+                      "type": "string",
+                      "const": "shared"
+                    }
+                  },
+                  "additionalProperties": false
+                }
               },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "search_months"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "text": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": 80
-                      },
-                      "months": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/4/properties/args/properties/months"
-                      }
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "card_cycle"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "cardId": {
+                      "$ref": "#/definitions/__schema2"
                     },
-                    "required": [
-                      "text"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
+                    "amountMinor": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema4"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "cardId"
+                  ],
+                  "additionalProperties": false
+                }
               },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "who_owes_whom"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {},
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "what_changed"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "itemId": {
+                      "$ref": "#/definitions/__schema2"
+                    }
                   },
-                  "view": {
-                    "type": "string",
-                    "const": "money_flow"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "month": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/3/properties/args/properties/month"
-                      }
+                  "required": [
+                    "itemId"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "tax_ahead"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "potId": {
+                      "$ref": "#/definitions/__schema2"
                     },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
+                    "days": {
+                      "type": "integer",
+                      "minimum": 30,
+                      "maximum": 180
+                    }
+                  },
+                  "required": [
+                    "potId"
+                  ],
+                  "additionalProperties": false
+                }
               },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "savings_rate"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "months": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/4/properties/args/properties/months"
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "buffer_months"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "income_months"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "months": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/4/properties/args/properties/months"
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "client_pace"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "clientId": {
-                        "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId"
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "fx_cost"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "months": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/4/properties/args/properties/months"
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "goal_pace"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "potId": {
-                        "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId"
-                      }
-                    },
-                    "required": [
-                      "potId"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "bills_calendar"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "days": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/0/properties/args/properties/days"
-                      },
-                      "whose": {
-                        "type": "string",
-                        "const": "shared"
-                      }
-                    },
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "card_cycle"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "cardId": {
-                        "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId"
-                      },
-                      "amountMinor": {
-                        "$ref": "#/properties/blocks/items/anyOf/13/anyOf/1/properties/args/properties/amountMinor"
-                      }
-                    },
-                    "required": [
-                      "cardId"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "who_owes_whom"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "what_changed"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "itemId": {
-                        "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId"
-                      }
-                    },
-                    "required": [
-                      "itemId"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "const": "view"
-                  },
-                  "view": {
-                    "type": "string",
-                    "const": "tax_ahead"
-                  },
-                  "args": {
-                    "type": "object",
-                    "properties": {
-                      "potId": {
-                        "$ref": "#/properties/scenario/properties/changes/items/anyOf/0/properties/clientId"
-                      },
-                      "days": {
-                        "type": "integer",
-                        "minimum": 30,
-                        "maximum": 180
-                      }
-                    },
-                    "required": [
-                      "potId"
-                    ],
-                    "additionalProperties": false
-                  }
-                },
-                "required": [
-                  "type",
-                  "view",
-                  "args"
-                ],
-                "additionalProperties": false
-              }
-            ]
-          }
-        ]
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      ]
+    },
+    "__schema7": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/__schema0"
+        },
+        {
+          "type": "string",
+          "const": "canvas"
+        }
+      ]
+    },
+    "__schema8": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "const": "safe_to_spend"
+        },
+        "scenario": {
+          "$ref": "#/definitions/__schema7"
+        }
       },
-      "minItems": 1,
-      "maxItems": 12
+      "required": [
+        "q"
+      ],
+      "additionalProperties": false
+    },
+    "__schema9": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "const": "cash"
+        }
+      },
+      "required": [
+        "q"
+      ],
+      "additionalProperties": false
+    },
+    "__schema10": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "const": "month_total"
+        },
+        "month": {
+          "$ref": "#/definitions/__schema11"
+        }
+      },
+      "required": [
+        "q",
+        "month"
+      ],
+      "additionalProperties": false
+    },
+    "__schema11": {
+      "description": "A calendar month, YYYY-MM, within the last twelve months or this one.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/__schema12"
+        }
+      ]
+    },
+    "__schema12": {
+      "type": "string",
+      "pattern": "^\\d{4}-(0[1-9]|1[0-2])$"
+    },
+    "__schema13": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "const": "foreign_costs"
+        }
+      },
+      "required": [
+        "q"
+      ],
+      "additionalProperties": false
+    },
+    "__schema14": {
+      "description": "How many days from today; the usual 30 when left out.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/__schema15"
+        }
+      ]
+    },
+    "__schema15": {
+      "type": "integer",
+      "minimum": 7,
+      "maximum": 60
+    },
+    "__schema16": {
+      "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/__schema2"
+        }
+      ]
+    },
+    "__schema17": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "const": "events"
+        },
+        "days": {
+          "$ref": "#/definitions/__schema14"
+        },
+        "scenario": {
+          "$ref": "#/definitions/__schema7"
+        }
+      },
+      "required": [
+        "q"
+      ],
+      "additionalProperties": false
+    },
+    "__schema18": {
+      "type": "object",
+      "properties": {
+        "q": {
+          "type": "string",
+          "const": "compare_months"
+        },
+        "a": {
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+          "description": "The earlier month, the base.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/__schema11"
+            }
+          ]
+        },
+        "b": {
+          "type": "string",
+          "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+          "description": "The month compared with it; the change is b minus a.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/__schema11"
+            }
+          ]
+        }
+      },
+      "required": [
+        "q",
+        "a",
+        "b"
+      ],
+      "additionalProperties": false
+    },
+    "__schema19": {
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "$ref": "#/definitions/__schema2"
+        },
+        "maxDays": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60
+        }
+      },
+      "required": [
+        "clientId",
+        "maxDays"
+      ],
+      "additionalProperties": false
+    },
+    "__schema20": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 90
+    },
+    "__schema21": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 12
     }
-  },
-  "required": [
-    "version",
-    "title",
-    "blocks"
-  ],
-  "additionalProperties": false
+  }
 }

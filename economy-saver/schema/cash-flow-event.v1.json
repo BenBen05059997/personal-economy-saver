@@ -7,6 +7,7 @@
     "date": {
       "type": "string",
       "format": "date",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
       "description": "The day it happens, YYYY-MM-DD."
     },
     "label": {
@@ -43,22 +44,22 @@
       "description": "in = money comes in, out = money goes out; follows the sign of amountMinor."
     },
     "balanceAfterMinor": {
+      "description": "The running balance after this event, in the same currency. A pending bill is not counted.",
       "type": "integer",
       "minimum": -9007199254740991,
-      "maximum": 9007199254740991,
-      "description": "The running balance after this event, in the same currency. A pending bill is not counted."
+      "maximum": 9007199254740991
     },
     "estimated": {
-      "type": "boolean",
-      "description": "true = the amount is an estimate (an amount-varies bill)."
+      "description": "true = the amount is an estimate (an amount-varies bill).",
+      "type": "boolean"
     },
     "pending": {
-      "type": "boolean",
-      "description": "true = a bill still waiting in To check; judged as if it were confirmed."
+      "description": "true = a bill still waiting in To check; judged as if it were confirmed.",
+      "type": "boolean"
     },
     "uncounted": {
-      "type": "boolean",
-      "description": "true = the amount is not known and nothing can estimate it; the event counts as 0."
+      "description": "true = the amount is not known and nothing can estimate it; the event counts as 0.",
+      "type": "boolean"
     }
   },
   "required": [

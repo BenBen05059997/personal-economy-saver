@@ -22,7 +22,7 @@ const itemOf = (r: Row): MemoryItem => ({
 
 const scope = (id: string | null | undefined) => id === undefined ? undefined : id === null ? isNull(memories.spaceId) : eq(memories.spaceId, id);
 
-const idOf = (id: string) => z.string().uuid().safeParse(id).success;
+const idOf = (id: string) => z.uuid().safeParse(id).success;
 
 const record = (tx: Db, hid: string, by: MemoryMaker, title: string) =>
   recordEvent(tx, hid, { ...by, kind: "memory_changed", title }); // never a body, never the text

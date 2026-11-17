@@ -31,8 +31,8 @@ import { appUrl } from "@/lib/supabase-auth";
 import { ASK_SCREEN_NAMES, type AskScreen } from "@/lib/agent/screen";
 
 export const askInput = z.object({
-  id: z.string().uuid(), conversationId: z.string().uuid(), text: z.string().trim().min(1).max(QUESTION_MAX),
-  spaceId: z.string().uuid().optional(),
+  id: z.uuid(), conversationId: z.uuid(), text: z.string().trim().min(1).max(QUESTION_MAX),
+  spaceId: z.uuid().optional(),
   source: z.enum(["voice", "manual"]),
   screen: z.enum(Object.keys(ASK_SCREEN_NAMES) as [AskScreen, ...AskScreen[]]).optional(),
   /** The canvas on screen, so "make it a table" or "what about March?" can change it. */

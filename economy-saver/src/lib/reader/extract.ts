@@ -11,7 +11,7 @@ import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { ReaderError } from "./settings";
 
 /** D61: whose a reading is, set by the person on the card or in Ask, never by the reader. A bill is one member's (`memberId`) or shared, and a shared bill names who pays (`paidByMemberId`, null: nobody); a charge is shared or not (the card's owner pays). */
-const whoseSchema = z.object({ shared: z.boolean(), memberId: z.string().uuid().nullable(), paidByMemberId: z.string().uuid().nullable() }).strict();
+const whoseSchema = z.object({ shared: z.boolean(), memberId: z.uuid().nullable(), paidByMemberId: z.uuid().nullable() }).strict();
 export type Whose = z.infer<typeof whoseSchema>;
 
 export const extractSchema = z.object({
@@ -22,7 +22,7 @@ export const extractSchema = z.object({
   currency: z.enum(["USD", "JPY"]).nullable(),
   category: CategoryKeySchema.nullable(),
   businessBp: BusinessBp.nullable().default(null), // the reader never proposes a share; the user or a stored rule sets it
-  cardId: z.string().uuid().nullable(),
+  cardId: z.uuid().nullable(),
   // D41, bills only: the reader never proposes these; the user sets them on the review card.
   repeat: RepeatUnitSchema.nullable().default(null),
   nextAmountMinor: z.number().int().positive().safe().nullable().default(null), // in the reading's currency, from nextAmountFrom on

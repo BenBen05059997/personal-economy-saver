@@ -11,6 +11,7 @@
     "generatedAt": {
       "type": "string",
       "format": "date-time",
+      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
       "description": "An instant, ISO 8601 in UTC."
     },
     "household": {
@@ -18,7 +19,8 @@
       "properties": {
         "id": {
           "type": "string",
-          "format": "uuid"
+          "format": "uuid",
+          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
         },
         "name": {
           "type": "string"
@@ -35,6 +37,7 @@
         "today": {
           "type": "string",
           "format": "date",
+          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
           "description": "The household's own date, including a demo household's scenario date."
         },
         "isDemo": {
@@ -55,7 +58,6 @@
         "usdRateMicro": {
           "type": "integer",
           "exclusiveMinimum": 0,
-          "minimum": -9007199254740991,
           "maximum": 9007199254740991,
           "description": "Home currency per 1 USD scaled by 1e6, the rate the household's money state uses today (1000000 when `homeCurrency` is USD)."
         },
@@ -64,6 +66,7 @@
             {
               "type": "string",
               "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
               "description": "A calendar day, YYYY-MM-DD."
             },
             {
@@ -77,6 +80,7 @@
             {
               "type": "string",
               "format": "date",
+              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
               "description": "A calendar day, YYYY-MM-DD."
             },
             {
@@ -108,7 +112,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "displayName": {
             "type": "string"
@@ -143,13 +148,15 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "memberId": {
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
@@ -183,8 +190,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+            ]
           },
           "currency": {
             "type": "string",
@@ -195,6 +201,7 @@
             "type": "boolean"
           },
           "foreignFeeBp": {
+            "description": "The issuer's foreign transaction fee in basis points (220 = 2.2%), from the card's own terms; null or absent = not entered.",
             "anyOf": [
               {
                 "type": "integer",
@@ -204,8 +211,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "The issuer's foreign transaction fee in basis points (220 = 2.2%), from the card's own terms; null or absent = not entered."
+            ]
           }
         },
         "required": [
@@ -228,11 +234,13 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "cardId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "amountMinor": {
             "type": "integer",
@@ -248,11 +256,13 @@
           "closedOn": {
             "type": "string",
             "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
             "description": "A calendar day, YYYY-MM-DD."
           },
           "dueOn": {
             "type": "string",
             "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
             "description": "A calendar day, YYYY-MM-DD."
           },
           "paidOn": {
@@ -260,13 +270,13 @@
               {
                 "type": "string",
                 "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                 "description": "A calendar day, YYYY-MM-DD."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "A calendar day, YYYY-MM-DD."
+            ]
           }
         },
         "required": [
@@ -288,11 +298,13 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "cardId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "merchant": {
             "type": "string"
@@ -332,8 +344,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "ISO 4217 code, for example JPY or USD."
+            ]
           },
           "fxRateMicro": {
             "anyOf": [
@@ -346,16 +357,16 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency."
+            ]
           },
           "fxEstimated": {
-            "type": "boolean",
-            "description": "true = `amountMinor` is the reference-rate conversion of the original amount (a reader estimate), not what the issuer billed; absent = false."
+            "description": "true = `amountMinor` is the reference-rate conversion of the original amount (a reader estimate), not what the issuer billed; absent = false.",
+            "type": "boolean"
           },
           "date": {
             "type": "string",
             "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
             "description": "A calendar day, YYYY-MM-DD."
           },
           "source": {
@@ -412,22 +423,24 @@
             "description": "The business share in basis points: 0 = personal, 10000 = business, between = mixed (3000 = 30% business). Categories and shares move no money."
           },
           "ownCategoryId": {
+            "description": "The id of one of `ownCategories`, of the same kind as `category`; null or absent = filed under the category alone. Moves no money.",
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "The id of one of `ownCategories`, of the same kind as `category`; null or absent = filed under the category alone. Moves no money."
+            ]
           },
           "documentId": {
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
@@ -435,6 +448,7 @@
             ]
           },
           "madeBy": {
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import.",
             "type": "string",
             "enum": [
               "form",
@@ -444,8 +458,7 @@
               "cron",
               "paypal",
               "import"
-            ],
-            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
+            ]
           }
         },
         "required": [
@@ -476,13 +489,15 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "memberId": {
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
@@ -494,7 +509,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
@@ -529,6 +545,7 @@
               {
                 "type": "string",
                 "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                 "description": "A calendar day, YYYY-MM-DD."
               },
               {
@@ -564,16 +581,17 @@
             "description": "The business share in basis points: 0 = personal, 10000 = business, between = mixed (3000 = 30% business). Categories and shares move no money."
           },
           "ownCategoryId": {
+            "description": "The id of one of `ownCategories`, of the same kind as `category`; null or absent = filed under the category alone. Moves no money.",
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "The id of one of `ownCategories`, of the same kind as `category`; null or absent = filed under the category alone. Moves no money."
+            ]
           },
           "status": {
             "type": "string",
@@ -594,8 +612,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+            ]
           },
           "fxRateMicro": {
             "anyOf": [
@@ -608,8 +625,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "An exchange rate scaled by 1e6: units of the home currency per 1 USD, or original to billed currency."
+            ]
           },
           "repeatDay": {
             "anyOf": [
@@ -625,6 +641,7 @@
             "description": "Day of the month a monthly bill falls due; null unless repeatUnit is month."
           },
           "repeatUnit": {
+            "description": "month = every month on repeatDay, year = every year on the due date's month and day (29 Feb becomes 28 Feb in a common year); null or absent = one-off.",
             "anyOf": [
               {
                 "type": "string",
@@ -636,10 +653,10 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "month = every month on repeatDay, year = every year on the due date's month and day (29 Feb becomes 28 Feb in a common year); null or absent = one-off."
+            ]
           },
           "nextAmountMinor": {
+            "description": "The amount an occurrence on or after nextAmountFrom costs, in the bill's currency; null or absent = the amount never changes. Set together with nextAmountFrom.",
             "anyOf": [
               {
                 "type": "integer",
@@ -650,95 +667,101 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "The amount an occurrence on or after nextAmountFrom costs, in the bill's currency; null or absent = the amount never changes. Set together with nextAmountFrom."
+            ]
           },
           "nextAmountFrom": {
+            "description": "The first date nextAmountMinor applies on.",
             "anyOf": [
               {
                 "type": "string",
                 "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                 "description": "A calendar day, YYYY-MM-DD."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "The first date nextAmountMinor applies on."
+            ]
           },
           "cancelBy": {
+            "description": "Information only: the last day to cancel or change the bill before its next occurrence charges. The app never cancels anything.",
             "anyOf": [
               {
                 "type": "string",
                 "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                 "description": "A calendar day, YYYY-MM-DD."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "Information only: the last day to cancel or change the bill before its next occurrence charges. The app never cancels anything."
+            ]
           },
           "repeatUntil": {
+            "description": "The last day an occurrence may fall on (the last payment); null or absent = it goes on. Only on a bill that repeats.",
             "anyOf": [
               {
                 "type": "string",
                 "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                 "description": "A calendar day, YYYY-MM-DD."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "The last day an occurrence may fall on (the last payment); null or absent = it goes on. Only on a bill that repeats."
+            ]
           },
           "amountVaries": {
-            "type": "boolean",
-            "description": "A monthly bill whose amount changes every month (electricity, water, gas): a month without its real bill is forecast as the average of the last three real bills linked to it (amountMinor when there are none). Absent = false."
+            "description": "A monthly bill whose amount changes every month (electricity, water, gas): a month without its real bill is forecast as the average of the last three real bills linked to it (amountMinor when there are none). Absent = false.",
+            "type": "boolean"
           },
           "seriesBillId": {
+            "description": "On a one-off real bill: the id of the amount-varies monthly bill it belongs to; it replaces that series' estimate in its due month. Null or absent = not linked.",
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "On a one-off real bill: the id of the amount-varies monthly bill it belongs to; it replaces that series' estimate in its due month. Null or absent = not linked."
+            ]
           },
           "periodStart": {
+            "description": "The first day a one-off bill covers (\"11月分\" is Nov 1); information only: the money counts by the due date. Set together with periodEnd; null or absent = not known.",
             "anyOf": [
               {
                 "type": "string",
                 "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                 "description": "A calendar day, YYYY-MM-DD."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "The first day a one-off bill covers (\"11月分\" is Nov 1); information only: the money counts by the due date. Set together with periodEnd; null or absent = not known."
+            ]
           },
           "periodEnd": {
+            "description": "The last day the bill covers; on or after periodStart.",
             "anyOf": [
               {
                 "type": "string",
                 "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                 "description": "A calendar day, YYYY-MM-DD."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "The last day the bill covers; on or after periodStart."
+            ]
           },
           "documentId": {
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
@@ -746,6 +769,7 @@
             ]
           },
           "madeBy": {
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import.",
             "type": "string",
             "enum": [
               "form",
@@ -755,8 +779,7 @@
               "cron",
               "paypal",
               "import"
-            ],
-            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
+            ]
           }
         },
         "required": [
@@ -786,7 +809,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "name": {
             "type": "string"
@@ -797,6 +821,7 @@
           "termsDays": {
             "type": "integer",
             "minimum": 0,
+            "maximum": 9007199254740991,
             "description": "Payment terms in days; 0 = due on receipt."
           }
         },
@@ -816,11 +841,13 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "clientId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "status": {
             "type": "string",
@@ -877,46 +904,46 @@
               {
                 "type": "string",
                 "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                 "description": "A calendar day, YYYY-MM-DD."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "A calendar day, YYYY-MM-DD."
+            ]
           },
           "dueOn": {
             "anyOf": [
               {
                 "type": "string",
                 "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                 "description": "A calendar day, YYYY-MM-DD."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "A calendar day, YYYY-MM-DD."
+            ]
           },
           "paidOn": {
             "anyOf": [
               {
                 "type": "string",
                 "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                 "description": "A calendar day, YYYY-MM-DD."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "A calendar day, YYYY-MM-DD."
+            ]
           },
           "paypalInvoiceId": {
+            "description": "null = typed in or marked paid outside PayPal.",
             "type": [
               "string",
               "null"
-            ],
-            "description": "null = typed in or marked paid outside PayPal."
+            ]
           },
           "paypalStatus": {
             "type": [
@@ -929,15 +956,16 @@
               {
                 "type": "string",
                 "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                 "description": "An instant, ISO 8601 in UTC."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "An instant, ISO 8601 in UTC."
+            ]
           },
           "madeBy": {
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import.",
             "type": "string",
             "enum": [
               "form",
@@ -947,8 +975,7 @@
               "cron",
               "paypal",
               "import"
-            ],
-            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
+            ]
           }
         },
         "required": [
@@ -978,13 +1005,15 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "memberId": {
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
@@ -1006,21 +1035,20 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+            ]
           },
           "targetDate": {
             "anyOf": [
               {
                 "type": "string",
                 "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
                 "description": "A calendar day, YYYY-MM-DD."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "A calendar day, YYYY-MM-DD."
+            ]
           },
           "savedMinor": {
             "type": "integer",
@@ -1055,6 +1083,7 @@
             "description": "pending = waiting in To check; it counts for nothing until the user confirms it."
           },
           "madeBy": {
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import.",
             "type": "string",
             "enum": [
               "form",
@@ -1064,8 +1093,7 @@
               "cron",
               "paypal",
               "import"
-            ],
-            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
+            ]
           }
         },
         "required": [
@@ -1089,16 +1117,19 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "fromMemberId": {
             "type": "string",
             "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "description": "Who paid."
           },
           "toMemberId": {
             "type": "string",
             "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
             "description": "Who received."
           },
           "amountMinor": {
@@ -1115,16 +1146,19 @@
           "through": {
             "type": "string",
             "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
             "description": "Shared items dated on or before this day were settled, except those dated this day and created after `settledAt`; the next balance counts the rest."
           },
           "settledAt": {
             "type": "string",
             "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "When the settlement was recorded."
           },
           "createdAt": {
             "type": "string",
             "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "An instant, ISO 8601 in UTC."
           }
         },
@@ -1143,13 +1177,15 @@
       "description": "Every transfer recorded by Mark settled, oldest first."
     },
     "ownCategories": {
+      "description": "The person's own categories (D75), by category. Absent in a version 2 or 3 file.",
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "kind": {
             "type": "string",
@@ -1198,8 +1234,7 @@
           "businessBp"
         ],
         "additionalProperties": false
-      },
-      "description": "The person's own categories (D75), by category. Absent in a version 2 or 3 file."
+      }
     },
     "balanceUpdates": {
       "type": "array",
@@ -1208,7 +1243,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "amountMinor": {
             "type": "integer",
@@ -1232,9 +1268,11 @@
           "createdAt": {
             "type": "string",
             "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "An instant, ISO 8601 in UTC."
           },
           "madeBy": {
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import.",
             "type": "string",
             "enum": [
               "form",
@@ -1244,8 +1282,7 @@
               "cron",
               "paypal",
               "import"
-            ],
-            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
+            ]
           }
         },
         "required": [
@@ -1266,7 +1303,8 @@
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "kind": {
             "type": "string",
@@ -1287,6 +1325,7 @@
           "createdAt": {
             "type": "string",
             "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "An instant, ISO 8601 in UTC."
           }
         },
@@ -1334,13 +1373,15 @@
       "description": "true = that list holds only its most recent rows because the reader asked for a window; the export is never truncated."
     },
     "events": {
+      "description": "The household's audit trail, newest first. Only in the export.",
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "kind": {
             "type": "string"
@@ -1365,8 +1406,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "Integer minor units: whole yen for JPY, cents for USD. Negative means owed or out."
+            ]
           },
           "currency": {
             "anyOf": [
@@ -1378,8 +1418,7 @@
               {
                 "type": "null"
               }
-            ],
-            "description": "ISO 4217 code, for example JPY or USD."
+            ]
           },
           "refType": {
             "type": [
@@ -1391,7 +1430,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
@@ -1406,20 +1446,22 @@
               {
                 "type": "string",
                 "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                 "description": "An instant, ISO 8601 in UTC."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "An instant, ISO 8601 in UTC."
+            ]
           },
           "occurredAt": {
             "type": "string",
             "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "An instant, ISO 8601 in UTC."
           },
           "madeBy": {
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import.",
             "type": "string",
             "enum": [
               "form",
@@ -1429,8 +1471,7 @@
               "cron",
               "paypal",
               "import"
-            ],
-            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import."
+            ]
           }
         },
         "required": [
@@ -1447,17 +1488,18 @@
           "occurredAt"
         ],
         "additionalProperties": false
-      },
-      "description": "The household's audit trail, newest first. Only in the export."
+      }
     },
     "memory": {
+      "description": "What the assistant remembers (D58). Only in the export.",
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "kind": {
             "type": "string",
@@ -1486,7 +1528,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
@@ -1495,15 +1538,18 @@
           },
           "spaceId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "createdAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
           },
           "updatedAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
           }
         },
         "required": [
@@ -1516,17 +1562,18 @@
           "updatedAt"
         ],
         "additionalProperties": false
-      },
-      "description": "What the assistant remembers (D58). Only in the export."
+      }
     },
     "canvases": {
+      "description": "The canvases pinned to Home, in order (D57). Only in the export.",
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "title": {
             "type": "string",
@@ -1536,11 +1583,13 @@
           "position": {
             "type": "integer",
             "minimum": 0,
+            "maximum": 9007199254740991,
             "description": "0 is first in this space."
           },
           "spaceId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "recipe": {
             "type": "object",
@@ -1555,6 +1604,7 @@
                 "maxLength": 80
               },
               "scenario": {
+                "description": "The recipe's own live scenario: any query that says `scenario: \"canvas\"` uses it, and the sliders change its client_late days.",
                 "type": "object",
                 "properties": {
                   "case": {
@@ -1566,9 +1616,10 @@
                     "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                   },
                   "changes": {
+                    "maxItems": 10,
                     "type": "array",
                     "items": {
-                      "anyOf": [
+                      "oneOf": [
                         {
                           "type": "object",
                           "properties": {
@@ -1706,18 +1757,18 @@
                           "additionalProperties": false
                         }
                       ]
-                    },
-                    "maxItems": 10
+                    }
                   }
                 },
                 "required": [
                   "case",
                   "changes"
                 ],
-                "additionalProperties": false,
-                "description": "The recipe's own live scenario: any query that says `scenario: \"canvas\"` uses it, and the sliders change its client_late days."
+                "additionalProperties": false
               },
               "blocks": {
+                "minItems": 1,
+                "maxItems": 12,
                 "type": "array",
                 "items": {
                   "anyOf": [
@@ -1749,9 +1800,10 @@
                                       "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                     },
                                     "changes": {
+                                      "maxItems": 10,
                                       "type": "array",
                                       "items": {
-                                        "anyOf": [
+                                        "oneOf": [
                                           {
                                             "type": "object",
                                             "properties": {
@@ -1889,8 +1941,7 @@
                                             "additionalProperties": false
                                           }
                                         ]
-                                      },
-                                      "maxItems": 10
+                                      }
                                     }
                                   },
                                   "required": [
@@ -1931,7 +1982,7 @@
                           "maxLength": 60
                         },
                         "query": {
-                          "anyOf": [
+                          "oneOf": [
                             {
                               "type": "object",
                               "properties": {
@@ -1953,9 +2004,10 @@
                                           "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                         },
                                         "changes": {
+                                          "maxItems": 10,
                                           "type": "array",
                                           "items": {
-                                            "anyOf": [
+                                            "oneOf": [
                                               {
                                                 "type": "object",
                                                 "properties": {
@@ -2093,8 +2145,7 @@
                                                 "additionalProperties": false
                                               }
                                             ]
-                                          },
-                                          "maxItems": 10
+                                          }
                                         }
                                       },
                                       "required": [
@@ -2149,9 +2200,10 @@
                                           "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                         },
                                         "changes": {
+                                          "maxItems": 10,
                                           "type": "array",
                                           "items": {
-                                            "anyOf": [
+                                            "oneOf": [
                                               {
                                                 "type": "object",
                                                 "properties": {
@@ -2289,8 +2341,7 @@
                                                 "additionalProperties": false
                                               }
                                             ]
-                                          },
-                                          "maxItems": 10
+                                          }
                                         }
                                       },
                                       "required": [
@@ -2372,10 +2423,10 @@
                               "const": "flow"
                             },
                             "days": {
+                              "description": "How many days from today; the usual 30 when left out.",
                               "type": "integer",
                               "minimum": 7,
-                              "maximum": 60,
-                              "description": "How many days from today; the usual 30 when left out."
+                              "maximum": 60
                             },
                             "scenario": {
                               "anyOf": [
@@ -2391,9 +2442,10 @@
                                       "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                     },
                                     "changes": {
+                                      "maxItems": 10,
                                       "type": "array",
                                       "items": {
-                                        "anyOf": [
+                                        "oneOf": [
                                           {
                                             "type": "object",
                                             "properties": {
@@ -2531,8 +2583,7 @@
                                             "additionalProperties": false
                                           }
                                         ]
-                                      },
-                                      "maxItems": 10
+                                      }
                                     }
                                   },
                                   "required": [
@@ -2554,10 +2605,10 @@
                           "additionalProperties": false
                         },
                         "mark": {
+                          "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window.",
                           "type": "string",
                           "minLength": 1,
-                          "maxLength": 80,
-                          "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
+                          "maxLength": 80
                         }
                       },
                       "required": [
@@ -2581,10 +2632,10 @@
                               "const": "events"
                             },
                             "days": {
+                              "description": "How many days from today; the usual 30 when left out.",
                               "type": "integer",
                               "minimum": 7,
-                              "maximum": 60,
-                              "description": "How many days from today; the usual 30 when left out."
+                              "maximum": 60
                             },
                             "scenario": {
                               "anyOf": [
@@ -2600,9 +2651,10 @@
                                       "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                     },
                                     "changes": {
+                                      "maxItems": 10,
                                       "type": "array",
                                       "items": {
-                                        "anyOf": [
+                                        "oneOf": [
                                           {
                                             "type": "object",
                                             "properties": {
@@ -2740,8 +2792,7 @@
                                             "additionalProperties": false
                                           }
                                         ]
-                                      },
-                                      "maxItems": 10
+                                      }
                                     }
                                   },
                                   "required": [
@@ -2763,10 +2814,10 @@
                           "additionalProperties": false
                         },
                         "mark": {
+                          "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window.",
                           "type": "string",
                           "minLength": 1,
-                          "maxLength": 80,
-                          "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
+                          "maxLength": 80
                         }
                       },
                       "required": [
@@ -2787,7 +2838,7 @@
                           "maxLength": 80
                         },
                         "query": {
-                          "anyOf": [
+                          "oneOf": [
                             {
                               "type": "object",
                               "properties": {
@@ -2796,10 +2847,10 @@
                                   "const": "events"
                                 },
                                 "days": {
+                                  "description": "How many days from today; the usual 30 when left out.",
                                   "type": "integer",
                                   "minimum": 7,
-                                  "maximum": 60,
-                                  "description": "How many days from today; the usual 30 when left out."
+                                  "maximum": 60
                                 },
                                 "scenario": {
                                   "anyOf": [
@@ -2815,9 +2866,10 @@
                                           "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                         },
                                         "changes": {
+                                          "maxItems": 10,
                                           "type": "array",
                                           "items": {
-                                            "anyOf": [
+                                            "oneOf": [
                                               {
                                                 "type": "object",
                                                 "properties": {
@@ -2955,8 +3007,7 @@
                                                 "additionalProperties": false
                                               }
                                             ]
-                                          },
-                                          "maxItems": 10
+                                          }
                                         }
                                       },
                                       "required": [
@@ -3193,7 +3244,7 @@
                           "maxLength": 60
                         },
                         "query": {
-                          "anyOf": [
+                          "oneOf": [
                             {
                               "type": "object",
                               "properties": {
@@ -3215,9 +3266,10 @@
                                           "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                         },
                                         "changes": {
+                                          "maxItems": 10,
                                           "type": "array",
                                           "items": {
-                                            "anyOf": [
+                                            "oneOf": [
                                               {
                                                 "type": "object",
                                                 "properties": {
@@ -3355,8 +3407,7 @@
                                                 "additionalProperties": false
                                               }
                                             ]
-                                          },
-                                          "maxItems": 10
+                                          }
                                         }
                                       },
                                       "required": [
@@ -3480,6 +3531,8 @@
                           "const": "sliders"
                         },
                         "controls": {
+                          "minItems": 1,
+                          "maxItems": 4,
                           "type": "array",
                           "items": {
                             "type": "object",
@@ -3500,9 +3553,7 @@
                               "maxDays"
                             ],
                             "additionalProperties": false
-                          },
-                          "minItems": 1,
-                          "maxItems": 4
+                          }
                         }
                       },
                       "required": [
@@ -3622,7 +3673,8 @@
                               "properties": {
                                 "amountMinor": {
                                   "type": "integer",
-                                  "exclusiveMinimum": 0
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
                                 },
                                 "date": {
                                   "type": "string",
@@ -4127,7 +4179,8 @@
                                 },
                                 "amountMinor": {
                                   "type": "integer",
-                                  "exclusiveMinimum": 0
+                                  "exclusiveMinimum": 0,
+                                  "maximum": 9007199254740991
                                 }
                               },
                               "required": [
@@ -4241,9 +4294,7 @@
                       ]
                     }
                   ]
-                },
-                "minItems": 1,
-                "maxItems": 12
+                }
               }
             },
             "required": [
@@ -4256,6 +4307,7 @@
           "createdAt": {
             "type": "string",
             "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "An instant, ISO 8601 in UTC."
           }
         },
@@ -4267,10 +4319,10 @@
           "createdAt"
         ],
         "additionalProperties": false
-      },
-      "description": "The canvases pinned to Home, in order (D57). Only in the export."
+      }
     },
     "journal": {
+      "description": "The conversation turns, oldest first (D60). Only in the export.",
       "type": "array",
       "items": {
         "type": "object",
@@ -4281,15 +4333,18 @@
           },
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "conversationId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "spaceId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "question": {
             "type": "string",
@@ -4312,14 +4367,14 @@
           "choices": {
             "anyOf": [
               {
+                "minItems": 2,
+                "maxItems": 4,
                 "type": "array",
                 "items": {
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 60
-                },
-                "minItems": 2,
-                "maxItems": 4
+                }
               },
               {
                 "type": "null"
@@ -4341,6 +4396,7 @@
                     "maxLength": 80
                   },
                   "scenario": {
+                    "description": "The recipe's own live scenario: any query that says `scenario: \"canvas\"` uses it, and the sliders change its client_late days.",
                     "type": "object",
                     "properties": {
                       "case": {
@@ -4352,9 +4408,10 @@
                         "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                       },
                       "changes": {
+                        "maxItems": 10,
                         "type": "array",
                         "items": {
-                          "anyOf": [
+                          "oneOf": [
                             {
                               "type": "object",
                               "properties": {
@@ -4492,18 +4549,18 @@
                               "additionalProperties": false
                             }
                           ]
-                        },
-                        "maxItems": 10
+                        }
                       }
                     },
                     "required": [
                       "case",
                       "changes"
                     ],
-                    "additionalProperties": false,
-                    "description": "The recipe's own live scenario: any query that says `scenario: \"canvas\"` uses it, and the sliders change its client_late days."
+                    "additionalProperties": false
                   },
                   "blocks": {
+                    "minItems": 1,
+                    "maxItems": 12,
                     "type": "array",
                     "items": {
                       "anyOf": [
@@ -4535,9 +4592,10 @@
                                           "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                         },
                                         "changes": {
+                                          "maxItems": 10,
                                           "type": "array",
                                           "items": {
-                                            "anyOf": [
+                                            "oneOf": [
                                               {
                                                 "type": "object",
                                                 "properties": {
@@ -4675,8 +4733,7 @@
                                                 "additionalProperties": false
                                               }
                                             ]
-                                          },
-                                          "maxItems": 10
+                                          }
                                         }
                                       },
                                       "required": [
@@ -4717,7 +4774,7 @@
                               "maxLength": 60
                             },
                             "query": {
-                              "anyOf": [
+                              "oneOf": [
                                 {
                                   "type": "object",
                                   "properties": {
@@ -4739,9 +4796,10 @@
                                               "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                             },
                                             "changes": {
+                                              "maxItems": 10,
                                               "type": "array",
                                               "items": {
-                                                "anyOf": [
+                                                "oneOf": [
                                                   {
                                                     "type": "object",
                                                     "properties": {
@@ -4879,8 +4937,7 @@
                                                     "additionalProperties": false
                                                   }
                                                 ]
-                                              },
-                                              "maxItems": 10
+                                              }
                                             }
                                           },
                                           "required": [
@@ -4935,9 +4992,10 @@
                                               "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                             },
                                             "changes": {
+                                              "maxItems": 10,
                                               "type": "array",
                                               "items": {
-                                                "anyOf": [
+                                                "oneOf": [
                                                   {
                                                     "type": "object",
                                                     "properties": {
@@ -5075,8 +5133,7 @@
                                                     "additionalProperties": false
                                                   }
                                                 ]
-                                              },
-                                              "maxItems": 10
+                                              }
                                             }
                                           },
                                           "required": [
@@ -5158,10 +5215,10 @@
                                   "const": "flow"
                                 },
                                 "days": {
+                                  "description": "How many days from today; the usual 30 when left out.",
                                   "type": "integer",
                                   "minimum": 7,
-                                  "maximum": 60,
-                                  "description": "How many days from today; the usual 30 when left out."
+                                  "maximum": 60
                                 },
                                 "scenario": {
                                   "anyOf": [
@@ -5177,9 +5234,10 @@
                                           "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                         },
                                         "changes": {
+                                          "maxItems": 10,
                                           "type": "array",
                                           "items": {
-                                            "anyOf": [
+                                            "oneOf": [
                                               {
                                                 "type": "object",
                                                 "properties": {
@@ -5317,8 +5375,7 @@
                                                 "additionalProperties": false
                                               }
                                             ]
-                                          },
-                                          "maxItems": 10
+                                          }
                                         }
                                       },
                                       "required": [
@@ -5340,10 +5397,10 @@
                               "additionalProperties": false
                             },
                             "mark": {
+                              "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window.",
                               "type": "string",
                               "minLength": 1,
-                              "maxLength": 80,
-                              "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
+                              "maxLength": 80
                             }
                           },
                           "required": [
@@ -5367,10 +5424,10 @@
                                   "const": "events"
                                 },
                                 "days": {
+                                  "description": "How many days from today; the usual 30 when left out.",
                                   "type": "integer",
                                   "minimum": 7,
-                                  "maximum": 60,
-                                  "description": "How many days from today; the usual 30 when left out."
+                                  "maximum": 60
                                 },
                                 "scenario": {
                                   "anyOf": [
@@ -5386,9 +5443,10 @@
                                           "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                         },
                                         "changes": {
+                                          "maxItems": 10,
                                           "type": "array",
                                           "items": {
-                                            "anyOf": [
+                                            "oneOf": [
                                               {
                                                 "type": "object",
                                                 "properties": {
@@ -5526,8 +5584,7 @@
                                                 "additionalProperties": false
                                               }
                                             ]
-                                          },
-                                          "maxItems": 10
+                                          }
                                         }
                                       },
                                       "required": [
@@ -5549,10 +5606,10 @@
                               "additionalProperties": false
                             },
                             "mark": {
+                              "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window.",
                               "type": "string",
                               "minLength": 1,
-                              "maxLength": 80,
-                              "description": "Optional: a stored bill's id. The chart rings the first day that bill falls on in the window, and the timeline highlights its rows. Draws no mark when the bill is not in the window."
+                              "maxLength": 80
                             }
                           },
                           "required": [
@@ -5573,7 +5630,7 @@
                               "maxLength": 80
                             },
                             "query": {
-                              "anyOf": [
+                              "oneOf": [
                                 {
                                   "type": "object",
                                   "properties": {
@@ -5582,10 +5639,10 @@
                                       "const": "events"
                                     },
                                     "days": {
+                                      "description": "How many days from today; the usual 30 when left out.",
                                       "type": "integer",
                                       "minimum": 7,
-                                      "maximum": 60,
-                                      "description": "How many days from today; the usual 30 when left out."
+                                      "maximum": 60
                                     },
                                     "scenario": {
                                       "anyOf": [
@@ -5601,9 +5658,10 @@
                                               "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                             },
                                             "changes": {
+                                              "maxItems": 10,
                                               "type": "array",
                                               "items": {
-                                                "anyOf": [
+                                                "oneOf": [
                                                   {
                                                     "type": "object",
                                                     "properties": {
@@ -5741,8 +5799,7 @@
                                                     "additionalProperties": false
                                                   }
                                                 ]
-                                              },
-                                              "maxItems": 10
+                                              }
                                             }
                                           },
                                           "required": [
@@ -5979,7 +6036,7 @@
                               "maxLength": 60
                             },
                             "query": {
-                              "anyOf": [
+                              "oneOf": [
                                 {
                                   "type": "object",
                                   "properties": {
@@ -6001,9 +6058,10 @@
                                               "description": "usual: each client pays after their usual days. late: every client pays as slowly as they ever have."
                                             },
                                             "changes": {
+                                              "maxItems": 10,
                                               "type": "array",
                                               "items": {
-                                                "anyOf": [
+                                                "oneOf": [
                                                   {
                                                     "type": "object",
                                                     "properties": {
@@ -6141,8 +6199,7 @@
                                                     "additionalProperties": false
                                                   }
                                                 ]
-                                              },
-                                              "maxItems": 10
+                                              }
                                             }
                                           },
                                           "required": [
@@ -6266,6 +6323,8 @@
                               "const": "sliders"
                             },
                             "controls": {
+                              "minItems": 1,
+                              "maxItems": 4,
                               "type": "array",
                               "items": {
                                 "type": "object",
@@ -6286,9 +6345,7 @@
                                   "maxDays"
                                 ],
                                 "additionalProperties": false
-                              },
-                              "minItems": 1,
-                              "maxItems": 4
+                              }
                             }
                           },
                           "required": [
@@ -6408,7 +6465,8 @@
                                   "properties": {
                                     "amountMinor": {
                                       "type": "integer",
-                                      "exclusiveMinimum": 0
+                                      "exclusiveMinimum": 0,
+                                      "maximum": 9007199254740991
                                     },
                                     "date": {
                                       "type": "string",
@@ -6913,7 +6971,8 @@
                                     },
                                     "amountMinor": {
                                       "type": "integer",
-                                      "exclusiveMinimum": 0
+                                      "exclusiveMinimum": 0,
+                                      "maximum": 9007199254740991
                                     }
                                   },
                                   "required": [
@@ -7027,9 +7086,7 @@
                           ]
                         }
                       ]
-                    },
-                    "minItems": 1,
-                    "maxItems": 12
+                    }
                   }
                 },
                 "required": [
@@ -7077,7 +7134,8 @@
                     },
                     "id": {
                       "type": "string",
-                      "format": "uuid"
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
                     },
                     "label": {
                       "type": "string",
@@ -7124,7 +7182,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "format": "uuid"
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
               },
               {
                 "type": "null"
@@ -7134,10 +7193,15 @@
           "thumb": {
             "anyOf": [
               {
-                "type": "number",
-                "enum": [
-                  1,
-                  -1
+                "anyOf": [
+                  {
+                    "type": "number",
+                    "const": 1
+                  },
+                  {
+                    "type": "number",
+                    "const": -1
+                  }
                 ]
               },
               {
@@ -7163,17 +7227,18 @@
           "createdAt"
         ],
         "additionalProperties": false
-      },
-      "description": "The conversation turns, oldest first (D60). Only in the export."
+      }
     },
     "spaces": {
+      "description": "The journal’s spaces, with their briefs (D69). Only in the export.",
       "type": "array",
       "items": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
           "name": {
             "type": "string",
@@ -7201,16 +7266,17 @@
                 "type": "object",
                 "properties": {
                   "about": {
+                    "default": "",
                     "type": "string",
-                    "maxLength": 2000,
-                    "default": ""
+                    "maxLength": 2000
                   },
                   "goal": {
+                    "default": "",
                     "type": "string",
-                    "maxLength": 2000,
-                    "default": ""
+                    "maxLength": 2000
                   },
                   "state": {
+                    "default": [],
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -7231,74 +7297,77 @@
                         "source"
                       ],
                       "additionalProperties": false
-                    },
-                    "default": []
+                    }
                   },
                   "decisions": {
+                    "default": [],
                     "type": "array",
                     "items": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 2000
-                    },
-                    "default": []
+                    }
                   },
                   "open_questions": {
+                    "default": [],
                     "type": "array",
                     "items": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 2000
-                    },
-                    "default": []
+                    }
                   },
                   "check_next": {
+                    "default": [],
                     "type": "array",
                     "items": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 2000
-                    },
-                    "default": []
+                    }
                   },
                   "refs": {
+                    "default": {},
                     "type": "object",
                     "properties": {
                       "bills": {
+                        "default": [],
                         "type": "array",
                         "items": {
                           "type": "string",
-                          "format": "uuid"
-                        },
-                        "default": []
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        }
                       },
                       "clients": {
+                        "default": [],
                         "type": "array",
                         "items": {
                           "type": "string",
-                          "format": "uuid"
-                        },
-                        "default": []
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        }
                       },
                       "pots": {
+                        "default": [],
                         "type": "array",
                         "items": {
                           "type": "string",
-                          "format": "uuid"
-                        },
-                        "default": []
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        }
                       },
                       "documents": {
+                        "default": [],
                         "type": "array",
                         "items": {
                           "type": "string",
-                          "format": "uuid"
-                        },
-                        "default": []
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        }
                       }
                     },
-                    "additionalProperties": false,
-                    "default": {}
+                    "additionalProperties": false
                   }
                 },
                 "additionalProperties": false
@@ -7310,13 +7379,13 @@
               {
                 "type": "string",
                 "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
                 "description": "An instant, ISO 8601 in UTC."
               },
               {
                 "type": "null"
               }
-            ],
-            "description": "An instant, ISO 8601 in UTC."
+            ]
           },
           "briefUpdatedBy": {
             "anyOf": [
@@ -7335,6 +7404,7 @@
           "createdAt": {
             "type": "string",
             "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
             "description": "An instant, ISO 8601 in UTC."
           }
         },
@@ -7349,8 +7419,7 @@
           "createdAt"
         ],
         "additionalProperties": false
-      },
-      "description": "The journal’s spaces, with their briefs (D69). Only in the export."
+      }
     }
   },
   "required": [

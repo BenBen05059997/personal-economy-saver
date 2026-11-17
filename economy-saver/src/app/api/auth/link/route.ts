@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   if (foreign) return foreign;
   const body = await formOf(request);
   if (body instanceof Response) return body;
-  const email = z.string().trim().max(254).email().safeParse(body.get("email"));
+  const email = z.string().trim().max(254).pipe(z.email()).safeParse(body.get("email"));
   if (!email.success) return text("Enter a valid email address", 400);
   const rawInvite = body.get("invite");
   if (rawInvite !== null && (typeof rawInvite !== "string" || !INVITE_TOKEN.test(rawInvite))) {

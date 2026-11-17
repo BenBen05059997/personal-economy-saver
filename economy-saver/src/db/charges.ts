@@ -16,8 +16,8 @@ import { Currency } from "@/lib/catalogue/types";
 import { minorMoney, minorPerUnit } from "@/lib/money/format";
 
 export const chargeInput = z.object({
-  id: z.string().uuid(),
-  cardId: z.string().uuid(),
+  id: z.uuid(),
+  cardId: z.uuid(),
   merchant: z.string().trim().min(1).max(160),
   amount: z.string().trim(),
   date: z.string().date(),
@@ -110,7 +110,7 @@ export async function insertCharge(
  */
 export async function removeCharge(db: Db, householdId: string, id: string): Promise<boolean> {
   const hid = requireHousehold(householdId);
-  const chargeId = z.string().uuid().parse(id);
+  const chargeId = z.uuid().parse(id);
   return withHousehold(db, hid, async tx => {
     const household = await lockHousehold(tx, hid);
     const [row] = await tx.select().from(charges).where(and(eq(charges.householdId, hid), eq(charges.id, chargeId)));

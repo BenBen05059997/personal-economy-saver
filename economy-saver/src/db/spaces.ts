@@ -49,7 +49,7 @@ export async function listSpaceChoices(db: Db, householdId: string) {
 }
 
 async function selectSpace(tx: Db, hid: string, id: string, lock = false): Promise<Space> {
-  if (!z.string().uuid().safeParse(id).success) throw new InputError(unavailable);
+  if (!z.uuid().safeParse(id).success) throw new InputError(unavailable);
   const query = tx.select().from(spaces).where(and(eq(spaces.householdId, hid), eq(spaces.id, id)));
   const [row] = await (lock ? query.for("update") : query);
   if (!row) throw new InputError(unavailable);

@@ -25,10 +25,10 @@ export type CategoryKey = (typeof CATEGORIES)[number]["key"];
 export const CATEGORY_KEYS = CATEGORIES.map(c => c.key) as [CategoryKey, ...CategoryKey[]];
 
 /** Validates a category key; the message is shown to the user when a wrong key is refused. */
-export const CategoryKeySchema = z.enum(CATEGORY_KEYS, { errorMap: () => ({ message: "Choose a category from the list." }) });
+export const CategoryKeySchema = z.enum(CATEGORY_KEYS, { error: "Choose a category from the list." });
 
 /** A business share in basis points: 0 = personal, 10000 = business, between = mixed (3000 = 30% business). */
-export const BusinessBp = z.number({ invalid_type_error: "Enter the business share as a percentage from 0 to 100." })
+export const BusinessBp = z.number({ error: "Enter the business share as a percentage from 0 to 100." })
   .int().min(0, "Enter the business share as a percentage from 0 to 100.").max(10_000, "Enter the business share as a percentage from 0 to 100.");
 
 export const categoryLabel = (key: CategoryKey): string => CATEGORIES.find(c => c.key === key)!.label;

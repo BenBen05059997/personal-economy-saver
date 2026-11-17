@@ -27,7 +27,7 @@ const MEMORY = "memory";
 export async function resolveMemorySpace(db: Db, householdId: string, value: string): Promise<Space> {
   const hid = requireHousehold(householdId), term = value.trim();
   return withHousehold(db, hid, async tx => {
-    const isId = z.string().uuid().safeParse(term).success;
+    const isId = z.uuid().safeParse(term).success;
     const rows = await tx.select().from(spaces).where(and(eq(spaces.householdId, hid), isId
       ? eq(spaces.id, term) : sql`lower(${spaces.name}) = lower(${term})`)).limit(2);
     if (rows.length > 1) throw new InputError("More than one space has that name. Choose its id.");

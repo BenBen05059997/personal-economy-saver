@@ -4,7 +4,6 @@
 // target, a what-if's changes and what a view tests). Amounts are positive integer minor units of the household's home currency (whole yen, cents for USD).
 import { isCalendarDay } from "@/lib/calendar-day";
 import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { InputError } from "@/db/input-error";
 import { amountMinorSchema, idSchema, monthSchema, viewBlockSchema } from "@/lib/views/args";
 
@@ -109,16 +108,16 @@ export const RecipeSchema = z.object({
 }).strict();
 export type Recipe = z.infer<typeof RecipeSchema>;
 
-/** The words a person can read for the first problem in a failed parse: "blocks 3: Unrecognized key(s) in object: 'amount'". */
+/** The words a person can read for the first problem in a failed parse: "blocks > #3: Unrecognized key: \"amount\"". */
 export function problemWords(error: z.ZodError): string {
   let issue = error.issues[0];
   if (issue?.code === "invalid_union" && issue.path.at(-2) === "blocks") {
     // Keep the original field-level error for the block variant that recognized the query.
-    const rejectedTag = (branch: z.ZodError, field: "type" | "q") => branch.issues.some(problem =>
-      (problem.code === "invalid_union_discriminator" || problem.code === "invalid_literal") && problem.path.at(-1) === field);
-    const matchingType = issue.unionErrors.filter(branch => !rejectedTag(branch, "type"));
+    const rejectedTag = (branch: readonly z.core.$ZodIssue[], field: "type" | "q") => branch.some(problem =>
+      problem.code === "invalid_value" && problem.path.at(-1) === field);
+    const matchingType = issue.errors.filter(branch => !rejectedTag(branch, "type"));
     const chosen = matchingType.find(branch => !rejectedTag(branch, "q")) ?? matchingType[0];
-    issue = chosen?.issues[0] ?? issue;
+    issue = chosen?.[0] ?? issue;
   }
   if (!issue) return "This is not a canvas recipe.";
   const path = issue.path.map(part => (typeof part === "number" ? `#${part + 1}` : String(part))).join(" > ");
@@ -127,7 +126,7 @@ export function problemWords(error: z.ZodError): string {
 
 /** The JSON Schema of a recipe, generated from the zod definition (the agent is shown it). */
 export function recipeJsonSchema(): string {
-  const { $schema, ...rest } = zodToJsonSchema(RecipeSchema, { $refStrategy: "root" }) as Record<string, unknown>;
+  const { $schema, ...rest } = z.toJSONSchema(RecipeSchema, { target: "draft-07", io: "input", reused: "ref", unrepresentable: "any" }) as Record<string, unknown>;
   return JSON.stringify({ $schema, title: "CanvasRecipe", description: "Version 1 of a canvas recipe: blocks that hold queries, never amounts.", ...rest }, null, 2) + "\n";
 }
 

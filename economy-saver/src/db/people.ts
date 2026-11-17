@@ -13,7 +13,7 @@ import { SHARE_TOTAL_BP, splitBalance } from "@/lib/money/split";
 
 const memberName = z.string().trim().min(1).max(80);
 export const addMemberInput = z.object({ name: memberName });
-export const savePeopleInput = z.object({ people: z.array(z.object({ id: z.string().uuid(), name: memberName, percent: z.string().trim().optional() })).min(1) });
+export const savePeopleInput = z.object({ people: z.array(z.object({ id: z.uuid(), name: memberName, percent: z.string().trim().optional() })).min(1) });
 
 /** "40" or "33.33" as basis points (4000, 3333); 0 to 100 percent. */
 export function parseShareBp(text: string): number {
@@ -117,7 +117,7 @@ export async function savePeople(db: Db, householdId: string, input: z.infer<typ
   });
 }
 
-export const removeMemberInput = z.object({ id: z.string().uuid() });
+export const removeMemberInput = z.object({ id: z.uuid() });
 
 /**
  * Removes a person from the household (Settings → People). The rule:

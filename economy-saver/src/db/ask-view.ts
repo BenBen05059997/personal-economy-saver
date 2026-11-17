@@ -24,7 +24,7 @@ import type { Recipe } from "@/lib/canvas/schema";
 import { starterRecipes } from "@/lib/canvas/starters";
 import { HISTORY_MONTHS, monthBounds, monthsBack } from "@/lib/money/spending";
 
-export const askSpaceId = z.string().uuid().transform(id => id.toLowerCase());
+export const askSpaceId = z.uuid().transform(id => id.toLowerCase());
 
 function draw(key: string, recipe: Recipe, context: CanvasContext): Drawn | null {
   try { return { key, title: recipe.title, recipe, blocks: resolveRecipe(recipe, context) }; }

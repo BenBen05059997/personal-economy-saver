@@ -8,7 +8,7 @@ const row = z.object({
   transaction_info: z.object({
     transaction_id: z.string().min(1),
     transaction_event_code: z.string().optional(),
-    transaction_initiation_date: z.string().datetime({ offset: true }),
+    transaction_initiation_date: z.iso.datetime({ offset: true }),
     transaction_amount: money,
     transaction_status: z.string().optional(),
   }).passthrough(),

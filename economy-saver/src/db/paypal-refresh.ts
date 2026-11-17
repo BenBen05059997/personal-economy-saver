@@ -12,7 +12,7 @@ import { ownerPayPal } from "./paypal-connection";
 import { fillPots } from "./pots";
 import { beginMoneyChange, observeRunway } from "./runway-events";
 
-const timestamp = z.string().datetime({ offset: true });
+const timestamp = z.iso.datetime({ offset: true });
 // account_id is optional because the field naming the account is not yet confirmed against a real seller's report.
 const balanceReport = z.object({
   account_id: z.string().min(1).optional(), as_of_time: timestamp, last_refresh_time: timestamp,

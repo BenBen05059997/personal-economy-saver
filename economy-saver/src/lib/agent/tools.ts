@@ -1,7 +1,6 @@
 // One tool catalogue for the in-app agent and the MCP server (D40). Tools read the engine or call the same
 // src/db functions as the forms. They never send: sending is the tap in src/app/api/approve/route.ts (D12).
 import { and, count, desc, eq } from "drizzle-orm";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import { strictJsonSchema } from "@/lib/ai/schema";
 import { z } from "zod";
 import { householdDate } from "@/db/account";
@@ -285,7 +284,7 @@ export const tools: Tool[] = [
   }),
   defineTool({
     name: "can_i_spend", words: "Checking what you can spend", source: { label: "Safe to spend", href: "/" }, scope: "read",
-    input: z.object({ amount_minor: z.number().int().positive().safe(), card_id: z.string().uuid().nullish() }),
+    input: z.object({ amount_minor: z.number().int().positive().safe(), card_id: z.uuid().nullish() }),
     description: "Check a purchase in minor units. Card ID from list_clients_and_cards; null: all cards.",
     run: async (ctx, input) => {
       const state = await ctx.state();
@@ -421,7 +420,7 @@ export const tools: Tool[] = [
       target_minor: z.number().int().positive().safe().nullish(),
       target_date: z.string().date().nullish(),
       monthly_minor: z.number().int().positive().safe().nullish(),
-      pot_id: z.string().uuid().nullish(),
+      pot_id: z.uuid().nullish(),
     }),
     description: "A savings target’s monthly pace, completion date and 30-day room. A pot_id uses that pot’s savings and fills omitted details. Quote summary.",
     run: async (ctx, input) => {
@@ -591,7 +590,7 @@ export const tools: Tool[] = [
  * ones are nullable in the zod schema), no extra properties, and the runtime Zod schema retains validation bounds. Bulk item guidance and enum lists live on the single-item tool.
  */
 export function toolInputSchema(tool: Tool): Record<string, unknown> {
-  const raw = zodToJsonSchema(tool.input, { $refStrategy: "none" }) as Record<string, unknown>;
+  const raw = z.toJSONSchema(tool.input, { target: "draft-07", io: "input", reused: "inline", unrepresentable: "any" }) as Record<string, unknown>;
   delete raw.$schema;
   const compact = compactSchema(strictJsonSchema(strictShape(raw, tool.name !== "add_bills" && tool.name !== "log_charges")));
   // The model gets "no extra properties" once, at the top; the Zod schema still decides what a call may hold.
@@ -653,6 +652,8 @@ function strictShape(node: unknown, keepDescriptions: boolean): Record<string, u
     schema.required = Object.keys(props);
   }
   if (schema.items) schema.items = strictShape(schema.items, keepDescriptions);
+  // A discriminated union is oneOf in Zod 4; the model is told it as anyOf, as before (the variants differ by their tag).
+  if (Array.isArray(schema.oneOf)) { schema.anyOf = schema.oneOf; delete schema.oneOf; }
   if (Array.isArray(schema.anyOf)) schema.anyOf = schema.anyOf.map(item => strictShape(item, keepDescriptions));
   return schema;
 }
