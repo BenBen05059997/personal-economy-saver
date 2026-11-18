@@ -659,7 +659,7 @@ async function main() {
   });
 
   await check("Settings and Ask name the default model and where a household can choose another", () => {
-    assert.equal(MODEL_HINT, "Questions go to fipa’s model, and you can choose another in Settings → Your AI model.");
+    assert.equal(MODEL_HINT, "That is fipa’s model; you can choose another in Settings → Your AI model.");
     assert.equal(firstUse("models.example", false), `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to models.example. ${MODEL_HINT}`);
     assert.equal(firstUse("models.example", true), `A model words the answers; every number is the app's own, from your records. This is not financial advice. Your questions go to models.example. ${OWN_MODEL_HINT}`);
   });

@@ -1,9 +1,17 @@
 // Words several pictures, the canvas and the pages write the same way: an event on a day, a case, a bill that waits for a yes. Pure.
 import { AMOUNT_NOT_KNOWN } from "@/lib/money/gaps";
-import { CASES } from "@/lib/money/terms";
+import { CASES, labelOf } from "@/lib/money/terms";
 
 /** What follows the name of a bill that waits for the person's yes. */
-export const WAITS_IN_TO_CHECK = "waits in To check and is not counted yet";
+export const WAITS_IN_TO_CHECK = `waits in ${labelOf("to_check")} and is not counted yet`;
+/** The short flag on an event that waits for the person's yes. */
+export const WAITS_FLAG = `Waits in ${labelOf("to_check")}`;
+/** What marks the current month, which is not over, beside its name. */
+export const SO_FAR = "so far";
+/** The month's name on a chart axis ("Nov", or "Nov so far" for the month not over). */
+export const monthAxisLabel = (name: string, current: boolean) => `${name.slice(0, 3)}${current ? ` ${SO_FAR}` : ""}`;
+/** The month's name in a table row ("November 2026", or "November 2026 (so far)"). */
+export const monthRowLabel = (name: string, month: string, current: boolean) => `${name} ${month.slice(0, 4)}${current ? ` (${SO_FAR})` : ""}`;
 /** A day with nothing on it. */
 export const NOTHING_SCHEDULED = "Nothing scheduled";
 

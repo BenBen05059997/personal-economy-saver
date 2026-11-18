@@ -24,7 +24,7 @@ import { WhatIfError, whatIf } from "@/lib/money/whatif";
 import { resolveView } from "@/lib/views/resolve";
 import { VIEW_META } from "@/lib/views/catalogue";
 import { stepLine } from "@/lib/views/step-line";
-import { eventWords, ifCase, ifClientsPay, NOTHING_SCHEDULED } from "@/lib/views/words";
+import { eventWords, ifCase, ifClientsPay, NOTHING_SCHEDULED, WAITS_FLAG } from "@/lib/views/words";
 import { ViewError, type FormData, type RankedRow, type TableTwin, type Tone, type ViewResult } from "@/lib/views/types";
 import type { IncomeRow, PotFill } from "@/lib/money/types";
 import { problemWords, RecipeSchema, ScenarioSchema, type Block, type Query, type Recipe, type Scenario, type ScenarioRef } from "./schema";
@@ -451,7 +451,7 @@ export function resolveRecipe(recipeIn: Recipe, context: CanvasContext, canvasSc
           caption: caseWords(scenario), empty: events.length === 0 ? "Nothing is due in this time." : null,
           rows: events.map(event => ({
             id: event.id, date: event.date, dateLabel: dayLabel(event.date), label: event.label, amountLabel: amountOf(event), incoming: event.amount > 0, balanceLabel: format(event.balance), covered: event.covered,
-            flag: event.pending ? "Awaiting confirmation" : event.dueUnknown ? "Date not known" : null,
+            flag: event.pending ? WAITS_FLAG : event.dueUnknown ? "Date not known" : null,
             marked: block.mark !== undefined && isMarked(event, block.mark),
           })),
         } };

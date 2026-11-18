@@ -5,6 +5,7 @@ import { minorMoney } from "@/lib/money/format";
 import { NO_REGULAR_COSTS, regularCosts } from "@/lib/money/regular";
 import { monthBounds, monthPeriod, monthsBack, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
+import { monthAxisLabel, monthRowLabel, SO_FAR } from "../words";
 import { ViewError, type Resolver, type ViewResult } from "../types";
 
 export const fixedCostsView: Resolver<"fixed_costs"> = (args, ctx): ViewResult => {
@@ -48,12 +49,12 @@ export function fixedCostsFor(args: { months?: number }, spending: SpendingInput
     ...base,
     data: {
       segments: [{ key: "regular", legend: "Regular costs", tone: "main" }, { key: "other", legend: "Everything else", tone: "soft" }],
-      columns: found.months.map(month => ({ key: month.month, label: month.name.slice(0, 3), parts: [month.regularMinor, month.otherMinor], total: month.totalMinor, totalLabel: format(month.totalMinor), current: month.current,
-        aria: `${month.name}: ${format(month.totalMinor)}. Regular costs ${format(month.regularMinor)}, everything else ${format(month.otherMinor)}${month.current ? ", so far plus the bills still due this month" : ""}.` })),
+      columns: found.months.map(month => ({ key: month.month, label: monthAxisLabel(month.name, month.current), parts: [month.regularMinor, month.otherMinor], total: month.totalMinor, totalLabel: format(month.totalMinor), current: month.current,
+        aria: `${month.name}: ${format(month.totalMinor)}. Regular costs ${format(month.regularMinor)}, everything else ${format(month.otherMinor)}${month.current ? `, ${SO_FAR} plus the bills still due this month` : ""}.` })),
       refs: [],
     },
     table: { caption: "Regular costs by month", head: ["Month", "Regular costs", "Everything else", "Total"], foot: null,
-      rows: found.months.map(month => ({ key: month.month, cells: [`${month.name} ${month.month.slice(0, 4)}${month.current ? " (so far)" : ""}`, format(month.regularMinor), format(month.otherMinor), format(month.totalMinor)] })) },
+      rows: found.months.map(month => ({ key: month.month, cells: [monthRowLabel(month.name, month.month, month.current), format(month.regularMinor), format(month.otherMinor), format(month.totalMinor)] })) },
     empty: null, line, strip: null, facts,
     aria: "Regular costs by month. Use Tab to move between months.",
   };

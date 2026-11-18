@@ -24,6 +24,7 @@ import { BankBalance } from "./BankBalance";
 import { HomeViews } from "./HomeViews";
 import { resolveView } from "@/lib/views/resolve";
 import { CASES } from "@/lib/money/terms";
+import { WAITS_FLAG } from "@/lib/views/words";
 import { homeSentence } from "@/lib/money/sentence";
 import { Suspense, type ReactNode } from "react";
 import { Sentence } from "./Sentence";
@@ -213,7 +214,7 @@ function ComingUp({ state, added, addedId }: Props & { added: string | null; add
           : event.kind === "statement" && event.cardId ? <Link prefetch={false} className="home-link-target" href={hrefFor({ type: "statement", id: event.cardId })}>{event.label}</Link>
           : event.kind === "bill" ? <Link prefetch={false} className="home-link-target" href={event.pending ? "/to-check" : hrefFor({ type: "bill", id: storedId(event.id) })}>{event.label}</Link> : event.label}
           {payment ? <small>Usual date · if clients pay {CASES.late.label}, {dayLabel(payment.worstOn)}</small>
-            : event.pending ? <small>Awaiting confirmation</small>
+            : event.pending ? <small>{WAITS_FLAG}</small>
             : carries[index] && <small className="home-short">Short by {format(-(lateBalance.get(event.id) ?? 0))} if clients pay {CASES.late.label}</small>}
           {repeats.has(event.id) && <small>{repeats.get(event.id)}</small>}
           {gapRow?.missing.includes("amount") && <small>{gapAmountWords(gapRow)}</small>}

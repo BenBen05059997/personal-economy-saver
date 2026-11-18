@@ -98,7 +98,7 @@ export function ImportStatement({ cards, currency, own }: { cards: { id: string;
         </tr>)}</tbody>
       </table></div>
       {read.rows.length > PREVIEW_ROWS && <p className="ui-hint">The first {PREVIEW_ROWS} of {read.rows.length.toLocaleString("en-US")} rows.</p>}
-      <p className="ui-hint">Categories are guessed from the shop names, and a shop you filed before goes under the same category of yours; change any later. A row already on this card (same date, amount and shop) is skipped, so importing a file twice adds nothing.</p>
+      <p className="ui-hint">Categories are guessed from the shop names, and a shop you filed before goes under the same category of yours; change any afterwards. A row already on this card (same date, amount and shop) is skipped, so importing a file twice adds nothing.</p>
       <p className="ui-hint">{card ? `Charges after ${card.label}’s last statement (closed ${dayLabel(card.lastClose)}) count toward what you owe now; older ones are history only.` : ""}</p>
       <button type="button" className="ui-button primary" disabled={busy || count === 0} onClick={importRows}>{busy ? "Importing…" : `Import ${count.toLocaleString("en-US")} ${pluralWord(count, "charge")}`}</button>
     </div>}

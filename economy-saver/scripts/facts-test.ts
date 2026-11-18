@@ -118,8 +118,9 @@ function wordsIn(source: string): string[] {
     }
   };
   code(0);
+  // JSX text can hold a ";" ("nothing; you copy") and an entity (&apos;), so neither ends it; only < > { } = do.
   const plain = source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
-  return [...words, ...[...plain.matchAll(/>([^<>{}=;]*[A-Za-z][^<>{}=;]*)</g)].map(m => m[1])];
+  return [...words, ...[...plain.matchAll(/>([^<>{}=]*[A-Za-z][^<>{}=]*)</g)].map(m => m[1])];
 }
 function filesUnder(dir: string): string[] {
   return readdirSync(dir).flatMap(name => { const path = join(dir, name); return statSync(path).isDirectory() ? filesUnder(path) : /\.tsx?$/.test(name) ? [path] : []; });

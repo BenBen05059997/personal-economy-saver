@@ -5,6 +5,7 @@ import { incomeByMonth } from "@/lib/money/income";
 import { invoiceAbout, paceDots } from "@/lib/money/pace";
 import { monthPeriod } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
+import { monthAxisLabel, monthRowLabel, SO_FAR } from "../words";
 import { ViewError, type Empty, type FormData, type Resolver, type Tone, type ViewResult } from "../types";
 
 const NO_CLIENT: Empty = { words: "Add a client who pays you, and what they pay shows here.", add: "client", addLabel: "Add a client" };
@@ -25,8 +26,8 @@ export const incomeMonthsView: Resolver<"income_months"> = (args, ctx): ViewResu
   const segments: FormData["stacked_columns"]["segments"] = [...top.map((client, i) => ({ key: client.id, legend: client.name, tone: TONES[i] })), ...(rest.length ? [{ key: "other", legend: "Other", tone: "ghost" as const }] : [])];
   const columns = found.months.map(month => {
     const parts = [...top.map(client => month.byClient[client.id] ?? 0), ...(rest.length ? [rest.reduce((sum, client) => sum + (month.byClient[client.id] ?? 0), 0)] : [])];
-    return { key: month.month, label: month.name.slice(0, 3), parts, total: month.total, totalLabel: format(month.total), current: month.current,
-      aria: `${month.name}: ${format(month.total)} in${month.current ? " so far" : ""}${parts.some(v => v > 0) ? `. ${segments.filter((_, i) => parts[i] > 0).map(segment => `${segment.legend} ${format(parts[segments.indexOf(segment)])}`).join(", ")}` : ""}.` };
+    return { key: month.month, label: monthAxisLabel(month.name, month.current), parts, total: month.total, totalLabel: format(month.total), current: month.current,
+      aria: `${month.name}: ${format(month.total)} in${month.current ? ` ${SO_FAR}` : ""}${parts.some(v => v > 0) ? `. ${segments.filter((_, i) => parts[i] > 0).map(segment => `${segment.legend} ${format(parts[segments.indexOf(segment)])}`).join(", ")}` : ""}.` };
   });
   // Two lines at the same height would print over each other, so one line then carries both names.
   const refs = found.averageMinor === null ? [] : found.lowest && found.lowest.minor === found.averageMinor ? [{ label: "Average and lowest month", minor: found.averageMinor }]
@@ -37,13 +38,13 @@ export const incomeMonthsView: Resolver<"income_months"> = (args, ctx): ViewResu
     ...(found.lowest ? [engineFact("lowest_paid_in", found.lowest.minor, { from: "income_months", currency, period: monthPeriod(found.lowest.month) })] : []),
     ...found.unrated.map(name => engineFact("not_counted", 1, { from: "income_months", about: { type: "client", id: name, name } })),
   ];
-  const sentence = found.averageMinor === null ? `${format(columns[columns.length - 1].total)} came in so far this month.`
+  const sentence = found.averageMinor === null ? `${format(columns[columns.length - 1].total)} came in ${SO_FAR} this month.`
     : `On average ${format(found.averageMinor)} came in a month${found.lowest && found.lowest.minor !== found.averageMinor ? `; the lowest month was ${found.lowest.name} (${format(found.lowest.minor)})` : ""}.`;
   const unrated = found.unrated.length ? ` ${found.unrated.join(" and ")} paid at a rate that is not known, so ${found.unrated.length === 1 ? "that payment is" : "those payments are"} not counted.` : "";
   const head = ["Month", ...segments.map(segment => segment.legend), "Total"];
   return {
     ...base, data: { segments, columns, refs }, empty: null, line: sentence + unrated, facts,
-    table: { caption: "Money in by month", head, rows: columns.map((column, i) => ({ key: column.key, cells: [`${found.months[i].name} ${column.key.slice(0, 4)}${column.current ? " (so far)" : ""}`, ...column.parts.map(format), column.totalLabel] })),
+    table: { caption: "Money in by month", head, rows: columns.map((column, i) => ({ key: column.key, cells: [monthRowLabel(found.months[i].name, column.key, column.current), ...column.parts.map(format), column.totalLabel] })),
       foot: found.averageMinor === null ? null : ["Average a month", ...segments.map(() => ""), format(found.averageMinor)] },
     aria: "Money in by month. Use Tab to move between months.",
   };

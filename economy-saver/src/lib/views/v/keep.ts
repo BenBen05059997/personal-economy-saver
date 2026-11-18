@@ -7,6 +7,7 @@ import { moneyFlow } from "@/lib/money/flow";
 import { lookBy, monthTrend } from "@/lib/money/look-by";
 import { monthLabel, monthPeriod, monthsBack, HISTORY_MONTHS } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
+import { monthAxisLabel, monthRowLabel, SO_FAR } from "../words";
 import { ViewError, type Resolver, type Tone, type ViewResult } from "../types";
 
 const NO_INCOME = "What you keep shows here once a client has paid you.";
@@ -73,12 +74,12 @@ export const savingsRateView: Resolver<"savings_rate"> = (args, ctx): ViewResult
     ...base, empty: null, facts,
     data: {
       segments: [{ key: "spent", legend: "Spent", tone: "main" }, { key: "kept", legend: "Kept", tone: "soft" }],
-      columns: months.map(month => ({ key: month.month, label: month.name.slice(0, 3), parts: [month.spentMinor, month.keptMinor], total: month.incomeMinor, totalLabel: format(month.incomeMinor), current: month.current,
-        aria: `${month.name}: ${format(month.incomeMinor)} came in, ${format(month.spentMinor)} spent${month.current ? " so far" : ""}, ${month.keptMinor < 0 ? `${format(-month.keptMinor)} more spent than came in` : `${format(month.keptMinor)} kept`}.` })),
+      columns: months.map(month => ({ key: month.month, label: monthAxisLabel(month.name, month.current), parts: [month.spentMinor, month.keptMinor], total: month.incomeMinor, totalLabel: format(month.incomeMinor), current: month.current,
+        aria: `${month.name}: ${format(month.incomeMinor)} came in, ${format(month.spentMinor)} spent${month.current ? ` ${SO_FAR}` : ""}, ${month.keptMinor < 0 ? `${format(-month.keptMinor)} more spent than came in` : `${format(month.keptMinor)} kept`}.` })),
       refs: [],
     },
     table: { caption: "Money in, spent and kept by month", head: ["Month", "Money in", "Spent", "Kept"], foot: ["Together", format(inMinor), format(months.reduce((sum, month) => sum + month.spentMinor, 0)), format(keptMinor)],
-      rows: months.map(month => ({ key: month.month, cells: [`${month.name} ${month.month.slice(0, 4)}${month.current ? " (so far)" : ""}`, format(month.incomeMinor), format(month.spentMinor), format(month.keptMinor)], ...(month.keptMinor < 0 ? { tone: "short" as const } : {}) })) },
+      rows: months.map(month => ({ key: month.month, cells: [monthRowLabel(month.name, month.month, month.current), format(month.incomeMinor), format(month.spentMinor), format(month.keptMinor)], ...(month.keptMinor < 0 ? { tone: "short" as const } : {}) })) },
     line: `${keptMinor >= 0 ? `You kept ${format(keptMinor)}` : `You spent ${format(-keptMinor)} more than came in`} over ${plural(months.length, "month")}, from ${format(inMinor)} that came in.${unrated ? " A payment with no rate to yen is not counted." : ""}`,
     aria: "Money in each month, split into spent and kept. Use Tab to move between months.",
   };
