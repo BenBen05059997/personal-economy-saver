@@ -5,6 +5,7 @@ import { minorMoney, plural } from "@/lib/money/format";
 import { keptByMonth } from "@/lib/money/kept";
 import { moneyFlow } from "@/lib/money/flow";
 import { lookBy, monthTrend } from "@/lib/money/look-by";
+import { personalBests } from "@/lib/money/saving";
 import { monthLabel, monthPeriod, monthsBack, HISTORY_MONTHS } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
 import { monthAxisLabel, monthRowLabel, SO_FAR } from "../words";
@@ -51,6 +52,9 @@ export const moneyFlowView: Resolver<"money_flow"> = (args, ctx): ViewResult => 
     ...flow.setAside.map(pot => potFact(pot.tax ? "ready_for_tax" : "set_aside_for_goals", pot.minor, pot)),
     ...flow.fromPots.map(pot => potFact("from_pot", pot.minor, pot)), ...(flow.fromPots.length > 1 ? [potFact("from_pot", flow.fromPotsMinor)] : []),
     ...flow.unrated.map(name => engineFact("not_counted", 1, { from: "money_flow", about: { type: "client", id: name, name } }))];
+  // The most put toward goals in any month so far, when this month beat at least two earlier ones (set aside never reads choices or spending).
+  const best = personalBests({ moves, choices: [] }, [], currency, flow.month, state.today).setAside;
+  if (best) facts.push(engineFact("best_month_set_aside", best.minor, { from: "money_flow", currency, period: monthPeriod(best.month) }));
   return {
     ...base, title: `Where ${flow.name}'s money went`, data: { nodes, links: flow.links }, empty: null, facts,
     table: { caption: `Where ${flow.name}'s money went`, head: ["From", "To", "Amount"], align: ["start", "end"], foot: ["Money in", "", format(through)],

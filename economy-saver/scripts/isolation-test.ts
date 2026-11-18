@@ -141,7 +141,7 @@ const covered = [
   "foreignCostInputs", "foreignCosts",
   // D77 income.ts; D81 pot-moves.ts and choices.ts
   "loadIncome", "loadPotMoves", "loadPendingMoves", "loadPotMoveTotals",
-  "saveChoice", "confirmChoice", "withdrawChoice", "removePendingChoice", "loadChoices", "loadPendingChoices",
+  "saveChoice", "confirmChoice", "withdrawChoice", "removePendingChoice", "loadChoices", "loadPendingChoices", "keepFoundWin",
   // Amount varies (D54): bills.ts
   "linkToSeries", "previewLink",
   // Missing amounts (D55): bills.ts
@@ -536,6 +536,7 @@ async function main() {
         ["loadPendingMoves", hid => F.loadPendingMoves(store, hid)],
         ["loadPotMoveTotals", hid => F.loadPotMoveTotals(store, hid)],
         ["saveChoice", hid => F.saveChoice(store, hid, { id: randomUUID(), source: "said", happenedOn: "2026-11-10", aboutMinor: 1, words: "x", category: null, foundKey: null, memberId: null }, "confirmed", { madeBy: "form" })],
+        ["keepFoundWin", hid => F.keepFoundWin(store, hid, { foundKey: "2026-10:cat:food", potId: null }, { madeBy: "form" })],
         ["confirmChoice", hid => F.confirmChoice(store, hid, randomUUID())],
         ["withdrawChoice", hid => F.withdrawChoice(store, hid, randomUUID())],
         ["removePendingChoice", hid => F.removePendingChoice(store, hid, randomUUID())],
@@ -933,6 +934,10 @@ async function main() {
         const choiceOf = (over: object) => ({ id: randomUUID(), source: "said" as const, happenedOn: "2026-11-10", aboutMinor: 100, words: "Isolation probe", category: null, foundKey: null, memberId: null, ...over });
         await mustThrow("saveChoice with the other's choice id", () => F.saveChoice(store, X.hid, choiceOf({ id: y.choice }), "confirmed", { madeBy: "form" }));
         await mustThrow("saveChoice with the other's member", () => F.saveChoice(store, X.hid, choiceOf({ memberId: y.aki }), "confirmed", { madeBy: "form" }), /member of this household/);
+        for (const [date, amount] of [["2026-07-10", "20000"], ["2026-08-10", "20000"], ["2026-09-10", "20000"], ["2026-10-10", "5000"]] as const) {
+          await F.insertCharge(store, X.hid, chargeInput.parse({ id: randomUUID(), cardId: x.card, merchant: "Fictional clinic", amount, date, category: "health" }), "confirmed", "manual", { madeBy: "form" });
+        }
+        await mustThrow("keepFoundWin into the other's pot", () => F.keepFoundWin(store, X.hid, { foundKey: "2026-10:cost:health:fictional clinic", potId: y.pot }, { madeBy: "form" }), /Choose one of your pots/);
         await mustThrow("savePot owned by the other's member", () => F.savePot(store, X.hid, pot({ memberId: y.aki }), "confirmed", { madeBy: "form" }), /member of this household/);
         await mustThrow("savePeople with the other's members", () => F.savePeople(store, X.hid, { people: [{ id: y.owner, name: "Probe one", percent: "50" }, { id: y.aki, name: "Probe two", percent: "50" }] }), /every person in this household/);
         await mustThrow("savePeople mixing in one of the other's members", () => F.savePeople(store, X.hid, { people: [{ id: x.owner, name: "Probe one", percent: "50" }, { id: y.aki, name: "Probe two", percent: "50" }] }), /every person in this household/);

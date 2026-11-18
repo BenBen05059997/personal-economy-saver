@@ -36,6 +36,8 @@ export const VIEW_ARGS = {
   who_owes_whom: z.object({}).strict(),
   what_changed: z.object({ itemId: id }).strict(),
   tax_ahead: z.object({ potId: id, days: z.number().int().min(30).max(180).optional() }).strict(), // days: 90 when left out
+  wins: z.object({ months: months.optional() }).strict(),
+  pot_story: z.object({ potId: id }).strict(),
 } satisfies Record<ViewId, z.ZodObject<z.ZodRawShape>>;
 
 export type ViewArgs = { [K in ViewId]: z.infer<(typeof VIEW_ARGS)[K]> };

@@ -8,7 +8,7 @@ import type { Choice, IncomeRow, MoneyState, PotMove } from "@/lib/money/types";
 import type { ViewArgs } from "./args";
 
 export type ChartForm = "step_line" | "ranked_bars" | "stacked_columns" | "waterfall" | "sankey" | "calendar" | "strip" | "runway_bar" | "pace_lines" | "goal_line" | "tracks" | "before_after";
-export type ViewId = "forecast" | "what_if" | "position" | "month_by_category" | "month_trend" | "month_pace" | "fixed_costs" | "search_months" | "money_flow" | "savings_rate" | "buffer_months" | "income_months" | "client_pace" | "fx_cost" | "goal_pace" | "bills_calendar" | "card_cycle" | "who_owes_whom" | "what_changed" | "tax_ahead";
+export type ViewId = "forecast" | "what_if" | "position" | "month_by_category" | "month_trend" | "month_pace" | "fixed_costs" | "search_months" | "money_flow" | "savings_rate" | "buffer_months" | "income_months" | "client_pace" | "fx_cost" | "goal_pace" | "bills_calendar" | "card_cycle" | "who_owes_whom" | "what_changed" | "tax_ahead" | "wins" | "pot_story";
 export type ViewNeed = "spending" | "income" | "moves" | "choices" | "fx"; // the money state is always loaded
 export type Tone = "main" | "soft" | "deep" | "pale" | "quiet" | "ghost" | "short" | "in"; // #F7A30A, #FCCB78, deeper yellow step, palest yellow step, grey #8a857c, ghost grey dashed, red #b3261e, green #1d7a4c
 export type TableTwin = { caption: string; head: string[]; rows: { key: string; cells: string[]; tone?: "short" | "in" | "muted"; child?: boolean }[]; foot: string[] | null; /** Per column after the first: "end" (figures, the default) or "start" (words, which wrap). */ align?: ("start" | "end")[] };

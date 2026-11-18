@@ -273,6 +273,7 @@ async function requireMovable(tx: Db, hid: string, rows: { id: string; potId: st
     if (pot.status !== "confirmed") throw new InputError(`${pot.name} is still waiting in To check; confirm it first`);
     if (row.amountMinor > 0 && pot.doneOn !== null) throw new InputError(`${pot.name} is done and takes no more money`);
     if (row.kind === "spend" && pot.category === "government_tax") throw new InputError(`${pot.name} holds money that is ready for tax, so it can't be marked as spent on a purchase`);
+    if (row.kind === "carry" && pot.category === "government_tax") throw new InputError(`${pot.name} holds money that is ready for tax, so it moves only by putting in or taking out, never to or from another pot`);
     change.set(pot.id, (change.get(pot.id) ?? 0) + row.amountMinor);
   }
   for (const [potId, delta] of change) {

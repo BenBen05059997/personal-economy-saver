@@ -10,7 +10,8 @@ import { createChecks, openDb, stubStylesheets } from "./fixtures/harness";
 import { TableBlock } from "@/components/canvas/blocks";
 import { DEMO_DATE } from "@/db/clock";
 import * as schema from "@/db/schema";
-import { savePot } from "@/db/pots";
+import { movePot, savePot } from "@/db/pots";
+import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
 import { drawCanvas } from "@/lib/canvas/draw";
 import { SESSION_ENDED } from "@/lib/session-ended";
@@ -284,6 +285,31 @@ async function main() {
         starter.recipe.blocks.forEach(blockWords);
         assert.ok(resolved.every(r => r.source.length > 0));
       }
+    });
+
+    await check("Our month (D81) is offered only once there is a pot or a choice, and draws last month's money, the wins, the pots that moved and the goals", async () => {
+      assert.equal(starters.some(s => s.id === "our-month"), false, "Ben's own list does not change");
+      const ours = await seedBen(db, { isDemo: true });
+      const pot = { id: crypto.randomUUID(), name: "Camera", target: "120000", targetDate: "2027-06-30", saved: "20000", fillPct: null, category: null, memberId: null };
+      await savePot(db, ours, pot, "confirmed", { madeBy: "form" });
+      const quiet = await loadMoneyState(db, ours, DEMO_DATE);
+      assert.equal(starterRecipes(quiet).some(s => s.id === "our-month"), true, "a pot is enough");
+      assert.deepEqual(starterRecipes(quiet).find(s => s.id === "our-month")!.recipe.blocks.map(b => b.type), ["view", "view", "progress"], "a pot nothing has moved in since last month began has no story here");
+      await movePot(db, ours, { id: crypto.randomUUID(), potId: pot.id, kind: "add", amountMinor: 5000, toPotId: null, purchase: null, choiceId: null, reason: null, memberId: null, done: false }, "confirmed", { madeBy: "form" });
+      const moved = await loadMoneyState(db, ours, DEMO_DATE);
+      const our = starterRecipes(moved).find(s => s.id === "our-month")!;
+      assert.equal(our.title, "Our month");
+      assert.ok(RecipeSchema.safeParse(our.recipe).success);
+      assert.deepEqual(our.recipe.blocks, [{ type: "view", view: "money_flow", args: { month: "2026-10" } }, { type: "view", view: "wins", args: {} }, { type: "view", view: "pot_story", args: { potId: pot.id } }, { type: "progress", query: { q: "goals" } }]);
+      const resolved = resolveRecipe(our.recipe, await loadCanvasContext(db, ours, our.recipe));
+      assert.deepEqual(resolved.map(r => r.type), ["view", "view", "view", "progress"]);
+      assert.equal(block(resolved, "view", 2).data.view, "pot_story");
+      our.recipe.blocks.forEach(blockWords);
+      const none = starterRecipes({ ...state, pots: [] }, [], 1).find(s => s.id === "our-month")!;
+      assert.deepEqual(none.recipe.blocks.map(b => b.type), ["view", "view", "progress"], "a choice alone is enough");
+      assert.equal(starterRecipes({ ...state, pots: [] }, [], 0).some(s => s.id === "our-month"), false);
+      const three = starterRecipes({ ...moved, pots: ["a", "b", "c"].map((id, i) => ({ id, name: id, saved: 1, lastMovedOn: `2026-10-0${i + 1}` })) }).find(s => s.id === "our-month")!;
+      assert.deepEqual(three.recipe.blocks.filter(b => b.type === "view" && b.view === "pot_story").map(b => b.type === "view" && "potId" in b.args && b.args.potId), ["c", "b"], "the two moved most lately");
     });
 
     await check("starter tables keep row names readable and put overflow in their own keyboard-accessible region", () => {

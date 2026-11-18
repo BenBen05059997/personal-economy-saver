@@ -16,6 +16,7 @@ export function Sankey({ result }: { result: ViewResult<"sankey"> }) {
   const [ref, width] = useWidth<HTMLDivElement>();
   const [active, setActive] = useState<number | null>(null);
   const { nodes, links } = result.data!, currency = result.currency, format = (minor: number) => minorMoney(minor, currency);
+  const middle = nodes.find(node => node.column === 1), middleId = middle?.id;
   const columns = [0, 1, 2].map(column => nodes.filter(node => node.column === column));
   const total = Math.max(1, ...columns.map(column => column.reduce((sum, node) => sum + node.minor, 0)));
   const scale = Math.min(...columns.map(column => (BODY - Math.max(0, column.length - 1) * GAP) / total));
@@ -46,13 +47,12 @@ export function Sankey({ result }: { result: ViewResult<"sankey"> }) {
   };
   const label = (id: string) => nodes.find(node => node.id === id)!.label;
   const shown = active === null ? null : drawn[active];
-  const middle = nodes.find(node => node.column === 1);
   return <div className="hv-chart" ref={ref}>
     {narrow && middle && <p className="sk-cap">{middle.label} <b>{middle.amountLabel}</b></p>}
     <div className="hv-plot">
       <svg width={width} height={height} style={{ maxWidth: "100%" }} viewBox={`0 0 ${width} ${height}`} role="group" aria-label={result.aria}>
         {drawn.map(({ link, thick, d }, i) => {
-          const tone = nodes.find(node => node.id === (link.to === "month" ? link.from : link.to))!.tone;
+          const tone = nodes.find(node => node.id === (link.to === middleId ? link.from : link.to))!.tone;
           return <path key={`${link.from}>${link.to}`} d={d} strokeWidth={thick} className={`sk-link sk-${tone}${active === i ? " sk-link-on" : ""}`} tabIndex={0} role="img" aria-label={`${label(link.from)} to ${label(link.to)}: ${format(link.minor)}`}
             onPointerEnter={() => setActive(i)} onPointerLeave={() => setActive(null)} onFocus={() => setActive(i)} onBlur={() => setActive(null)} />;
         })}

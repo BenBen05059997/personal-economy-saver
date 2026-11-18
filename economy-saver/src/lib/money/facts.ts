@@ -7,7 +7,7 @@ import { termOf, type TermName, type TermUnit } from "./terms";
 
 export type FactCase = "as_usual" | "late" | "none";
 type FactPeriod = { on: string } | { from: string; to: string } | null;
-export type FactAbout = { type: "card" | "client" | "category" | "bill" | "person" | "pot" | "invoice" | "charge" | "cost"; id: string; name: string };
+export type FactAbout = { type: "card" | "client" | "category" | "bill" | "person" | "pot" | "invoice" | "charge" | "cost" | "choice" | "medal"; id: string; name: string };
 
 export type Fact = {
   name: TermName;

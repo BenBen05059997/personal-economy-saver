@@ -4692,6 +4692,69 @@
                             "args"
                           ],
                           "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "view"
+                            },
+                            "view": {
+                              "type": "string",
+                              "const": "wins"
+                            },
+                            "args": {
+                              "type": "object",
+                              "properties": {
+                                "months": {
+                                  "type": "integer",
+                                  "minimum": 2,
+                                  "maximum": 12
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "view",
+                            "args"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "type": {
+                              "type": "string",
+                              "const": "view"
+                            },
+                            "view": {
+                              "type": "string",
+                              "const": "pot_story"
+                            },
+                            "args": {
+                              "type": "object",
+                              "properties": {
+                                "potId": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 80
+                                }
+                              },
+                              "required": [
+                                "potId"
+                              ],
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": [
+                            "type",
+                            "view",
+                            "args"
+                          ],
+                          "additionalProperties": false
                         }
                       ]
                     }
@@ -7470,6 +7533,69 @@
                                       "type": "integer",
                                       "minimum": 30,
                                       "maximum": 180
+                                    }
+                                  },
+                                  "required": [
+                                    "potId"
+                                  ],
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "view",
+                                "args"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "view"
+                                },
+                                "view": {
+                                  "type": "string",
+                                  "const": "wins"
+                                },
+                                "args": {
+                                  "type": "object",
+                                  "properties": {
+                                    "months": {
+                                      "type": "integer",
+                                      "minimum": 2,
+                                      "maximum": 12
+                                    }
+                                  },
+                                  "additionalProperties": false
+                                }
+                              },
+                              "required": [
+                                "type",
+                                "view",
+                                "args"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "type": {
+                                  "type": "string",
+                                  "const": "view"
+                                },
+                                "view": {
+                                  "type": "string",
+                                  "const": "pot_story"
+                                },
+                                "args": {
+                                  "type": "object",
+                                  "properties": {
+                                    "potId": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 80
                                     }
                                   },
                                   "required": [

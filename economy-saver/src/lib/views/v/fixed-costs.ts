@@ -3,7 +3,8 @@ import { fixedByMonth } from "@/lib/money/fixed";
 import { engineFact, type Fact } from "@/lib/money/facts";
 import { minorMoney } from "@/lib/money/format";
 import { NO_REGULAR_COSTS, regularCosts } from "@/lib/money/regular";
-import { monthBounds, monthPeriod, monthsBack, spendingItems, type SpendingInput } from "@/lib/money/spending";
+import { personalBests } from "@/lib/money/saving";
+import { HISTORY_MONTHS, monthBounds, monthPeriod, monthsBack, spendingItems, type SpendingInput } from "@/lib/money/spending";
 import { VIEW_META } from "../catalogue";
 import { monthAxisLabel, monthRowLabel, SO_FAR } from "../words";
 import { ViewError, type Resolver, type ViewResult } from "../types";
@@ -42,6 +43,11 @@ export function fixedCostsFor(args: { months?: number }, spending: SpendingInput
     else if (cost.status === "stopped") add("regular_cost_stopped", cost.lastMinor);
     else if (cost.changeMinor !== null) add("change_from_last_month", cost.changeMinor);
     if (cost.estimated) facts.push(engineFact("about_estimate", 1, { from: "fixed_costs", period, about }));
+  }
+  // A regular cost at its lowest in a year, in the last closed month: a personal best (needs six recorded months and beats every other).
+  const closed = monthsBack(current, 2), year = spendingItems(spending, monthBounds(monthsBack(current, HISTORY_MONTHS)).first, monthBounds(current).last);
+  for (const best of personalBests({ moves: [], choices: [] }, year, currency, closed, today).lowestRegular) {
+    facts.push(engineFact("lowest_regular_cost", best.minor, { from: "fixed_costs", currency, period: monthPeriod(closed), about: { type: "cost", id: best.key, name: best.label } }));
   }
   const said = (item: Fact) => format(item.value as number);
   const line = `${now.name}: ${said(regularFact)} of ${said(totalFact)} is regular costs (${shareFact.value}%)${biggestFact ? `; the biggest is ${biggestFact.about!.name} (${said(biggestFact)})` : ""}.`;

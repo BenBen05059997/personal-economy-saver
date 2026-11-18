@@ -236,6 +236,10 @@ if (args[0] === "--guards") {
     ["data-cross-origin", "/api/data", { method: "POST", session: "", form: { kind: "delete_kind", what: "memory", returnTo: "/settings" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["restore-without-household", "/api/restore", { method: "POST", session: "", json: { version: 2 } }, 401],
     ["restore-cross-origin", "/api/restore", { method: "POST", session: "", json: { version: 2 }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["pot-move-without-household", "/api/pots/move", { method: "POST", session: "", form: { kind: "done", potId: "00000000-0000-4000-8000-000000000000", returnTo: "/saving" } }, 401],
+    ["pot-move-cross-origin", "/api/pots/move", { method: "POST", session: "", form: { kind: "done", potId: "00000000-0000-4000-8000-000000000000", returnTo: "/saving" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
+    ["wins-without-household", "/api/wins", { method: "POST", session: "", form: { kind: "withdraw", id: "00000000-0000-4000-8000-000000000000", returnTo: "/saving" } }, 401],
+    ["wins-cross-origin", "/api/wins", { method: "POST", session: "", form: { kind: "withdraw", id: "00000000-0000-4000-8000-000000000000", returnTo: "/saving" }, extraHeaders: { Origin: "http://cross-origin.test", "Sec-Fetch-Site": "cross-site" } }, 403],
     ["privacy-page-without-cookie", "/privacy", { session: "" }, 200],
     ["cron-without-bearer", "/api/cron", {}, 401],
   ];

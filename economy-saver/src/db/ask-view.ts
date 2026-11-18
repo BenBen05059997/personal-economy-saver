@@ -6,6 +6,7 @@ import { documentsLeft, questionsLeft } from "@/db/ai-cap";
 import { draftsOfTurns } from "@/db/ask-drafts";
 import { firstUseLine } from "@/db/ask";
 import { connectionView } from "@/db/ai-key";
+import { loadChoices } from "@/db/choices";
 import { listCanvases } from "@/db/canvases";
 import { clockForHousehold, householdMoment } from "@/db/clock";
 import { loadMoneyState, requireHousehold, withHousehold, type Db } from "@/db/household";
@@ -16,6 +17,8 @@ import { readPlaces } from "@/db/place";
 import { listSpaceChoices, listSpaces } from "@/db/spaces";
 import { loadSpending } from "@/db/spending";
 import { openSuggestions } from "@/db/suggestions";
+import { loadViewContext } from "@/lib/views/load";
+import { needsOf } from "@/lib/views/resolve";
 import { splitSources } from "@/lib/schema/turn";
 import { BriefSchema, type BriefRecord } from "@/lib/agent/brief";
 import { askMissingWords, missingAskSetting } from "@/lib/agent/availability";
@@ -64,9 +67,13 @@ export async function loadAskView(db: Db, householdId: string, { spaceId, legacy
     const current = today.slice(0, 7);
     const ownForms = await ownChoices(tx, hid); // D75: for the reading form a bill attached in Ask opens
     const spending = await loadSpending(tx, hid, { from: monthBounds(monthsBack(current, HISTORY_MONTHS)).first, to: monthBounds(current).last });
-    const context: CanvasContext = { state, spending };
     const nudgeIds = suggestions.flatMap(row => row.action === "remind" && row.refId ? [row.refId] : []);
-    const starters = starterRecipes(state, nudgeIds).flatMap(starter => draw(starter.id, starter.recipe, context) ?? []);
+    // The starters read only what their picture blocks name (income, pot moves and choices for Our month, D81), loaded once.
+    const choiceCount = (await loadChoices(tx, hid)).length;
+    const offered = starterRecipes(state, nudgeIds, choiceCount);
+    const more = await loadViewContext(tx, hid, needsOf(offered.flatMap(starter => starter.recipe.blocks)).filter(need => need !== "spending"), { state });
+    const context: CanvasContext = { ...more, state, spending };
+    const starters = offered.flatMap(starter => draw(starter.id, starter.recipe, context) ?? []);
 
     const pinned = pinId ? pins.find(item => item.id === pinId) ?? null : null;
     const last = thread.findLast(turn => turn.recipe !== null);

@@ -12,8 +12,10 @@ import { monthByCategoryView } from "./v/month-by-category";
 import { monthPaceView } from "./v/month-pace";
 import { monthTrendView } from "./v/month-trend";
 import { positionView } from "./v/position";
+import { potStoryView } from "./v/pot-story";
 import { taxAheadView } from "./v/tax-ahead";
 import { searchMonthsView } from "./v/search-months";
+import { winsView } from "./v/wins";
 import { whatChangedView } from "./v/what-changed";
 import { whatIfView } from "./v/what-if";
 import { whoOwesWhomView } from "./v/who-owes-whom";
@@ -39,4 +41,6 @@ export const RESOLVERS: { [K in ViewId]: Resolver<K> } = {
   who_owes_whom: whoOwesWhomView,
   what_changed: whatChangedView,
   tax_ahead: taxAheadView,
+  wins: winsView,
+  pot_story: potStoryView,
 };

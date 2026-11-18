@@ -1387,6 +1387,69 @@
                 "args"
               ],
               "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "wins"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "months": {
+                      "allOf": [
+                        {
+                          "$ref": "#/definitions/__schema21"
+                        }
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "const": "view"
+                },
+                "view": {
+                  "type": "string",
+                  "const": "pot_story"
+                },
+                "args": {
+                  "type": "object",
+                  "properties": {
+                    "potId": {
+                      "$ref": "#/definitions/__schema2"
+                    }
+                  },
+                  "required": [
+                    "potId"
+                  ],
+                  "additionalProperties": false
+                }
+              },
+              "required": [
+                "type",
+                "view",
+                "args"
+              ],
+              "additionalProperties": false
             }
           ]
         }

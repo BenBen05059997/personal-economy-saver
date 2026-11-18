@@ -11,7 +11,8 @@ import { confirmPending } from "@/db/confirm";
 import { InputError } from "@/db/input-error";
 import { markPaidOutside } from "@/db/invoice-paid";
 import { loadMoneyState } from "@/db/household";
-import { saveChoice, confirmChoice, withdrawChoice, removePendingChoice, loadChoices, type ChoiceInput } from "@/db/choices";
+import { saveChoice, confirmChoice, withdrawChoice, removePendingChoice, loadChoices, keepFoundWin, type ChoiceInput } from "@/db/choices";
+import { chargeInput, insertCharge } from "@/db/charges";
 import { confirmMove, fillPots, markPotDone, movePot, parseFillBp, potInput, removePendingMove, removePot, savePot, type MoveInput } from "@/db/pots";
 import { loadPotMoves } from "@/db/pot-moves";
 import { seedBen } from "@/db/seed";
@@ -440,7 +441,9 @@ async function main() {
       await refused(c, move({ potId: small.id, kind: "take_out", memberId: memberB }), /member of this household/);
       await refused(c, move({ potId: small.id, kind: "take_out", amountMinor: null }), /Enter an amount/);
       await refused(c, move({ potId: tax.id, kind: "spend", amountMinor: 100 }), /ready for tax, so it can't be marked as spent/);
-      await movePot(db, c, move({ potId: tax.id, kind: "take_out", amountMinor: 100 }), "confirmed", OWN); // only a spend is refused
+      await refused(c, move({ potId: tax.id, kind: "carry", toPotId: small.id, amountMinor: 100 }), /never to or from another pot/);
+      await refused(c, move({ potId: small.id, kind: "carry", toPotId: tax.id, amountMinor: 100 }), /never to or from another pot/);
+      await movePot(db, c, move({ potId: tax.id, kind: "take_out", amountMinor: 100 }), "confirmed", OWN); // taking out is allowed
       const card = (await first(db.select().from(schema.cards).where(eq(schema.cards.householdId, c)))).id;
       const charge = (await first(db.insert(schema.charges).values({ householdId: c, cardId: card, merchant: "Fictional cafe", amountMinor: 1200, currency: "JPY", date: "2026-11-10", source: "manual" }).returning())).id;
       const purchase = { kind: "charge", id: charge, on: null } as const;
@@ -552,6 +555,31 @@ async function main() {
       await movePot(db, c, move({ potId: addChoice.id, kind: "add", amountMinor: 1800, choiceId: said.id }), "confirmed", OWN);
       assert.equal((await loadPotMoves(db, c)).find(m => m.choiceId === said.id)!.minor, 1800);
       await refused(c, move({ potId: addChoice.id, kind: "add", choiceId: randomUUID() }), /Choose one of your choices/);
+    });
+
+    await check("keeping a found saving recomputes the amount, refuses a second keep, and with a pot writes the choice and the add together", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const [card] = await db.select().from(schema.cards).where(eq(schema.cards.householdId, c));
+      for (const [date, amount] of [["2026-07-10", "20000"], ["2026-08-10", "20000"], ["2026-09-10", "20000"], ["2026-10-10", "5000"]] as const) {
+        await insertCharge(db, c, chargeInput.parse({ id: randomUUID(), cardId: card.id, merchant: "Fictional clinic", amount, date, category: "health" }), "confirmed", "manual", OWN);
+      }
+      const key = "2026-10:cost:health:fictional clinic";
+      const trip = input({ name: "Keep trip", saved: "0" }), tax = input({ name: "Keep tax", saved: "0", category: "government_tax" });
+      await savePot(db, c, trip, "confirmed", OWN); await savePot(db, c, tax, "confirmed", OWN);
+      await assert.rejects(keepFoundWin(db, c, { foundKey: "2026-10:cost:food:nothing", potId: null }, OWN), /isn't in your records any more/);
+      await assert.rejects(keepFoundWin(db, c, { foundKey: "nonsense", potId: null }, OWN), /isn't in your records any more/);
+      await assert.rejects(keepFoundWin(db, c, { foundKey: key, potId: tax.id }, OWN), /ready for tax/);
+      await assert.rejects(keepFoundWin(db, c, { foundKey: key, potId: randomUUID() }, OWN), /Choose one of your pots/);
+      assert.deepEqual(await loadChoices(db, c), [], "a refusal keeps nothing");
+      const id = await keepFoundWin(db, c, { foundKey: key, potId: trip.id }, OWN);
+      const [kept] = await loadChoices(db, c);
+      assert.deepEqual([kept.id, kept.source, kept.foundKey, kept.minor, kept.category, kept.happenedOn], [id, "found", key, 15_000, "health", "2026-10-31"], "the amount is worked out from the records");
+      assert.deepEqual((await loadPotMoves(db, c)).filter(m => m.choiceId === id).map(m => [m.potId, m.kind, m.minor]), [[trip.id, "add", 15_000]]);
+      assert.equal(await saved(trip.id), 15_000);
+      await sumsOf(c);
+      await assert.rejects(keepFoundWin(db, c, { foundKey: key, potId: null }, OWN), /already kept/);
+      assert.equal((await loadChoices(db, c)).length, 1);
+      assert.equal((await loadPotMoves(db, c)).filter(m => m.choiceId === id).length, 1, "a second keep adds nothing");
     });
 
     console.log(`Pots checks passed (${tally.passed}).`);

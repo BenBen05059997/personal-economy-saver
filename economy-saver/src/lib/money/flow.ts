@@ -1,6 +1,7 @@
 // Where one month's money went (D77): the clients that paid, the month's money, then what was set aside, what was spent and what is left. Pure; integer minor units.
 // Flows in equal flows out at every node. A card charge is one spending item, so it appears once; statements are not nodes.
 import type { LookByView } from "./look-by";
+import { setAside } from "./saving";
 import type { IncomeRow, PotMove } from "./types";
 
 type FlowKind = "client" | "from_pot" | "earlier" | "month" | "pot" | "category" | "other" | "left";
@@ -34,15 +35,8 @@ export function moneyFlow(income: IncomeRow[], moves: PotMove[], monthView: Look
   const clients = [...byClient].map(([key, value]) => ({ key, ...value })).filter(client => client.minor > 0).sort((a, b) => b.minor - a.minor || a.label.localeCompare(b.label));
   const shownClients = clients.length > TOP_CLIENTS + 1 ? clients.slice(0, TOP_CLIENTS) : clients, restClients = clients.slice(shownClients.length);
 
-  const fills = new Map<string, { label: string; minor: number; tax: boolean }>(), takes = new Map<string, { label: string; minor: number }>();
-  for (const move of moves) {
-    if (move.on.slice(0, 7) !== month) continue;
-    if (move.kind === "fill" || move.kind === "add") fills.set(move.potId, { label: move.potName, tax: move.potCategory === "government_tax", minor: (fills.get(move.potId)?.minor ?? 0) + move.minor });
-    else if (move.kind === "spend" || move.kind === "take_out") takes.set(move.potId, { label: move.potName, minor: (takes.get(move.potId)?.minor ?? 0) - move.minor });
-  }
-  const byBig = (a: { minor: number; label: string }, b: { minor: number; label: string }) => b.minor - a.minor || a.label.localeCompare(b.label);
-  const pots = [...fills].map(([key, value]) => ({ key, ...value })).filter(pot => pot.minor > 0).sort(byBig);
-  const taken = [...takes].map(([key, value]) => ({ key, ...value })).filter(pot => pot.minor > 0).sort(byBig);
+  const aside = setAside(moves, month);
+  const pots = aside.byPot.map(pot => ({ key: pot.potId, ...pot })), taken = aside.fromPots.map(pot => ({ key: pot.potId, ...pot }));
 
   const spending = monthView.rows.filter(row => row.spent > 0).sort((a, b) => b.spent - a.spent || a.label.localeCompare(b.label));
   const categories = spending.length > TOP_CATEGORIES + 1 ? spending.slice(0, TOP_CATEGORIES) : spending, restCategories = spending.slice(categories.length);

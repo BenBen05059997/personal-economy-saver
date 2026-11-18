@@ -41,7 +41,7 @@ const TAKES: Record<ViewId, Field[]> = {
   forecast: ["case", "days", "mark"], what_if: ["amount", "date", "client", "days"], position: [], month_by_category: ["month", "by", "open"], month_trend: ["months"],
   month_pace: ["month"], fixed_costs: ["months"], search_months: ["text", "months"], money_flow: ["month"], savings_rate: ["months"], buffer_months: [],
   income_months: ["months"], client_pace: ["client"], fx_cost: ["months"], goal_pace: ["pot"], bills_calendar: ["days", "whose"], card_cycle: ["card", "amount"],
-  who_owes_whom: [], what_changed: ["item"], tax_ahead: ["pot", "days"],
+  who_owes_whom: [], what_changed: ["item"], tax_ahead: ["pot", "days"], wins: ["months"], pot_story: ["pot"],
 };
 const NAME_ARGS = Object.fromEntries(Object.entries(TAKES).map(([view, keys]) =>
   [view, z.object(Object.fromEntries(keys.map(key => [key, FIELDS[key].optional()]))).strict()])) as unknown as Record<ViewId, z.ZodObject<z.ZodRawShape>>;
@@ -50,7 +50,7 @@ const NAME_ARGS = Object.fromEntries(Object.entries(TAKES).map(([view, keys]) =>
 const SIGNATURE: Record<ViewId, string> = {
   forecast: "case (leave out: both lines)|usual|late, days, mark=bill", what_if: "amount,date,client+days", position: "", month_by_category: "month,by category|business|person,open", month_trend: "months",
   month_pace: "month", fixed_costs: "months", search_months: "text,months", money_flow: "month", savings_rate: "months", buffer_months: "", income_months: "months",
-  client_pace: "client", fx_cost: "months", goal_pace: "pot", bills_calendar: "days,whose", card_cycle: "card,amount", who_owes_whom: "", what_changed: "item", tax_ahead: "pot,days",
+  client_pace: "client", fx_cost: "months", goal_pace: "pot", bills_calendar: "days,whose", card_cycle: "card,amount", who_owes_whom: "", what_changed: "item", tax_ahead: "pot,days", wins: "months", pot_story: "pot",
 };
 const DESCRIPTION = `Chart their money, and read its facts. args: JSON text or null. Which picture answers which question: ${(Object.keys(SIGNATURE) as ViewId[]).map(view => `${view}${SIGNATURE[view] ? `(${SIGNATURE[view]})` : ""} ${VIEW_META[view].question}`).join(" ")} The item for what_changed is the id of a pending bill, card purchase, pot or balance update (or one confirmed), from household_snapshot.`;
 

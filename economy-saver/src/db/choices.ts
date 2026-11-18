@@ -2,16 +2,22 @@
 // function per job: the Saving forms and the agent's tools call them. A confirmed choice stays on the record; withdrawing it
 // sets a day and keeps the row. A pending one (the agent's draft) waits in To check and counts for nothing.
 import { and, asc, eq, sql } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { CategoryKeySchema, type CategoryKey } from "@/lib/money/categories";
 import { minorMoney } from "@/lib/money/format";
+import { foundWins, isTaxPot, type FoundWin } from "@/lib/money/saving";
+import { HISTORY_MONTHS, monthBounds, monthName, monthsBack, spendingItems } from "@/lib/money/spending";
 import type { Choice, PendingChoice } from "@/lib/money/types";
 import { Currency } from "@/lib/catalogue/types";
-import { householdMoment } from "./clock";
+import { clockForHousehold, householdMoment } from "./clock";
 import { InputError } from "./input-error";
 import { lockHousehold, recordEvent, requireHousehold, withHousehold, type Db, type Maker } from "./household";
 import { fromMinor } from "./money";
+import { loadPotMoves } from "./pot-moves";
+import { movePot } from "./pots";
 import * as s from "./schema";
+import { loadSpending } from "./spending";
 
 export type ChoiceInput = {
   id: string; source: "said" | "found"; happenedOn: string; aboutMinor: number; words: string;
@@ -134,4 +140,54 @@ export async function loadPendingChoices(db: Db, householdId: string): Promise<P
   const rows = await db.select(columns).from(s.choices).where(and(eq(s.choices.householdId, hid), eq(s.choices.status, "pending")))
     .orderBy(asc(s.choices.createdAt), asc(s.choices.id));
   return rows.map((row): PendingChoice => ({ ...base(row), ...(row.madeBy !== "form" && { madeBy: row.madeBy }) }));
+}
+
+const FOUND_KEY = /^(\d{4}-(?:0[1-9]|1[0-2])):/;
+
+/** The choice's words for a found win, at most 160 characters. */
+function foundWords(win: FoundWin): string {
+  const month = monthName(win.month);
+  const words = win.kind === "cost_stopped" ? `${win.label} stopped in ${month}` : win.kind === "cost_down" ? `${win.label} cost less in ${month}` : `${win.label} came in under your usual in ${month}`;
+  return words.length <= 160 ? words : `${words.slice(0, 159)}…`;
+}
+
+/**
+ * Keeps a saving the app found (D81): the amount is worked out again here from the household's record, never taken from the
+ * caller, and the key must be one of that month's fresh found wins. Saves the found choice and, with `potId`, an `add` into that
+ * pot that names the choice, in one transaction. Refuses, in words, a key that is not in the records any more, one already kept,
+ * the tax pot, a done pot and another household's pot. Returns the choice's id.
+ */
+export async function keepFoundWin(db: Db, householdId: string, input: { foundKey: string; potId: string | null }, by: Maker): Promise<string> {
+  const hid = requireHousehold(householdId);
+  const gone = () => new InputError("That saving isn't in your records any more.");
+  const month = FOUND_KEY.exec(input.foundKey)?.[1];
+  if (!month) throw gone();
+  const potId = input.potId === null ? null : z.uuid().parse(input.potId);
+  return withHousehold(db, hid, async tx => {
+    const household = await lockHousehold(tx, hid);
+    const { today } = clockForHousehold(household);
+    const currency = Currency.parse(household.currency);
+    const current = today.slice(0, 7);
+    const range = { from: monthBounds(monthsBack(current, HISTORY_MONTHS)).first, to: monthBounds(current).last };
+    const [spending, moves, kept] = await Promise.all([loadSpending(tx, hid, range), loadPotMoves(tx, hid), loadChoices(tx, hid)]);
+    const win = foundWins(spendingItems(spending, range.from, range.to), currency, month, { moves, choices: kept }, today).find(row => row.key === input.foundKey);
+    if (!win) throw gone();
+    if (kept.some(choice => choice.foundKey === win.key)) throw new InputError("You've already kept that saving.");
+    if (potId !== null) {
+      const [pot] = await tx.select({ category: s.pots.category }).from(s.pots).where(and(eq(s.pots.householdId, hid), eq(s.pots.id, potId)));
+      if (!pot) throw new InputError("Choose one of your pots");
+      if (isTaxPot({ category: pot.category === null ? null : CategoryKeySchema.parse(pot.category) })) throw new InputError("Money ready for tax comes from client payments, so choose another pot");
+    }
+    const id = randomUUID();
+    try {
+      await saveChoice(tx, hid, { id, source: "found", happenedOn: monthBounds(win.month).last, aboutMinor: win.winMinor, words: foundWords(win), category: win.category, foundKey: win.key, memberId: null }, "confirmed", by);
+    } catch (error) {
+      if (error instanceof InputError && /already found/.test(error.message)) throw new InputError("You've already kept that saving.");
+      throw error;
+    }
+    if (potId !== null) {
+      await movePot(tx, hid, { id: randomUUID(), potId, kind: "add", amountMinor: win.winMinor, toPotId: null, purchase: null, choiceId: id, reason: null, memberId: null, done: false }, "confirmed", by);
+    }
+    return id;
+  });
 }
