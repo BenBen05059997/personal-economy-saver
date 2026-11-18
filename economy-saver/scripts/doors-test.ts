@@ -639,7 +639,7 @@ async function main() {
       }
     });
 
-    await check("migration 0036 links fills to their invoice only when one invoice shares the moment, skips a deleted pot, makes every confirmed pot sum to saved_minor, gives only fill-rule pots the tax category and adds saving_wins", async () => {
+    await check("migration 0036 links fills to their invoice only when one invoice shares the moment, skips a deleted pot, makes every confirmed pot sum to saved_minor, gives only fill-rule pots the tax category and adds saving_wins; 0037 gives the gap its moves and is safe to run twice", async () => {
       const old = new PGlite({ extensions: { pg_trgm } });
       try {
         const files = readdirSync("./drizzle").filter(f => /^\d{4}_.*\.sql$/.test(f)).sort();
@@ -692,6 +692,21 @@ async function main() {
         await assert.rejects(old.query("insert into pot_moves (household_id, pot_id, kind, amount_minor, currency, moved_on, confirmed_at) values ($1, $2, 'fill', -5, 'JPY', '2026-10-01', now())", [household, tax]), /pot_moves_sign_valid/);
         await assert.rejects(old.query("insert into pot_moves (household_id, pot_id, kind, amount_minor, currency, moved_on, confirmed_at, invoice_id) values ($1, $2, 'fill', 5, 'JPY', '2026-10-01', now(), $3)", [household, tax, i1]).then(() =>
           old.query("insert into pot_moves (household_id, pot_id, kind, amount_minor, currency, moved_on, confirmed_at, invoice_id) values ($1, $2, 'fill', 5, 'JPY', '2026-10-01', now(), $3)", [household, tax, i1])), /pot_moves_fill_invoice_uq/, "a second fill for one invoice and pot is refused");
+
+        // 0037: what the old code wrote between 0036 and the deploy (a fill as an event only, a hand edit of saved) gets its moves; a second run adds nothing.
+        const rerun = files.find(f => f.startsWith("0037_"))!;
+        const gapFill = await event("pot_filled", "pot", plain, 700, "2026-11-18T03:00:00Z");
+        await old.query("update pots set saved_minor = saved_minor + 700 where id = $1", [plain]);
+        await old.query("update pots set saved_minor = saved_minor + 300 where id = $1", [tax]);
+        for (const statement of statements(rerun)) await old.exec(statement);
+        const after = (await old.query<{ id: string; pot_id: string; kind: string; amount_minor: string }>("select id, pot_id, kind, amount_minor::text from pot_moves where status = 'confirmed'")).rows;
+        assert.deepEqual(after.filter(m => m.id === gapFill).map(m => [m.pot_id, m.kind, m.amount_minor]), [[plain, "fill", "700"]], "the gap's fill gets its move under the event's id");
+        for (const row of (await old.query<{ id: string; saved_minor: string }>("select id, saved_minor::text from pots where status = 'confirmed'")).rows) {
+          assert.equal(after.filter(m => m.pot_id === row.id).reduce((sum, m) => sum + Number(m.amount_minor), 0), Number(row.saved_minor), "after 0037 every confirmed pot still adds up");
+        }
+        for (const statement of statements(rerun)) await old.exec(statement);
+        assert.equal((await one<{ n: number }>("select count(*)::int as n from pot_moves")).n, after.length, "a second run of 0037 adds nothing");
+        assert.equal((await one<{ n: number }>("select count(*)::int as n from standing_rules where kind = 'saving_wins'")).n, 1);
       } finally {
         await old.close();
       }
