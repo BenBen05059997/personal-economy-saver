@@ -107,6 +107,10 @@ async function main() {
       assert.equal(potLine(pot(), benMoney), undefined);
       assert.equal(potSummary(pot(), benMoney), "Tax ¥10,000 set aside");
       assert.equal(potSummary(pot({ name: "Car", saved: 200_000, target: 1_200_000, targetDate: "2027-03-31" }), benMoney), "Car ¥200,000 of ¥1,200,000 · by Mar 2027");
+      assert.equal(potSummary(pot({ category: "government_tax" }), benMoney), "Tax ¥10,000 ready for tax", "the tax pot is never called set aside or saved");
+      assert.equal(potSummary(pot({ name: "Trip", saved: 13_400, target: 80_000, doneOn: "2026-11-14", became: 48_600 }), benMoney), "Trip ¥13,400 still in it · bought Nov 14", "a done pot has no target line");
+      assert.equal(potSummary(pot({ name: "Trip", saved: 13_400, target: 80_000, became: 48_600 }), benMoney), "Trip ¥62,000 of ¥80,000", "what the pot paid for counts toward its goal");
+      assert.equal(potLine(pot({ name: "Trip", saved: 13_400, target: 80_000, doneOn: "2026-11-14", became: 48_600 }), benMoney), "Bought on Nov 14.");
     });
 
     await check("availableCash is the one starting cash: pots lower the series, the low point, safe to spend, card room and the sentence together", () => {

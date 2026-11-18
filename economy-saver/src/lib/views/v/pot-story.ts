@@ -89,17 +89,17 @@ export const potStoryView: Resolver<"pot_story"> = (args, ctx): ViewResult => {
 
   // The picture: ways in on the left, the pot in the middle, what it became on the right.
   const left: { id: string; label: string; minor: number; tone: Tone }[] = [
-    { id: "in:payments", label: "From client payments", minor: story.fromPaymentsMinor, tone: "soft" },
-    { id: "in:added", label: "Put in by hand", minor: story.addedMinor, tone: "soft" },
-    { id: "in:choices", label: "From your choices", minor: story.fromChoicesMinor, tone: "soft" },
-    ...carriedIn.map(([id, row]) => ({ id: `in:carry:${id}`, label: `Moved in from ${row.name}`, minor: row.minor, tone: "quiet" as Tone })),
-    { id: "in:carry", label: "Moved in from another pot", minor: strayIn, tone: "quiet" },
-    { id: "in:start", label: "Start and corrections", minor: Math.max(0, story.startMinor), tone: "quiet" },
+    { id: "in:payments", label: "Client payments", minor: story.fromPaymentsMinor, tone: "soft" },
+    { id: "in:added", label: "Put in", minor: story.addedMinor, tone: "soft" },
+    { id: "in:choices", label: "Your choices", minor: story.fromChoicesMinor, tone: "soft" },
+    ...carriedIn.map(([id, row]) => ({ id: `in:carry:${id}`, label: `From ${row.name}`, minor: row.minor, tone: "quiet" as Tone })),
+    { id: "in:carry", label: "From another pot", minor: strayIn, tone: "quiet" },
+    { id: "in:start", label: "Start", minor: Math.max(0, story.startMinor), tone: "quiet" },
   ];
   const right: { id: string; label: string; minor: number; tone: Tone }[] = [
     ...purchases.map(purchase => ({ id: purchase.id, label: purchase.label, minor: purchase.minor, tone: "main" as Tone })),
     { id: "out:taken", label: "Taken out", minor: story.takenOutMinor, tone: "quiet" },
-    ...carriedOut.map(([id, row]) => ({ id: `out:carry:${id}`, label: `Moved to ${row.name}`, minor: row.minor, tone: "quiet" as Tone })),
+    ...carriedOut.map(([id, row]) => ({ id: `out:carry:${id}`, label: `To ${row.name}`, minor: row.minor, tone: "quiet" as Tone })),
     { id: "out:carry", label: "Moved to another pot", minor: strayOut, tone: "quiet" },
     { id: "out:start", label: "Corrections", minor: Math.max(0, -story.startMinor), tone: "quiet" },
     { id: "out:kept", label: tax ? "Ready for tax" : "Still in it", minor: story.savedMinor, tone: "in" },

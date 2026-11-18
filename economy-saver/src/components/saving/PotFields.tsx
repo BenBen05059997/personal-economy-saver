@@ -1,5 +1,6 @@
 import type { Pot } from "@/lib/money/types";
 import { CATEGORIES } from "@/lib/money/categories";
+import { isTaxPot } from "@/lib/money/saving";
 import { AmountInput, PercentInput } from "@/components/ui/CheckedInput";
 
 const plain = (n: number, currency: string) => currency === "USD" ? n.toFixed(2) : String(n);
@@ -8,7 +9,7 @@ const plain = (n: number, currency: string) => currency === "USD" ? n.toFixed(2)
 export function PotFields({ currency, pot }: { currency: string; pot?: Pot }) {
   return <>
     {!pot && <label className="ui-field">Name<input name="name" maxLength={60} required placeholder="e.g. Car, trip, tax" /></label>}
-    <label className="ui-field">Saved so far ({currency})<AmountInput name="saved" currency={currency} defaultValue={pot ? plain(pot.saved, currency) : "0"} required /></label>
+    <label className="ui-field">{pot && isTaxPot(pot) ? "Ready for tax so far" : "Saved so far"} ({currency})<AmountInput name="saved" currency={currency} defaultValue={pot ? plain(pot.saved, currency) : "0"} required /></label>
     <label className="ui-field">Target amount, optional ({currency})<AmountInput name="target" currency={currency} defaultValue={pot?.target === undefined ? "" : plain(pot.target, currency)} /></label>
     <label className="ui-field">Target date, optional<input name="targetDate" type="date" defaultValue={pot?.targetDate ?? ""} /></label>
     <label className="ui-field">What it’s for, optional<select name="category" defaultValue={pot?.category ?? ""}>

@@ -2,7 +2,7 @@
 // Amounts are in the state's home currency units, as everywhere in the engine (whole yen; dollars with cents for USD).
 
 import { addMonths } from "./dates";
-import { MONTHS, minorMoney, minorPerUnit, toMinor } from "./format";
+import { MONTHS, dayLabel, minorMoney, minorPerUnit, toMinor } from "./format";
 import { availableCash, moneyInPots, series, WINDOW_DAYS } from "./runway";
 import { expectsClientPayment } from "./sentence";
 import { labelOf, termOf } from "./terms";
@@ -86,9 +86,11 @@ export function planLine(input: PlanInput, plan: Plan, state: MoneyState): strin
 
 /** The short line under a goal pot on the Saving page: what it takes by its date, or where the current pace gets it. Undefined for a pot with no target. */
 export function potLine(pot: Pot, state: MoneyState): string | undefined {
+  if (pot.doneOn !== undefined) return `${(pot.became ?? 0) > 0 ? "Bought" : "Done"} on ${dayLabel(pot.doneOn)}.`; // a done pot has no pace (D81)
   if (pot.target === undefined) return undefined;
   const money = (n: number) => minorMoney(toMinor(n, state.homeCurrency), state.homeCurrency);
-  const request: PlanInput = { target: pot.target, saved: pot.saved, ...(pot.targetDate && { targetDate: pot.targetDate }) };
+  // What the pot already paid for counts toward its goal (D66, D81).
+  const request: PlanInput = { target: pot.target, saved: pot.saved + (pot.became ?? 0), ...(pot.targetDate && { targetDate: pot.targetDate }) };
   const plan = planFor(request, state);
   if (plan.needed === 0) return "Target reached";
   if (plan.monthlyNeeded !== undefined && pot.targetDate) {
@@ -129,10 +131,12 @@ export function moneyInPotsLine(state: MoneyState): string | undefined {
   return total > 0 ? `${minorMoney(toMinor(total, state.homeCurrency), state.homeCurrency)} is set aside in pots and is not counted as safe to spend.` : undefined;
 }
 
-/** One quiet line for Home: "Tax ¥15,000 set aside" or "Car ¥200,000 of ¥1,200,000 · by Mar 2027". */
+/** One quiet line for Home: "Tax ¥15,000 ready for tax", "Trip ¥13,400 still in it · bought Nov 14", "Rainy day ¥20,000 set aside" or "Car ¥200,000 of ¥1,200,000 · by Mar 2027". */
 export function potSummary(pot: Pot, state: MoneyState): string {
   const money = (n: number) => minorMoney(toMinor(n, state.homeCurrency), state.homeCurrency);
+  if (pot.category === "government_tax") return `${pot.name} ${money(pot.saved)} ready for tax`; // never "saved" (D81)
+  if (pot.doneOn !== undefined) return `${pot.name} ${money(pot.saved)} still in it · ${(pot.became ?? 0) > 0 ? "bought" : "done"} ${dayLabel(pot.doneOn)}`;
   return pot.target === undefined
     ? `${pot.name} ${money(pot.saved)} set aside`
-    : `${pot.name} ${money(pot.saved)} of ${money(pot.target)}${pot.targetDate ? ` · by ${monthYear(pot.targetDate)}` : ""}`;
+    : `${pot.name} ${money(pot.saved + (pot.became ?? 0))} of ${money(pot.target)}${pot.targetDate ? ` · by ${monthYear(pot.targetDate)}` : ""}`;
 }

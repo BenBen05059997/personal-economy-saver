@@ -10,6 +10,15 @@ import "./sankey.css";
 const NODE_W = 14, GAP = 12, MIN_H = 4, PAD = 12, BODY = 300, CHAR = 6.7, NARROW = 560;
 /** The name cut to fit `px` of label, with an ellipsis. */
 const fit = (text: string, px: number) => { const room = Math.max(3, Math.floor(px / CHAR)); return text.length <= room ? text : `${text.slice(0, Math.max(1, room - 1)).trimEnd()}…`; };
+/** The name on at most two lines of `px`, broken between words; the second line is cut short only if it still doesn't fit. */
+const wrap = (text: string, px: number): string[] => {
+  const room = Math.max(3, Math.floor(px / CHAR));
+  if (text.length <= room) return [text];
+  const words = text.split(" ");
+  let first = "";
+  while (words.length > 1 && `${first} ${words[0]}`.trim().length <= room) first = `${first} ${words.shift()}`.trim();
+  return first ? [first, fit(words.join(" "), px)] : [fit(text, px)];
+};
 
 /** The sankey form (D77): clients on the left, the month's money in the middle, what it went to on the right. Flow widths are proportional; labels are beside the nodes. Hover or focus a flow for its amount. */
 export function Sankey({ result }: { result: ViewResult<"sankey"> }) {
@@ -42,6 +51,8 @@ export function Sankey({ result }: { result: ViewResult<"sankey"> }) {
   /** A side label: one line when there is room, else the name cut short, and on a narrow chart the amount on a second line when the node is tall enough. */
   const sideLabel = (node: (typeof nodes)[number], x: number, mid: number, px: number, anchor: "start" | "end") => {
     if (!narrow) return <text className="sk-label" x={x} y={mid + 4} textAnchor={anchor}>{node.label} <tspan className="sk-amount">{node.amountLabel}</tspan></text>;
+    const lines = wrap(node.label, px);
+    if (lines.length === 2 && heights.get(node.id)! + GAP >= 46) return <text className="sk-label" x={x} y={mid - 9} textAnchor={anchor}>{lines[0]}<tspan x={x} dy={14}>{lines[1]}</tspan><tspan className="sk-amount" x={x} dy={14}>{node.amountLabel}</tspan></text>;
     if (heights.get(node.id)! + GAP >= 32) return <text className="sk-label" x={x} y={mid - 2} textAnchor={anchor}>{fit(node.label, px)}<tspan className="sk-amount" x={x} dy={14}>{node.amountLabel}</tspan></text>;
     return <text className="sk-label" x={x} y={mid + 4} textAnchor={anchor}>{fit(node.label, px - node.amountLabel.length * CHAR - 4)} <tspan className="sk-amount">{node.amountLabel}</tspan></text>;
   };

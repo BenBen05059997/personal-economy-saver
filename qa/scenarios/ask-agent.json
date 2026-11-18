@@ -2844,5 +2844,33 @@
       "D53",
       "D60"
     ]
+  },
+  {
+    "id": "ASK-120",
+    "area": "Ask",
+    "action": "Confirm a one-off receipt twice in one thread",
+    "user_goal": "I want the win prompt once, not on every card",
+    "type": "agent",
+    "priority": "P2",
+    "needs": [
+      "model"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026), 1440px",
+      "A working model (the server's or the Codex bridge)",
+      "Ask open at /canvas"
+    ],
+    "steps": [
+      "Attach a one-off Food, Travel or Transport receipt, send it and Confirm the card",
+      "Attach a second such receipt in the same thread and Confirm it"
+    ],
+    "expected": [
+      "Under the first card only the line \"Chose this over something pricier? Tell me, and it counts as a win.\" shows",
+      "The second card in the thread does not show the line"
+    ],
+    "refs": [
+      "D81"
+    ]
   }
 ]

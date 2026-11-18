@@ -5,6 +5,11 @@
 // Timings include the complete response body; redirects are measured separately.
 import { randomUUID } from "node:crypto";
 import { performance } from "node:perf_hooks";
+import { readdirSync, readFileSync } from "node:fs";
+
+// The household file version the export writes: read from the one generated household schema, so this check never pins it.
+const schemaDir = new URL("../schema/", import.meta.url);
+const SNAPSHOT_VERSION = JSON.parse(readFileSync(new URL(readdirSync(schemaDir).find(name => /^household\.v\d+\.json$/.test(name)), schemaDir), "utf8")).properties.version.const;
 
 const args = process.argv.slice(2);
 if (args.length !== 2 || !["--run", "--guards", "--extra"].includes(args[0])) {
@@ -526,8 +531,8 @@ await step("page", "home-coming-up-keeps-the-sentence-day-above-the-fold", async
 // Home and Safe to spend say what the number counts; Saving says what its "leave about" counts.
 await step("page", "home-and-saving-say-what-their-numbers-count", async () => {
   const home = plain(pageContent(await page("/", /18,780|30,000/)));
-  expect(home.includes("The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late."), "safe-to-spend-line");
-  const saving = plain(pageContent(await page("/saving", /leave about/)));
+  expect(home.includes("The lowest your balance gets in the next 30 days, after every bill and card statement, if clients pay late; never below 0."), "safe-to-spend-line");
+  const saving = plain(pageContent(await page("/saving", /Left over each month/)));
   expect(saving.includes("Left over each month: about ¥92,220 if clients pay as usual."), "saving-room-line");
   expect(saving.includes("What client payments bring in over the next 30 days, after every bill and card statement, if clients pay as usual."), "saving-room-note");
 });
@@ -970,7 +975,7 @@ await step("action", "export-my-data", async () => {
   expect(/^attachment; filename="personal-economy-saver-\d{4}-\d{2}-\d{2}\.json"$/.test(headers.get("content-disposition") ?? ""), "export-disposition");
   expect(/no-store/.test(headers.get("cache-control") ?? ""), "export-no-store");
   const data = JSON.parse(result.body);
-  expect(data.version === 4 && Array.isArray(data.ownCategories) && Array.isArray(data.spaces) && Array.isArray(data.events) && data.clients.length === 3, "export-shape");
+  expect(data.version === SNAPSHOT_VERSION && Array.isArray(data.ownCategories) && Array.isArray(data.spaces) && Array.isArray(data.events) && data.clients.length === 3, "export-shape");
   expect(Array.isArray(data.memory) && Array.isArray(data.canvases) && Array.isArray(data.journal), "export-stored-kinds");
   expect(!/ai_?key|tokenHash|storagePath|payload/i.test(result.body), "export-no-secrets");
   const get = await fetch(new URL("/api/export", base), { headers: { Cookie: cookie, Origin: base.origin }, redirect: "manual" });
@@ -1005,7 +1010,7 @@ await step("action", "your-data-delete-one-and-delete-all-memory", async () => {
   const bad = await request("/api/data", { method: "POST", form: { kind: "delete_kind", what: "nothing", returnTo: "/settings" } });
   expect(bad.response.status === 400, "data-bad-kind");
 });
-// D59 step 2: Import reads a version 2, 3 or 4 file into an empty household only, and says why when it cannot.
+// D59 step 2: Import reads a version 2 to 5 file into an empty household only, and says why when it cannot.
 await step("action", "import-refuses-a-full-household-an-old-file-and-an-oversize-body", async () => {
   const full = await request("/api/restore", { method: "POST", json: JSON.parse(tryItExport) });
   expect(full.response.status === 400 && full.body === "Import works on an empty household. Start with my numbers first.", "import-full-refused");

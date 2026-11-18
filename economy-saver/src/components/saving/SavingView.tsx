@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { MoneyState, Pot } from "@/lib/money/types";
-import { majorMoney, minorMoney } from "@/lib/money/format";
+import { dayLabel, majorMoney, minorMoney } from "@/lib/money/format";
 import { goalPace } from "@/lib/money/goals";
 import { storedId } from "@/lib/money/name-key";
 import { addDays } from "@/lib/money/dates";
@@ -104,7 +104,7 @@ async function PotPanel({ state, pot }: { state: MoneyState; pot: Pot }) {
   const purchases = items.filter(item => item.kind === "charge" || item.repeat === null).filter(item => !item.uncounted && !item.estimated && item.amountMinor > 0).sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0)
     .map(item => ({ value: item.kind === "charge" ? `charge:${item.id}` : `bill:${storedId(item.id)}|${item.date}`, label: `${item.label} · ${minorMoney(item.amountMinor, state.homeCurrency)} · ${item.date}` }));
   return <Detail title={pot.name} close="/saving">
-    <p className="directory-big">{money(pot.saved)}</p><p className="ui-hint">{isTaxPot(pot) ? "Ready for tax" : "Saved"}</p>
+    <p className="directory-big">{money(pot.saved)}</p><p className="ui-hint">{isTaxPot(pot) ? "Ready for tax" : pot.doneOn !== undefined ? "Still in it" : "Saved"}</p>
     {line && <p className="saving-line">{line}</p>}
     <PotViews state={state} pot={pot} hasMove={hasMove} />
     <details className="directory-edit" open>
@@ -222,11 +222,12 @@ export function SavingView({ state, selected, win, paid }: { state: MoneyState; 
       return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={`/saving/${item.id}`} aria-label={item.name} aria-current={item.id === selected ? "page" : undefined}>
         <div>{item.name}
           <small>
-            {item.target === undefined ? "Set aside" : `Target ${money(item.target)}${item.targetDate ? ` · by ${monthYear(item.targetDate)}` : ""}`}
-            {item.fillPct !== undefined && ` · ${item.fillPct}% of each client payment`}
+            {item.doneOn !== undefined ? `${(item.became ?? 0) > 0 ? "Bought" : "Done"} on ${dayLabel(item.doneOn)}`
+              : isTaxPot(item) ? "Ready for tax" : item.target === undefined ? "Set aside" : `Target ${money(item.target)}${item.targetDate ? ` · by ${monthYear(item.targetDate)}` : ""}`}
+            {item.fillPct !== undefined && item.doneOn === undefined && ` · ${item.fillPct}% of each client payment`}
           </small>
           {goal && goal.neededMinor > 0 && <small>{goal.paceLine}</small>}</div>
-        <div>{money(item.saved)}<small>saved</small></div>
+        <div>{money(item.saved)}<small>{isTaxPot(item) ? "ready for tax" : item.doneOn !== undefined ? "still in it" : "saved"}</small></div>
       </Link>;
     })}
     {state.pots.length === 0 && <PanelHint className="directory-empty" add="pot" label="Add a pot">No pots yet. Put money aside for tax, a trip or a car. Money in a pot stops counting as safe to spend.</PanelHint>}

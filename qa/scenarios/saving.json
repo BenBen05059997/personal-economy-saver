@@ -174,5 +174,194 @@
       "Home and Saving follow each step"
     ],
     "refs": []
+  },
+  {
+    "id": "SAVING-008",
+    "area": "Saving",
+    "action": "Read the Saving list for a tax pot and a done pot",
+    "user_goal": "I want the list to say what each pot is, in plain words",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026), 1440px"
+    ],
+    "steps": [
+      "Add → A pot: add Tax set-aside, category Government & tax, ¥30,000 held",
+      "Add → A pot: add Standing desk, ¥20,000 held, then in its panel press Edit and mark it Done",
+      "Open Saving"
+    ],
+    "expected": [
+      "The tax pot's row reads \"Ready for tax\" and \"ready for tax\" under its amount, and the word \"saved\" appears nowhere on that row",
+      "The done pot's row reads \"Bought on <day>\" and \"still in it\" under its amount, with no fill-rule text"
+    ],
+    "refs": [
+      "D81"
+    ]
+  },
+  {
+    "id": "SAVING-009",
+    "area": "Saving",
+    "action": "Read a pot's Its story picture",
+    "user_goal": "I want to see where a pot's money came from and went",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026), 1440px",
+      "A saving pot Trip fund and a second pot Spare pot, each with money in"
+    ],
+    "steps": [
+      "In Trip fund's panel, Edit → Put in ¥10,000",
+      "Edit → Move to another pot: move ¥5,000 from Spare pot into Trip fund",
+      "Edit → Paid from this pot: record a ¥8,000 purchase",
+      "Look at Its story"
+    ],
+    "expected": [
+      "Its story draws the put-in, the move from Spare pot and the purchase, and every label is fully readable, none cut off or overlapping",
+      "The sentence under the picture names each of the three amounts"
+    ],
+    "refs": [
+      "D81"
+    ]
+  },
+  {
+    "id": "SAVING-010",
+    "area": "Saving",
+    "action": "Open the forms under a pot's Edit",
+    "user_goal": "I want the right ways to change a pot, and none that don't fit",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026), 1440px",
+      "A saving pot Trip fund and the tax pot (category Government & tax)"
+    ],
+    "steps": [
+      "Open Trip fund's panel and press Edit, then read the forms",
+      "Close it, open the tax pot's panel and press Edit"
+    ],
+    "expected": [
+      "Trip fund shows Put in, Take out, Paid from this pot, Move to another pot and Done",
+      "The tax pot shows no Paid from this pot and no Move to another pot"
+    ],
+    "refs": [
+      "D81"
+    ]
+  },
+  {
+    "id": "SAVING-011",
+    "area": "Saving",
+    "action": "Press Remove on a pot with a story",
+    "user_goal": "I want a warning before a pot's history is lost",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026), 1440px",
+      "A saving pot Trip fund with a put-in, and a goal medal earned from it"
+    ],
+    "steps": [
+      "In Trip fund's panel press Remove"
+    ],
+    "expected": [
+      "The dialog says its story and any goal medal it earned go with it, and to use Done instead",
+      "Focus starts inside the dialog, and Escape closes it without removing the pot"
+    ],
+    "refs": [
+      "D81"
+    ]
+  },
+  {
+    "id": "SAVING-012",
+    "area": "Saving",
+    "action": "Open See your wins from Home's new medal",
+    "user_goal": "I want to reach my wins in one tap",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026), 1440px",
+      "A saving pot Trip fund with ¥30,000 held"
+    ],
+    "steps": [
+      "In Trip fund's Edit → Paid from this pot: pay a ¥20,000 purchase with \"This was the goal\" ticked",
+      "Open Home and read From your assistant",
+      "Press See your wins"
+    ],
+    "expected": [
+      "From your assistant shows \"New medal: Bronze for goals reached\"",
+      "The button lands on Saving at the \"What our choices saved\" section, scrolled into view"
+    ],
+    "refs": [
+      "D81"
+    ]
+  },
+  {
+    "id": "SAVING-013",
+    "area": "Home",
+    "action": "Read Home's pot lines",
+    "user_goal": "I want Home's pot lines to match Saving",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026), 1440px",
+      "The tax pot Tax set-aside and a done pot Standing desk bought on a day, both with money still in them"
+    ],
+    "steps": [
+      "Open Home and read the pot lines"
+    ],
+    "expected": [
+      "The tax pot's line says \"ready for tax\"",
+      "The done pot's line says \"still in it · bought <day>\""
+    ],
+    "refs": [
+      "D81"
+    ]
+  },
+  {
+    "id": "SAVING-014",
+    "area": "Saving",
+    "action": "Open the Paid from a pot section from the daily pass",
+    "user_goal": "I want to say which pot paid for a purchase",
+    "type": "happy",
+    "priority": "P2",
+    "needs": [
+      "none"
+    ],
+    "how": "browser",
+    "preconditions": [
+      "Fresh Try it household (Ben, demo date Nov 14, 2026), 1440px",
+      "A saving pot Food fund with category Food, and a ¥3,200 Food card charge added with Add → A card charge so the daily pass asks about it"
+    ],
+    "steps": [
+      "On Home press Review the purchase in the assistant's suggestion"
+    ],
+    "expected": [
+      "The address is /saving?paid=…#paid-from and the \"Paid from a pot?\" section is scrolled into view",
+      "It shows the purchase and one button for each candidate pot"
+    ],
+    "refs": [
+      "D81"
+    ]
   }
 ]

@@ -21,12 +21,12 @@ Only Ben can do these. Agents carry on with anything that doesn't wait on them.
 - Sandbox sign-ins: the seller account to connect, and the US Personal client to pay a test link (D17).
 - Devpost: tick the Terms box and press Submit project before it closes, Nov 13 05:00 Tokyo (D1).
 - Approve the canvas concept; then it is saved under `design/`.
+- Choose the Our month look (Story, Letter or Trophy case on the What We Made canvas), and say whether Try it should carry sample pots and choices so judges can see What we made; today Ben's sample has none, so the feature stays out of sight there (D81).
 
 ## Open work
 
 - Build D78–D80: the list of terms; the fact record and a reading for every picture and read tool; one engine function per insight kind shared by the daily pass and the pictures (the tax pot short included); the answer that explains and offers code's next step, with code's sentence when a check fails; tools folded into showing a picture; code-made draft ids. Then make the read-and-answer check permanent in the live check: each case names the fact the answer must use and its case, and every failure found becomes a case.
-- Build D81 in stages: the pot record and its two migrations, the engine and its two pictures, the daily pass's three kinds, Ask's drafts with To check, then the whole-cycle check.
-- Zod 4. The 7 high audit findings that remain need the upgrade; expect type errors at every schema boundary.
+- D81's look, once Ben has chosen: the Our month template, medal art and the wall of what saving became; then the browser run of the D81 scenarios at 1440.
 - Owner gate (D12, D76), not on the judges' path, done after the Try it payment test: connect a sandbox seller account by signing in on PayPal's page ("Already have an account? Sign in") with an existing sandbox business account that is not fipa's own, never creating one there because accounts created on that page are not saved, and pay a $1 test link as the sandbox client, to confirm PayPal delivers the client-paid webhook for a connected account's orders; with Ben's sandbox accounts, also what PayPal's events carry for a seller's order, what a declined payment looks like, and how long an approved order can still be taken.
 - The live PayPal round trip from the Worker (V1): a payment link made, paid as the sandbox client, the verified webhook received and the sentence flipped.
 - Live checks that wait on a real model, sign-in or deploy: document reading, including a bill's month; member sign-in, invite, permissions and leave (D68); MCP token issue, use and revoke; the family link copy with a real clipboard (D52); the full scripted and browser run on the deployed Worker.

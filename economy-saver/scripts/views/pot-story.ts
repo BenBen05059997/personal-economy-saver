@@ -46,7 +46,7 @@ check("the picture balances at every node: ways in, the pot, what it became", ()
     const into = links.filter(link => link.to === node.id).reduce((sum, link) => sum + link.minor, 0), out = links.filter(link => link.from === node.id).reduce((sum, link) => sum + link.minor, 0);
     if (node.column === 1) { assert.equal(into, node.minor); assert.equal(out, node.minor); } else if (node.column === 0) assert.equal(out, node.minor); else assert.equal(into, node.minor);
   }
-  assert.deepEqual(nodes.filter(node => node.column === 0).map(node => node.label), ["From client payments", "Start and corrections"]);
+  assert.deepEqual(nodes.filter(node => node.column === 0).map(node => node.label), ["Client payments", "Start"]);
   assert.deepEqual(nodes.filter(node => node.column === 2).map(node => [node.label, node.minor]), [["Mirrorless body", 2000], ["Taken out", 700], ["Still in it", 800]]);
   const html = renderToStaticMarkup(createElement(Sankey, { result: view }));
   assert.ok(html.includes("Camera") && html.includes("sk-in"));
