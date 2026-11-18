@@ -39,6 +39,8 @@ import { ReaderError } from "@/lib/reader/settings";
 import { TURN_VERSION, type ConversationTurn } from "@/lib/schema/turn";
 import { daysBetween } from "@/lib/money/dates";
 import { DEMO_DATE } from "@/db/clock";
+import { setStandingRule } from "@/db/rules";
+import { CHOICE_PROMPT_WORDS } from "@/lib/reader/document-card";
 
 const bill = (over: Partial<Extracted> = {}): Extracted => extractSchema.parse({
   kind: "bill", name: "Kawa Gym", date: "2026-11-27", amountMinor: 6000, currency: "JPY", category: "other", cardId: null, ...over,
@@ -218,6 +220,18 @@ async function main() {
     assert.ok(!savedCard({ value: bill({ date: "2027-01-27", category: "utilities" }), target, seriesId: null }, ctx).links.some(link => link.href.startsWith("/spending")), "Spending cannot show a future month");
     assert.ok(!savedCard({ value: bill({ date: "2026-12-20", category: "utilities" }), target, seriesId: null }, ctx).links.some(link => link.href.startsWith("/#")), "beyond Home's 30 days: no Home link");
     assert.equal(savedCard({ value: bill({ date: "2026-10-05", category: "utilities" }), target, seriesId: null }, ctx).links[1].href, "/spending?month=2026-10#category-utilities", "a past month names the month");
+    // D81: the receipt line's flag: a confirmed one-off in Food, Travel or Transport while the saving-wins rule is on
+    const prompted = (value: Extracted, rule: boolean, over: Partial<CardReading> = {}) =>
+      buildCard(input("read", [reading({ status: "confirmed", targetId: crypto.randomUUID(), confirmedAt: "2026-11-14T01:00:00.000Z", value, ...over })]), null, [], rule).items[0].choicePrompt;
+    assert.equal(CHOICE_PROMPT_WORDS, "Chose this over something pricier? Tell me, and it counts as a win.");
+    for (const category of ["food", "travel", "transport"] as const) assert.equal(prompted(bill({ category }), true), true, `${category} one-off`);
+    assert.equal(prompted(bill({ category: "utilities" }), true), false, "another category");
+    assert.equal(prompted(bill({ category: "food" }), false), false, "rule off");
+    assert.equal(prompted(bill({ category: "food", repeat: "month" }), true), false, "a repeating bill");
+    assert.equal(prompted(bill({ category: "food" }), true, { seriesId: "series-1" }), false, "a bill joined to a series");
+    assert.equal(prompted(bill({ category: "food" }), true, { status: "to_check", targetId: null }), false, "not confirmed");
+    assert.equal(prompted(bill({ kind: "charge", category: "travel", cardId: crypto.randomUUID() }), true), true, "a card charge is a one-off");
+    ok("the receipt line: confirmed one-offs in three categories, rule on only");
     ok("buildCard and cardContext: each row of the words table, item statuses, checks only on to_check");
 
     // ================================================================ the database
@@ -310,6 +324,15 @@ async function main() {
     items = [bill({ name: "Pine Rent", date: "2026-12-22" })];
     const pine = await read(a, (await attach(a, "pine rent")).documentId);
     assert.equal(await reviewReading(db, a, pine.items[0].readingId, { ...pine.items[0].value, repeat: "year" }, {}, false, []), true, "Edit set Every year: the question is moot");
+    // D81: the database sets the flag from the household's saving-wins rule
+    items = [bill({ name: "Umi Sushi", date: "2026-12-10", category: "food" })];
+    const umi = await read(a, (await attach(a, "umi sushi")).documentId);
+    assert.equal(await reviewReading(db, a, umi.items[0].readingId, { ...umi.items[0].value, repeat: null }, {}, false, ["repeat_unknown"]), true);
+    assert.equal((await documentCard(db, a, umi.documentId)).items[0].choicePrompt, true, "rule on: a confirmed one-off food bill");
+    assert.equal((await documentCard(db, a, umi.documentId, { draw: false })).items[0].choicePrompt, false, "no money state, no flag");
+    await setStandingRule(db, a, "saving_wins", { enabled: false, threshold: null, currency: null });
+    assert.equal((await documentCard(db, a, umi.documentId)).items[0].choicePrompt, false, "rule off: no flag");
+    await setStandingRule(db, a, "saving_wins", { enabled: true, threshold: null, currency: null });
     // each answer to "Does it come again?", as the card posts it (answerCheck's repeat, then the form's repeat field), is what is stored
     for (const [label, expected, name] of [["Just this once", null, "Repeat Once"], ["Every month", "month", "Repeat Month"], ["Every year", "year", "Repeat Year"], ["Not sure", null, "Repeat Unsure"]] as const) {
       items = [bill({ name, date: "2026-12-24" })];

@@ -7,8 +7,8 @@ export type RuleKind = typeof RULE_KINDS[number];
 export type StandingRule = { enabled: boolean; threshold: number | null; currency: Currency | null; spaceId?: string };
 export type StandingRules = Record<RuleKind, StandingRule>;
 
-export const SUGGESTION_KINDS = ["invoice_nudge", "statement_due", "bill_due", "cost_up", "cancel_by", "goal_behind", "tax_short", "safe_below"] as const;
-export const SUGGESTION_ACTIONS = ["remind", "statement", "bill", "regular", "pot", "runway", "check_bill"] as const;
+export const SUGGESTION_KINDS = ["invoice_nudge", "statement_due", "bill_due", "cost_up", "cancel_by", "goal_behind", "tax_short", "safe_below", "found_saving", "pot_match", "medal"] as const;
+export const SUGGESTION_ACTIONS = ["remind", "statement", "bill", "regular", "pot", "runway", "check_bill", "keep_win", "match", "wins"] as const;
 export type Finding = {
   kind: typeof SUGGESTION_KINDS[number];
   key: string;
@@ -25,6 +25,7 @@ export type Finding = {
 export const FINDING_RULE: Partial<Record<Finding["kind"], RuleKind>> = {
   invoice_nudge: "nudge_after", statement_due: "statement_ahead", bill_due: "bill_ahead",
   cost_up: "cost_up", safe_below: "safe_below", goal_behind: "goal_behind", tax_short: "goal_behind",
+  found_saving: "saving_wins", pot_match: "saving_wins", medal: "saving_wins",
 };
 
 export function findingsBySpace<T extends { spaceId: string | null; spaceName: string | null }>(rows: readonly T[]) {
@@ -42,12 +43,15 @@ export function findingsBySpace<T extends { spaceId: string | null; spaceName: s
 export function findingAction(row: { action: typeof SUGGESTION_ACTIONS[number]; refId: string | null }) {
   if (row.action === "regular") return { label: "Review regular costs", href: "/spending/over-time#regular-costs" };
   if (row.action === "runway") return { label: "Review safe to spend", href: "/#next-30-days" };
+  if (row.action === "wins") return { label: "See your wins", href: "/saving#wins" };
   if (!row.refId) throw new Error("Suggestion action needs a reference");
   switch (row.action) {
     case "remind": return { label: "Copy link again", href: hrefFor({ type: "invoice", id: row.refId }) };
     case "statement": return { label: "Review statement", href: hrefFor({ type: "statement", id: row.refId }) };
     case "check_bill": return { label: "Review in To check", href: "/to-check#check-" + row.refId };
     case "bill": return { label: "Review bill", href: hrefFor({ type: "bill", id: row.refId }) };
+    case "keep_win": return { label: "Review the saving", href: "/saving?win=" + encodeURIComponent(row.refId) + "#wins" };
+    case "match": return { label: "Review the purchase", href: "/saving?paid=" + encodeURIComponent(row.refId) + "#paid-from" };
     case "pot": return { label: "Review pot", href: hrefFor({ type: "pot", id: row.refId }) };
   }
 }

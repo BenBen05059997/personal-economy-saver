@@ -2,7 +2,7 @@
 // balance gives "if you confirm" (now against with it confirmed); a confirmed bill, charge or pot gives "what it changed" (the state without it against
 // now). Nothing is stored for either side: both are worked out here from the money state and the spending, by the engine's own functions.
 import { categoryLabel } from "./categories";
-import { dayLabel, minorMoney, toMinor } from "./format";
+import { dayLabel, minorMoney, minorPerUnit, toMinor } from "./format";
 import { monthByCategory } from "./month";
 import { availableCash, low, paybackFor, safeToSpend, series } from "./runway";
 import { homeSentence } from "./sentence";
@@ -12,6 +12,7 @@ import type { Bill, Charge, MoneyState, Pot, SplitState } from "./types";
 import { cardSummary } from "./card-summary";
 import { labelOf } from "./terms";
 import { storedId } from "./name-key";
+import { moveLine, waitingMoves } from "./to-check";
 
 /** A problem in the item asked about, written for the person. */
 export class WhatChangedError extends Error {}
@@ -19,7 +20,7 @@ export class WhatChangedError extends Error {}
 type ChangedRow = { key: string; label: string; before: string; after: string; change: string | null };
 type WhatChanged = {
   name: string;
-  kind: "bill" | "charge" | "pot" | "balance";
+  kind: "bill" | "charge" | "pot" | "balance" | "move";
   when: "pending" | "confirmed"; // pending: before = now, after = if confirmed; confirmed: before = without it, after = now
   rows: ChangedRow[]; // the fixed order, only the rows that move, then the lowest day, then the sentence
   sentence: { before: string; after: string; changed: boolean; day: { before: string | null; after: string | null } };
@@ -31,7 +32,7 @@ type WhatChanged = {
 type Side = { state: MoneyState; spending: SpendingInput };
 
 /** The item as the two sides it makes. Throws `WhatChangedError` when the household has no such item or it cannot be compared. */
-function sides(state: MoneyState, spending: SpendingInput, itemId: string): { name: string; kind: WhatChanged["kind"]; when: WhatChanged["when"]; without: Side; with: Side; category: { key: Bill["category"]; month: string } | null } {
+function sides(state: MoneyState, spending: SpendingInput, itemId: string): { name: string; kind: WhatChanged["kind"]; when: WhatChanged["when"]; without: Side; with: Side; category: { key: Bill["category"]; month: string } | null; pots?: { id: string; name: string }[] } {
   const minor = (value: number) => toMinor(value, state.homeCurrency);
   const now: Side = { state, spending };
   const billsNamed = state.bills.filter(bill => bill.id === itemId || storedId(bill.id) === itemId);
@@ -79,6 +80,18 @@ function sides(state: MoneyState, spending: SpendingInput, itemId: string): { na
   if (pot) return { name: pot.name, kind: "pot", when: "pending", without: now, with: { state: { ...state, pots: [...state.pots, pot], pendingPots: state.pendingPots.filter(item => item.id !== itemId) }, spending }, category: null };
   const update = state.balanceUpdates.find(item => item.id === itemId);
   if (update) return { name: "Your new bank balance", kind: "balance", when: "pending", without: now, with: { state: { ...state, bank: update.amount, balanceUpdates: state.balanceUpdates.filter(item => item.id !== itemId) }, spending }, category: null };
+  const waiting = waitingMoves(state).find(item => item.move.id === itemId);
+  if (waiting) { // D81: a waiting move changes only what its pot (both pots, for a carry) holds
+    const unit = minorPerUnit(state.homeCurrency);
+    const rows = state.pendingMoves.filter(row => row.id === waiting.move.id || (row.pairId !== null && row.pairId === waiting.move.pairId));
+    const moved = state.pots.map((pot): Pot => {
+      const row = rows.find(item => item.potId === pot.id);
+      return !row ? pot : { ...pot, saved: pot.saved + row.minor / unit, ...(row.kind === "spend" && { became: (pot.became ?? 0) - row.minor / unit }) };
+    });
+    return { name: moveLine(state, waiting.move, waiting.other), kind: "move", when: "pending", without: now,
+      with: { state: { ...state, pots: moved, pendingMoves: state.pendingMoves.filter(row => !rows.includes(row)) }, spending }, category: null,
+      pots: [waiting.move, ...rows.filter(row => row !== waiting.move)].flatMap(row => { const pot = state.pots.find(item => item.id === row.potId); return pot ? [{ id: pot.id, name: pot.name }] : []; }) };
+  }
   const saved: Pot | undefined = state.pots.find(item => item.id === itemId);
   if (saved) return { name: saved.name, kind: "pot", when: "confirmed", without: { state: { ...state, pots: state.pots.filter(item => item.id !== itemId) }, spending }, with: now, category: null };
   throw new WhatChangedError("That item is not in your records.");
@@ -93,6 +106,7 @@ export function whatChanged(input: { state: MoneyState; spending: SpendingInput 
   const money = (key: string, label: string, a: number, b: number) => { if (a !== b) rows.push({ key, label, before: format(a), after: format(b), change: delta(a, b) }); };
 
   if (item.kind === "pot") { const [a, b] = [before.state.pots.length, after.state.pots.length]; if (a !== b) rows.push({ key: "pots", label: "Saving pots", before: String(a), after: String(b), change: `${b - a < 0 ? "−" : "+"}${Math.abs(b - a)}` }); }
+  for (const pot of item.pots ?? []) money(`pot-${pot.id}`, `In ${pot.name}`, minor(before.state.pots.find(p => p.id === pot.id)!.saved), minor(after.state.pots.find(p => p.id === pot.id)!.saved));
   money("bank", "Bank balance", minor(before.state.bank), minor(after.state.bank));
   money("cash", labelOf("cash_to_spend"), minor(availableCash(before.state)), minor(availableCash(after.state)));
   for (const card of state.cards) {

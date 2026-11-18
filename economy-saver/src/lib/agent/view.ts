@@ -6,7 +6,7 @@ import type { ViewResult } from "@/lib/views/types";
 
 /** What a turn's drafts are now, read from the rows (D60): waiting in To check, confirmed, or removed (not added). */
 type DraftState = "waiting" | "confirmed" | "not_added";
-export type DraftKind = "bill" | "charge" | "pot" | "balance";
+export type DraftKind = "bill" | "charge" | "pot" | "balance" | "win" | "move";
 /** One thing the turn drafted, as the thread draws it. Every word is written by code from the rows and the engine (D40); `result` is the what_changed view, drawn through ViewCard. */
 export type DraftView = {
   id: string; kind: DraftKind; state: DraftState;
@@ -18,8 +18,9 @@ export type DraftView = {
   title: string; // "What changed: Groceries ¥8,400 on Card B"
   places: { label: string; href: string }[]; // the See it buttons
   edit: string | null; // where the item is edited
+  confirmKind: "bill" | "charge" | "pot" | "balance" | "choice" | "move"; // what /api/confirm calls it
   remove: "/api/remove" | "/api/pots/remove" | null; // the route behind Don't add; none for a balance, which To check cannot remove either
-  removeKind: "bill" | "charge" | null;
+  removeKind: "bill" | "charge" | "choice" | "move" | null;
 };
 
 export type TurnView = {

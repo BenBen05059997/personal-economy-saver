@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { withHousehold } from "@/db/household";
+import { closeByRef } from "@/db/suggestions";
 import { InputError } from "@/db/input-error";
 import { parseAmountMinor } from "@/db/money";
 import { markPotDone, movePot, type MoveInput } from "@/db/pots";
@@ -54,7 +55,11 @@ export async function POST(request: Request) {
       purchase, choiceId: null, reason: data.reason, memberId: null, done: data.kind === "paid_for" && data.done,
     };
     const memberId = await currentMemberId(hid);
-    await movePot(db(), hid, input, "confirmed", { madeBy: "form", ...(memberId && { memberId }) });
+    // The question "Paid from a pot?" (D81) is answered by the move itself: it closes in the move's own transaction, so a refused move leaves it open.
+    await withHousehold(db(), hid, async tx => {
+      if (data.kind === "paid_for" && data.purchase !== null) await closeByRef(tx, hid, data.purchase, ["match"]);
+      await movePot(tx, hid, input, "confirmed", { madeBy: "form", ...(memberId && { memberId }) });
+    });
     return redirectTo(returnPath(form.get("returnTo")), request);
   } catch (error) {
     return failure(error);

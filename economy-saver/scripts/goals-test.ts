@@ -93,6 +93,7 @@ check("the daily finding uses pace and the standing rule, with no changes to the
   const find = (saved: number, enabled = true) => findSuggestions(
     { ...withGoal, pots: [{ ...frozenGoal, saved }] },
     { ...rules, goal_behind: { ...rules.goal_behind, enabled } },
+    null, [],
   ).filter(row => row.kind === "goal_behind");
   assert.deepEqual(find(40_000).map(row => [row.refId, row.action]), [[goal.id, "pot"]]);
   const [behind] = find(40_000);
@@ -104,7 +105,7 @@ check("the daily finding uses pace and the standing rule, with no changes to the
   assert.deepEqual(find(40_000, false), []);
   goalPace(frozenGoal, withGoal);
   goalPaces(withGoal);
-  findSuggestions(withGoal, rules);
+  findSuggestions(withGoal, rules, null, []);
   assert.deepEqual(withGoal, before);
 });
 

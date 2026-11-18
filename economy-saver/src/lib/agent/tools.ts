@@ -16,16 +16,18 @@ import { Currency } from "@/lib/catalogue/types";
 import { InputError } from "@/db/input-error";
 import { draftInput, saveInvoiceDraft } from "@/db/invoice-draft";
 import { memberByName, memberCount } from "@/db/people";
-import { potInput, savePot } from "@/db/pots";
+import { movePot, potInput, savePot } from "@/db/pots";
+import { saveChoice } from "@/db/choices";
+import { parseAmountMinor } from "@/db/money";
 import { loadHouseholdSnapshot } from "@/db/snapshot";
 import { loadPeriodBills, loadSpending } from "@/db/spending";
 import { clients, invoices } from "@/db/schema";
-import { fromMinor, plural, toMinor } from "@/lib/money/format";
+import { fromMinor, minorPerUnit, plural, toMinor } from "@/lib/money/format";
 import { dayView } from "@/lib/money/window";
 import { gapAmountWords, gapDateWords, gapQuestion, openGaps } from "@/lib/money/gaps";
 import { lowFacts, outlookFacts, spendReading } from "@/lib/money/ask";
 import { engineFact, forModel, type Fact } from "@/lib/money/facts";
-import { BusinessBp, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
+import { BusinessBp, CATEGORY_KEYS, CategoryKeySchema, categoryLabel, type CategoryKey } from "@/lib/money/categories";
 import { ownLabel } from "@/lib/money/own-category";
 import { guessCategory } from "@/lib/money/categorise";
 import { HISTORY_MONTHS, monthBounds, monthsBack, SEARCH_QUERY_MAX, searchLine, searchSpending, spendingItems } from "@/lib/money/spending";
@@ -67,6 +69,12 @@ export type ToolContext = {
   /** D50: who is calling; every row a tool writes carries it (and `askId` for Ask). */
   madeBy: "ask" | "mcp";
   askId?: string;
+  /** D81: the member this request acts as; a win or a move it drafts names them unless it says who. */
+  memberId?: string | null;
+  /** Ask only (D81): the numbers the person typed in this question and earlier questions of this conversation, in major units; never memory. MCP has none, and Confirm in To check is its guard. */
+  said?: readonly number[];
+  /** Ask only (D81): whether an amount in minor units was said, or is an engine money fact of this Ask. */
+  known?: (minor: number) => boolean;
   /** MCP only: the request this call came in on; a draft's id is made from it, as from `askId` in Ask. */
   requestId?: string | number;
   /** How the question arrived; a charge logged from it keeps this as its source. */
@@ -266,6 +274,37 @@ function eventFacts(state: MoneyState, events: ReturnType<typeof engineTimeline>
     const money = engineFact(name, minor, { from, currency, about, period: period(event.date), ...(named ? { case: scenario } : {}) });
     return event.estimated ? [money, engineFact("about_estimate", 1, { from, about, period: period(event.date) })] : [money];
   });
+}
+
+const potMoveInput = z.object({
+  pot: z.string().trim().min(1).max(80), kind: z.enum(["put_in", "take_out", "paid_for", "move_to"]),
+  amount: z.string().trim().max(40).nullable().default(null), purchase: z.string().trim().max(80).nullable().default(null),
+  purchase_on: z.string().date().nullable().default(null), to_pot: z.string().trim().min(1).max(80).nullable().default(null),
+  words: z.string().trim().min(1).max(200).nullable().default(null), who: z.string().trim().min(1).max(80).nullable().default(null),
+}).strict();
+const addWinInput = z.object({
+  what: z.string().trim().min(1).max(160), amount: z.string().trim().max(40).nullable().default(null),
+  instead: z.string().trim().max(40).nullable().default(null), paid: z.string().trim().max(40).nullable().default(null),
+  on: z.string().date().nullable().default(null), category: z.enum(CATEGORY_KEYS).nullable().default(null),
+  who: z.string().trim().min(1).max(80).nullable().default(null),
+}).strict();
+const NO_GUESS = "Ask the person how much; fipa never guesses a price.";
+
+/** A confirmed pot of this household by name (case does not matter); an InputError that lists the pots when none matches. */
+async function potNamed(ctx: ToolContext, name: string, state: MoneyState): Promise<MoneyState["pots"][number]> {
+  const wanted = name.trim().toLowerCase();
+  const found = state.pots.find(pot => pot.name.trim().toLowerCase() === wanted);
+  if (found) return found;
+  if (state.pendingPots.some(pot => pot.name.trim().toLowerCase() === wanted)) throw new InputError(`${name.trim()} is still waiting in To check; it takes no money until the person confirms it`);
+  throw new InputError(`No pot called ${name.trim()}. ${state.pots.length === 0 ? "There are no pots yet" : `The pots are: ${state.pots.map(pot => pot.name).join(", ")}`}.`);
+}
+
+const memberFor = async (ctx: ToolContext, who: string | null): Promise<string | null> =>
+  who !== null ? (await memberByName(ctx.db, ctx.householdId, who)).id : ctx.memberId ?? null;
+
+/** An amount the person typed: only in Ask, where `said` is set, must the number be one they said. */
+function requireSaid(ctx: ToolContext, minor: number, currency: Currency): void {
+  if (ctx.said !== undefined && !ctx.said.some(n => Math.round(n * minorPerUnit(currency)) === minor)) throw new InputError(NO_GUESS);
 }
 
 export const tools: Tool[] = [
@@ -564,6 +603,70 @@ export const tools: Tool[] = [
       await savePot(ctx.db, ctx.householdId, { ...input, id: await draftId(ctx, "add_pot", input), saved: "0", memberId: null }, "pending", by(ctx));
       ctx.onPending?.();
       return `The ${input.name} pot is waiting in To check for the user to confirm.`;
+    },
+  }),
+  defineTool({
+    name: "add_win", words: "Noting the cheaper choice", scope: "draft", input: addWinInput,
+    description: "Draft a cheaper choice for To check: amount saved, or instead (pricier) and paid, as the person said them.",
+    run: async (ctx, input) => {
+      const state = await ctx.state();
+      const currency = Currency.parse(state.homeCurrency);
+      let aboutMinor: number;
+      if (input.amount !== null) {
+        if (input.instead !== null || input.paid !== null) throw new InputError("Give either the amount saved or the two prices, not both");
+        aboutMinor = parseAmountMinor(input.amount, currency);
+        requireSaid(ctx, aboutMinor, currency);
+      } else {
+        if (input.instead === null || input.paid === null) throw new InputError(NO_GUESS);
+        const instead = parseAmountMinor(input.instead, currency), paid = parseAmountMinor(input.paid, currency);
+        requireSaid(ctx, instead, currency);
+        requireSaid(ctx, paid, currency);
+        if (instead <= paid) throw new InputError("The pricier choice must cost more than what was paid");
+        aboutMinor = instead - paid;
+      }
+      const id = await draftId(ctx, "add_win", input);
+      await saveChoice(ctx.db, ctx.householdId, {
+        id, source: "said", happenedOn: input.on ?? state.today, aboutMinor, words: input.what, category: input.category, foundKey: null, memberId: await memberFor(ctx, input.who),
+      }, "pending", by(ctx));
+      ctx.onPending?.();
+      const facts = [engineFact("to_check_amount", aboutMinor, { from: "add_win", currency, about: { type: "choice", id, name: input.what } })];
+      return JSON.stringify({ ...forModel(facts), note: "Waiting in To check for the person to confirm." });
+    },
+  }),
+  defineTool({
+    name: "pot_move", words: "Setting up the pot move", scope: "draft", input: potMoveInput,
+    description: "Draft money into, out of or between pots, or a pot paying a purchase, for To check. paid_for with no amount takes the purchase.",
+    run: async (ctx, input) => {
+      const state = await ctx.state();
+      const currency = Currency.parse(state.homeCurrency);
+      const pot = await potNamed(ctx, input.pot, state);
+      const to = input.kind === "move_to" ? input.to_pot === null ? (() => { throw new InputError("Say which pot to move the money to (to_pot)"); })() : await potNamed(ctx, input.to_pot, state) : null;
+      if (input.kind !== "move_to" && input.to_pot !== null) throw new InputError("Only move_to has a second pot");
+      if (input.kind !== "paid_for" && (input.purchase !== null || input.purchase_on !== null)) throw new InputError("Only paid_for names a purchase");
+      let amountMinor: number | null = null;
+      if (input.amount !== null) {
+        amountMinor = parseAmountMinor(input.amount, currency);
+        if (ctx.known !== undefined && !ctx.known(amountMinor)) throw new InputError(NO_GUESS);
+      } else if (input.kind !== "paid_for" || input.purchase === null) throw new InputError(NO_GUESS);
+      let purchase: { kind: "charge" | "bill"; id: string; on: string | null } | null = null;
+      if (input.kind === "paid_for" && input.purchase !== null) {
+        const to0 = state.today.slice(0, 7), from = input.purchase_on ? `${input.purchase_on.slice(0, 7)}-01` : `${monthsBack(to0, 3)}-01`;
+        const last = input.purchase_on ? monthBounds(input.purchase_on.slice(0, 7)).last : monthBounds(to0).last;
+        const wanted = input.purchase.trim().toLowerCase();
+        const items = spendingItems(await loadSpending(ctx.db, ctx.householdId, { from, to: last }), from, last)
+          .filter(item => !item.uncounted && (item.id === input.purchase || item.label.trim().toLowerCase().includes(wanted)) && (input.purchase_on === null || item.date === input.purchase_on));
+        if (items.length === 0) throw new InputError(`No purchase matching ${input.purchase} was found${input.purchase_on ? ` on ${input.purchase_on}` : ""}; find it with search_spending`);
+        if (items.length > 1) throw new InputError(`Several purchases match: ${items.slice(0, 6).map(item => `${item.label} on ${item.date}`).join("; ")}. Ask which one, or give purchase_on`);
+        purchase = { kind: items[0].kind, id: items[0].id, on: items[0].kind === "bill" ? items[0].date : null };
+      }
+      const id = await draftId(ctx, "pot_move", input);
+      await movePot(ctx.db, ctx.householdId, {
+        id, potId: pot.id, kind: { put_in: "add", take_out: "take_out", paid_for: "spend", move_to: "carry" }[input.kind] as "add" | "take_out" | "spend" | "carry",
+        amountMinor, toPotId: to?.id ?? null, purchase, choiceId: null, reason: input.words, memberId: await memberFor(ctx, input.who), done: false,
+      }, "pending", by(ctx));
+      ctx.onPending?.();
+      const facts = amountMinor === null ? [] : [engineFact("to_check_amount", amountMinor, { from: "pot_move", currency, about: { type: "pot", id: pot.id, name: pot.name } })];
+      return JSON.stringify({ ...forModel(facts), note: `${amountMinor === null ? "The amount, the purchase capped at what the pot holds, is worked out when the person confirms. " : ""}Waiting in To check for the person to confirm.` });
     },
   }),
   defineTool({

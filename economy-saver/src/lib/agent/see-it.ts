@@ -40,7 +40,7 @@ type StepOption = { id: string; cost: number; href?: string; action?: string };
 const SEE_OPTIONS: SeeIt = { href: "/options", label: "See your options ›" };
 /** The funding rows that get paid sooner (invoice it, copy the link again; D7, D12): the only ones with a page of their own to go to. */
 const GETTING_PAID = new Set(["invoice", "remind"]);
-const REF_TYPE: Record<StepSuggestion["action"], string | null> = { remind: "invoice", statement: "card", bill: "bill", check_bill: "bill", pot: "pot", regular: null, runway: null };
+const REF_TYPE: Record<StepSuggestion["action"], string | null> = { remind: "invoice", statement: "card", bill: "bill", check_bill: "bill", pot: "pot", regular: null, runway: null, keep_win: null, match: null, wins: null };
 
 /**
  * The buttons a picture offers, in D80's order: first each open finding about the same client, card, bill or pot as one of its facts (its

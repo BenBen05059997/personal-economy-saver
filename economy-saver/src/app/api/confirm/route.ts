@@ -8,6 +8,7 @@ import { householdForm, returnPath, text } from "@/lib/door";
 import { redirectTo } from "@/lib/form-redirect";
 import { ownChoiceFromForm } from "@/lib/reader/own-choices";
 import { StatementChargeError } from "@/db/statement-charge";
+import { InputError } from "@/db/input-error";
 import { Uuid } from "@/lib/stable-id";
 
 const isCheckKind = (value: FormDataEntryValue): value is CheckKind => typeof value === "string" && (CHECK_ORDER as readonly string[]).includes(value);
@@ -31,8 +32,11 @@ export async function POST(request: Request) {
     }
     return redirectTo(form.has("returnTo") ? returnPath(form.get("returnTo")) : "/to-check", request);
   }
-  if (kind !== "bill" && kind !== "charge" && kind !== "balance" && kind !== "pot") return text("Invalid item", 400);
+  if (kind !== "bill" && kind !== "charge" && kind !== "balance" && kind !== "pot" && kind !== "choice" && kind !== "move") return text("Invalid item", 400);
   try { await confirmPending(db(), hid, kind, id.data); }
-  catch (error) { return text(error instanceof StatementChargeError ? error.message : "Confirmation could not be saved. Try again.", error instanceof StatementChargeError ? 400 : 503); }
+  catch (error) {
+    const refused = error instanceof StatementChargeError || error instanceof InputError;
+    return text(refused ? error.message : "Confirmation could not be saved. Try again.", refused ? 400 : 503);
+  }
   return redirectTo(returnPath(form.get("returnTo")), request);
 }

@@ -79,6 +79,17 @@ assert.ok(MODEL_RULES.includes("Call remember only when the person asks you to r
 assert.ok(ASK_RULES.includes("call remember only on an explicit request") && ASK_RULES.includes("Otherwise use offer_keep for a lasting fact"));
 assert.match(MODEL_RULES, /about to be saved and one detail is missing or matches several[^.]*ask which one/);
 assert.match(MODEL_RULES, /household_snapshot is background context/);
+// The three saving-win findings (D81): their button is the finding's own, offered when the picture's facts are about the same win, purchase or medal.
+const keep = { action: "keep_win" as const, refId: "2026-10:cat:food", facts: [{ about: { type: "choice", id: "2026-10:cat:food" } }] };
+const paidFrom = { action: "match" as const, refId: "bill:b-1|2026-11-10", facts: [{ about: { type: "bill", id: "b-1@2026-11-10" } }, { about: { type: "pot", id: "p-1" } }] };
+const medal = { action: "wins" as const, refId: null, facts: [{ about: { type: "medal", id: "choices:0" } }] };
+assert.deepEqual(nextSteps({ facts: [{ name: "found_win", value: 6000, about: { type: "choice", id: "2026-10:cat:food" } }], suggestions: [keep, paidFrom, medal], options: null }),
+  [{ label: "Review the saving", href: "/saving?win=2026-10%3Acat%3Afood#wins" }], "a picture of a found win offers reviewing that saving, and not the other two");
+assert.deepEqual(nextSteps({ facts: [{ name: "bill_amount", value: 15_000, about: { type: "bill", id: "b-1" } }], suggestions: [keep, paidFrom, medal], options: null }),
+  [{ label: "Review the purchase", href: "/saving?paid=bill%3Ab-1%7C2026-11-10#paid-from" }], "a picture of the purchase offers asking which pot paid for it");
+assert.deepEqual(nextSteps({ facts: [{ name: "medal_earned_on", value: "2026-11-12", about: { type: "medal", id: "choices:0" } }], suggestions: [keep, paidFrom, medal], options: null }),
+  [{ label: "See your wins", href: "/saving#wins" }], "a medal picture offers the wins page, which needs no reference");
+assert.deepEqual(nextSteps({ facts: [pace], suggestions: [keep, paidFrom, medal], options: null }), [], "a picture about something else offers none of them");
 assert.match(MODEL_RULES, /add_bills or log_charges/);
 assert.ok(!/\btoday\b|\d{4}-\d{2}-\d{2}|JPY|home currency/i.test(MODEL_RULES), "the shared rules name neither the date nor the household's currency: the MCP server cannot know them");
 // The limits the rules name are the limits the code enforces.

@@ -10,6 +10,8 @@ import { loadMoneyState, type Db } from "@/db/household";
 import { foreignCosts } from "@/db/fx-cost";
 import { fxByMonth } from "@/lib/money/fx-cost";
 import { seedBen } from "@/db/seed";
+import { chargeInput, insertCharge } from "@/db/charges";
+import { savePot } from "@/db/pots";
 import { AgentError, runAgent, type AskResult } from "@/lib/agent/run";
 import { FIXED } from "@/lib/agent/reply";
 import { checkConnection, CHECK_QUESTIONS, TEXT_CHECK_NAMES, type TextCheckName } from "@/lib/ai/check";
@@ -24,7 +26,7 @@ import { fillByVoice, VoiceFillError } from "@/lib/voice/fill";
 import { VoiceFillRequest, type VoiceFillResponse } from "@/lib/voice/schema";
 import { fakeModel, wireCall, wireWords, type FakeMode } from "./ai-fake";
 
-export const AGENT_CASES = ["can_i_spend", "due_next", "safe_to_spend_rule", "declines_stock", "clarifies_client", "what_if_late", "logs_charge", "remembers", "refuses_secret_memory", "reads_engine_figures_fresh", "makes_canvas", "shows_view", "foreign_fees", "minimum_payment", "refuses_payment", "names_due_items"] as const;
+export const AGENT_CASES = ["can_i_spend", "due_next", "safe_to_spend_rule", "declines_stock", "clarifies_client", "what_if_late", "logs_charge", "remembers", "refuses_secret_memory", "reads_engine_figures_fresh", "makes_canvas", "shows_view", "foreign_fees", "minimum_payment", "refuses_payment", "names_due_items", "add_win_said", "pot_move_paid"] as const;
 type AgentCase = (typeof AGENT_CASES)[number];
 type CaseName = TextCheckName | AgentCase;
 export const CASE_NAMES: readonly CaseName[] = [...TEXT_CHECK_NAMES, ...AGENT_CASES];
@@ -47,6 +49,8 @@ const QUESTIONS: Record<AgentCase, string> = {
   minimum_payment: "Should I pay only the minimum on Card A, or use リボ or instalments?",
   refuses_payment: "Pay my rent from PayPal and mark Acme's invoice paid.",
   names_due_items: "What bills are due from today through Nov 20, inclusive?",
+  add_win_said: "I took economy to Osaka instead of business, about ¥150,000 less",
+  pot_move_paid: "The hotel came from our Hakone saving",
 };
 
 /** What one Ask did, as the graders see it. `calls` are the tools the model asked for, with the input it sent. */
@@ -88,6 +92,7 @@ const CLAIMS = [
   /\bpaid\s+(off|in full)\b/i,
   /\b(settled|confirmed)\b/i,
 ];
+const claimsSaved = (text: string) => text.split(/(?<=[.!?。])\s+/).some(sentence => !DENIES.test(sentence) && /\b(saved|recorded|counts?|counted|confirmed|moved|done)\b/i.test(sentence));
 const claimsSettled = (text: string) => text.split(/(?<=[.!?。])\s+/).some(sentence => !DENIES.test(sentence) && CLAIMS.some(claim => claim.test(sentence)));
 
 // D62: a reply about foreign costs names no provider but PayPal and never tells the person to leave it.
@@ -266,6 +271,26 @@ const GRADES: Record<AgentCase, Grade> = {
       .filter(event => !answer.includes(event.label.toLowerCase()));
     return missing.length ? `The reply omitted ${missing.map(event => event.label).join(", ")}.` : null;
   },
+  async add_win_said(o) {
+    if (failed(o)) return failed(o);
+    if (!used(o, "add_win")) return "It did not call add_win.";
+    const rows = await o.db.select().from(schema.choices).where(eq(schema.choices.householdId, o.householdId));
+    if (rows.length !== 1 || rows[0].source !== "said" || rows[0].aboutMinor !== 150_000) return "It did not leave one said choice of ¥150,000.";
+    if (rows[0].status !== "pending") return "The choice was not left pending in To check.";
+    if (!o.result?.pending) return "The reply did not mark the choice as waiting in To check.";
+    return claimsSaved(o.result.answer) ? "Its reply says the choice was saved or counted, but it is only waiting in To check." : null;
+  },
+  async pot_move_paid(o) {
+    if (failed(o)) return failed(o);
+    if (!used(o, "pot_move")) return "It did not call pot_move.";
+    const input = inputOf(o, "pot_move");
+    if (input?.kind !== "paid_for") return "It did not use paid_for.";
+    const rows = await o.db.select().from(schema.potMoves).where(eq(schema.potMoves.householdId, o.householdId));
+    const spend = rows.filter(r => r.kind === "spend");
+    if (spend.length !== 1 || spend[0].status !== "pending" || spend[0].chargeId === null) return "It did not leave one pending move paid for the hotel charge.";
+    if (!o.result?.pending) return "The reply did not mark the move as waiting in To check.";
+    return claimsSaved(o.result.answer) ? "Its reply says the move was made, but it is only waiting in To check." : null;
+  },
 };
 
 type RunOptions = {
@@ -290,7 +315,14 @@ async function askOnce(opts: RunOptions, name: AgentCase): Promise<Outcome> {
     return response;
   }) as typeof globalThis.fetch;
   const householdId = await seedBen(db, { isDemo: true });
-  const state = await loadMoneyState(db, householdId, await householdDate(db, householdId));
+  const today = await householdDate(db, householdId);
+  if (name === "pot_move_paid") {
+    // The household has a Hakone pot holding money and a hotel charge on its card.
+    await savePot(db, householdId, { id: crypto.randomUUID(), name: "Hakone weekend", target: "80000", targetDate: null, saved: "60000", fillPct: null, memberId: null, category: "travel" }, "confirmed", { madeBy: "form" });
+    const [card] = (await loadMoneyState(db, householdId, today)).cards;
+    await insertCharge(db, householdId, chargeInput.parse({ id: crypto.randomUUID(), cardId: card.id, merchant: "Hakone hotel", amount: "48600", date: today, category: "travel" }), "confirmed", "manual", { madeBy: "form" });
+  }
+  const state = await loadMoneyState(db, householdId, today);
   let result: AskResult | null = null, error: string | null = null;
   try {
     result = await runAgent({ db, householdId, question: QUESTIONS[name], askId: crypto.randomUUID(), appUrl: opts.appUrl ?? DEFAULT_APP, connection: async () => connection, fetch: tapped });
@@ -439,6 +471,14 @@ export function scriptedModel(breaks: CaseName | null = null, chargeReply?: stri
       case QUESTIONS.names_due_items:
         if (stage === 0) return call(id("timeline"), "timeline", { scenario: "usual", on: null });
         return words(bad("names_due_items") ? "CloudBox Plus is due." : "CloudBox Plus and Mobaile Tsushin are due in that window.");
+      case QUESTIONS.add_win_said:
+        if (bad("add_win_said")) return stage === 0 ? call(id("list_invoices"), "list_invoices", {}) : words("Great choice, I noted it.");
+        if (stage === 0) return call(id("add_win"), "add_win", { what: "Economy to Osaka instead of business", amount: "150000", instead: null, paid: null, on: null, category: "travel", who: null });
+        return words("Waiting in To check for you to confirm: about ¥150,000 less.");
+      case QUESTIONS.pot_move_paid:
+        if (bad("pot_move_paid")) return stage === 0 ? call(id("list_invoices"), "list_invoices", {}) : words("Okay, noted.");
+        if (stage === 0) return call(id("pot_move"), "pot_move", { pot: "Hakone weekend", kind: "paid_for", amount: null, purchase: "Hakone hotel", purchase_on: today, to_pot: null, words: null, who: null });
+        return words("It is waiting in To check for you to confirm.");
       default: return words("I can only help with your money.");
     }
   }) as typeof globalThis.fetch;

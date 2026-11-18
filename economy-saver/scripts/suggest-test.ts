@@ -21,14 +21,19 @@ import { readRule, ruleWords } from "@/lib/money/rules";
 import { RULE_KINDS } from "@/lib/money/suggestion-types";
 import { fundingOptions } from "@/lib/money/options";
 import { arrivals, expectedPayBasis } from "@/lib/money/runway";
-import { findSuggestions } from "@/lib/money/suggest";
+import { findSuggestions, foundPot, purchaseRef } from "@/lib/money/suggest";
+import { saveChoice } from "@/db/choices";
+import { categoryLabel, type CategoryKey } from "@/lib/money/categories";
+import { safeToSpend } from "@/lib/money/runway";
+import { minorMoney, toMinor } from "@/lib/money/format";
+import type { SpendItem } from "@/lib/money/spending";
 import { resolveBills } from "@/lib/money/repeat";
 import type { Fact } from "@/lib/money/facts";
 import { resolveView } from "@/lib/views/resolve";
 import type { ViewResult } from "@/lib/views/types";
 import { FINDING_RULE, findingAction, findingsBySpace, type Finding } from "@/lib/money/suggestion-types";
 import { benMoney } from "@/lib/sample/ben";
-import type { Bill, MoneyState } from "@/lib/money/types";
+import type { Bill, Choice, MoneyState, Pot, PotMove, SavingRecord } from "@/lib/money/types";
 import { daysBetween } from "@/lib/money/dates";
 import { DEMO_DATE } from "@/db/clock";
 
@@ -114,7 +119,7 @@ async function main() {
     });
 
     const quiet: MoneyState = { ...benMoney, bills: [], storedBills: [], invoices: [], statements: [], charges: [], pots: [] };
-    const find = (state: MoneyState, rules = defaultRules()) => findSuggestions(state, rules);
+    const find = (state: MoneyState, rules = defaultRules()) => findSuggestions(state, rules, null, []);
     const kinds = (state: MoneyState, rules = defaultRules()) => find(state, rules).map(row => row.kind);
     await check("a sent invoice is overdue once the forecast's own expected pay day is the rule's days behind, with one finding and exact day boundaries", () => {
       const client = { ...benMoney.clients[0], daysToPay: [], termsDays: 0 };
@@ -328,6 +333,173 @@ async function main() {
       assert.throws(() => findingAction({ action: "pot", refId: null }), /reference/);
     });
 
+
+    // ---- the saving-win kinds (D81): found_saving, pot_match and medal ----
+    let itemSeq = 0;
+    const spend = (label: string, date: string, amountMinor: number, category: CategoryKey = "food"): SpendItem => ({
+      kind: "charge", id: "item-" + ++itemSeq, label, repeat: null, date, amountMinor, category, businessBp: 0, own: null, ownerId: null, documentId: null, cardId: null });
+    /** Food under its usual in October: ¥30,000 in each of July to September, ¥24,000 in October. The win is ¥6,000. */
+    const foodItems = [spend("Shop A", "2026-07-10", 30_000), spend("Shop B", "2026-08-10", 30_000), spend("Shop C", "2026-09-10", 30_000), spend("Shop D", "2026-10-10", 24_000)];
+    const camera: Pot = { id: "pot-camera", name: "Fictional Camera Fund", saved: 50_000, category: "other" };
+    const trip: Pot = { id: "pot-trip", name: "Fictional Trip Fund", saved: 30_000, category: "other" };
+    const withPots = (pots: Pot[], over: Partial<MoneyState> = {}): MoneyState => ({ ...quiet, pots, ...over });
+    let moveSeq = 0;
+    const move = (potId: string, kind: PotMove["kind"], minor: number, on: string, over: Partial<PotMove> = {}): PotMove => ({
+      id: "move-" + ++moveSeq, potId, potName: potId, potCategory: "other", kind, minor, on, memberId: null, reason: null, invoiceId: null, purchase: null, choiceId: null, pairId: null, ...over });
+    const choice = (id: string, minor: number, confirmedOn: string, over: Partial<Choice> = {}): Choice => ({
+      id, source: "said", happenedOn: confirmedOn, minor, words: "Fictional cheaper choice", category: null, foundKey: null, memberId: null, confirmedOn, withdrawnOn: null, ...over });
+    const rec = (moves: PotMove[] = [], choices: Choice[] = []): SavingRecord => ({ moves, choices });
+    const saving = (state: MoneyState, record: SavingRecord | null = rec(), items: SpendItem[] = foodItems, rules = defaultRules()) => findSuggestions(state, rules, record, items);
+    const only = (state: MoneyState, kind: Finding["kind"], record: SavingRecord | null = rec(), items: SpendItem[] = foodItems, rules = defaultRules()) => saving(state, record, items, rules).filter(row => row.kind === kind);
+    const afterWords = (pot: Pot, state: MoneyState = withPots([pot]), win = 6000) => {
+      const moved = { ...state, pots: state.pots.map(row => row.id === pot.id ? { ...row, saved: row.saved + win } : row) };
+      return { minor: toMinor(safeToSpend(moved).amount, "JPY"), words: minorMoney(toMinor(safeToSpend(moved).amount, "JPY"), "JPY") };
+    };
+    /** Every ¥ amount a finding says is one of its own facts' values (D79). */
+    const amountsAreFacts = (finding: Finding) => {
+      const values = new Set(finding.facts.filter(item => typeof item.value === "number").map(item => Math.abs(Number(item.value))));
+      for (const text of [finding.title, finding.reason]) for (const found of text.matchAll(/¥([\d,]+)/g)) assert.ok(values.has(Number(found[1].replace(/,/g, ""))), finding.kind + ": " + found[0] + " is not one of its facts in " + JSON.stringify(text));
+    };
+
+    await check("found_saving: the month's largest saving in a fixed key and words, once with its numbers from its facts, urgency 5, after every other kind", () => {
+      const state = withPots([camera], { today: "2026-11-14" });
+      const [found] = only(state, "found_saving");
+      const after = afterWords(camera, state);
+      assert.deepEqual([found.key, found.action, found.refId, found.urgency], ["found:2026-10", "keep_win", "2026-10:cat:food", 5]);
+      assert.equal(found.title, categoryLabel("food") + " came in ¥6,000 under your usual");
+      assert.equal(found.reason, "October: ¥24,000 against your usual ¥30,000. Put ¥6,000 in Fictional Camera Fund? Safe to spend would be " + after.words + ".");
+      assert.deepEqual(found.facts.map(item => [item.name, item.value]), [["found_win", 6000], ["category_total", 24_000], ["usual_spending", 30_000], ["safe_to_spend_after_change", after.minor], ["pot", 50_000]]);
+      assert.deepEqual(found.facts.find(item => item.name === "found_win")!.about, { type: "choice", id: "2026-10:cat:food", name: categoryLabel("food") });
+      amountsAreFacts(found);
+      assert.deepEqual(findingAction(found), { label: "Review the saving", href: "/saving?win=2026-10%3Acat%3Afood#wins" });
+      const bill = { ...sampleBill, status: "confirmed" as const };
+      const rules = defaultRules();
+      rules.bill_ahead.threshold = 10;
+      assert.deepEqual(saving({ ...state, bills: [bill] }, rec(), foodItems, rules).map(row => row.kind), ["bill_due", "found_saving"], "after every other kind");
+    });
+
+    await check("found_saving: a regular cost that fell or stopped says so in its own words", () => {
+      const state = withPots([camera]);
+      const rent = [["2026-07", 90_000], ["2026-08", 90_000], ["2026-09", 90_000], ["2026-10", 80_000]].map(([month, amount]) => spend("Fictional Rent", month + "-05", Number(amount), "housing"));
+      const [down] = only(state, "found_saving", rec(), rent);
+      assert.equal(down.title, "Fictional Rent cost ¥10,000 less in October");
+      assert.equal(down.reason, "October: Fictional Rent cost ¥10,000 less than the month before. Put ¥10,000 in Fictional Camera Fund? Safe to spend would be " + afterWords(camera, state, 10_000).words + ".");
+      assert.deepEqual(down.facts.map(item => item.name), ["found_win", "change_from_last_month", "safe_to_spend_after_change", "pot"]);
+      assert.equal(down.facts[1].value, -10_000);
+      amountsAreFacts(down);
+      const gym = [...["2026-08", "2026-09"].map(month => spend("Fictional Gym", month + "-05", 8000, "health")), spend("Noodle bar", "2026-10-03", 900)];
+      const [stopped] = only(state, "found_saving", rec(), gym);
+      assert.equal(stopped.title, "Fictional Gym stopped in October");
+      assert.match(stopped.reason, /^October: Fictional Gym cost ¥8,000 less than the month before\. Put ¥8,000 in Fictional Camera Fund\? Safe to spend would be ¥[\d,]+\.$/);
+      amountsAreFacts(stopped);
+    });
+
+    await check("found_saving: one a month, never one already kept, and nothing before the month has closed", () => {
+      const state = withPots([camera]);
+      const two = [...foodItems, spend("Bar A", "2026-07-11", 20_000, "transport"), spend("Bar B", "2026-08-11", 20_000, "transport"), spend("Bar C", "2026-09-11", 20_000, "transport"), spend("Bar D", "2026-10-11", 17_000, "transport")];
+      assert.deepEqual(only(state, "found_saving", rec(), two).map(row => [row.key, row.refId]), [["found:2026-10", "2026-10:cat:food"]], "two wins in October make one finding, for the larger");
+      assert.deepEqual(only(state, "found_saving", rec([], [choice("kept", 6000, "2026-11-01", { source: "found", foundKey: "2026-10:cat:food", happenedOn: "2026-10-31" })]), two).map(row => row.refId), ["2026-10:cat:transport"], "the one kept is not offered again");
+      assert.deepEqual(only(state, "found_saving", rec([], [choice("kept", 6000, "2026-11-01", { source: "found", foundKey: "2026-10:cat:food", happenedOn: "2026-10-31", withdrawnOn: "2026-11-02" })])), [], "a withdrawn one is not offered either");
+      assert.deepEqual(only({ ...state, today: "2026-10-20" }, "found_saving"), [], "October is not closed on Oct 20; September has no four months of items");
+      assert.equal(only({ ...state, today: "2026-12-01" }, "found_saving").length, 0, "in December the closed month is November, which has no items");
+    });
+
+    await check("found_saving: the pot is the one the last saving went into, else the only open saving pot, else none", () => {
+      const learned = rec([move("pot-trip", "add", 1000, "2026-10-02", { choiceId: "k1" })], [choice("k1", 1000, "2026-10-02", { source: "found", foundKey: "2026-09:cat:old", happenedOn: "2026-09-30" })]);
+      const two = withPots([camera, trip]);
+      assert.equal(foundPot(learned, two.pots)?.id, "pot-trip");
+      const [named] = only(two, "found_saving", learned);
+      assert.match(named.reason, /Put ¥6,000 in Fictional Trip Fund\? Safe to spend would be/);
+      assert.equal(named.facts.find(item => item.name === "pot")!.about!.id, "pot-trip");
+      const [unnamed] = only(two, "found_saving");
+      assert.equal(foundPot(rec(), two.pots), null);
+      assert.equal(unnamed.reason, "October: ¥24,000 against your usual ¥30,000. Put it in a pot?");
+      assert.deepEqual(unnamed.facts.map(item => item.name), ["found_win", "category_total", "usual_spending"], "no pot, no move to test");
+      amountsAreFacts(unnamed);
+      assert.equal(foundPot(rec(), [camera, { ...trip, doneOn: "2026-10-30" }])?.id, "pot-camera", "a done pot is not a choice");
+      assert.equal(only(withPots([camera, { ...trip, category: "government_tax" }]), "found_saving")[0].facts.find(item => item.name === "pot")!.about!.id, "pot-camera", "the tax pot is not a choice");
+    });
+
+    await check("found_saving: needs an open saving pot, and never names the tax pot or a done pot", () => {
+      assert.deepEqual(only(withPots([]), "found_saving"), [], "no pot: Ben's Try it has none");
+      assert.deepEqual(only(withPots([{ ...camera, category: "government_tax" }]), "found_saving"), []);
+      assert.deepEqual(only(withPots([{ ...camera, doneOn: "2026-10-30" }]), "found_saving"), []);
+      const taxLearned = rec([move("pot-camera", "add", 1000, "2026-10-02", { choiceId: "k1" })], [choice("k1", 1000, "2026-10-02", { source: "found", foundKey: "2026-09:cat:old", happenedOn: "2026-09-30" })]);
+      assert.deepEqual(only(withPots([{ ...camera, category: "government_tax" }, trip]), "found_saving", taxLearned).map(row => row.facts.find(item => item.name === "pot")!.about!.id), ["pot-trip"]);
+    });
+
+    await check("found_saving: shown only if safe to spend after the move stays at or above 0 and at or above the rule's minimum", () => {
+      const state = withPots([camera]);
+      const after = afterWords(camera, state).minor;
+      const rules = defaultRules();
+      rules.safe_below = { enabled: true, threshold: after, currency: "JPY" };
+      assert.equal(only(state, "found_saving", rec(), foodItems, rules).length, 1, "exactly the minimum is fine");
+      rules.safe_below.threshold = after + 1;
+      assert.deepEqual(only(state, "found_saving", rec(), foodItems, rules), [], "one yen under the minimum is not");
+      assert.equal(only(state, "found_saving", rec(), foodItems, { ...rules, safe_below: { enabled: false, threshold: after + 1, currency: "JPY" } }).length, 1, "a rule that is off has no minimum");
+      assert.equal(only(withPots([camera], { bank: 56_000, paypal: 0 }), "found_saving").length, 1, "the move leaves exactly ¥0 to spend: allowed");
+      assert.deepEqual(only(withPots([camera], { bank: 55_999, paypal: 0 }), "found_saving"), [], "one yen short after the move: not shown");
+    });
+
+    await check("pot_match: a purchase from a pot's category in a fixed key and words, once per purchase, never the tax pot or a done pot", () => {
+      const state = withPots([camera], { today: "2026-11-14" });
+      const lens = spend("Fictional Lens", "2026-11-10", 15_000, "other");
+      const [match] = only(state, "pot_match", rec(), [lens]);
+      assert.deepEqual([match.key, match.action, match.refId, match.urgency], ["match:charge:" + lens.id, "match", "charge:" + lens.id, 5]);
+      assert.equal(match.title, "From your Fictional Camera Fund?");
+      assert.equal(match.reason, "Fictional Lens ¥15,000 on Nov 10. Fictional Camera Fund holds ¥50,000.");
+      assert.deepEqual(match.facts.map(item => [item.name, item.value, item.about!.type]), [["charge_amount", 15_000, "charge"], ["pot", 50_000, "pot"]]);
+      amountsAreFacts(match);
+      assert.deepEqual(findingAction(match), { label: "Review the purchase", href: "/saving?paid=" + encodeURIComponent("charge:" + lens.id) + "#paid-from" });
+      const several = only(withPots([camera, trip]), "pot_match", rec(), [lens]);
+      assert.equal(several[0].title, "One of the things you saved for?");
+      assert.equal(several[0].reason, "Fictional Lens ¥15,000 on Nov 10. Fictional Camera Fund holds ¥50,000. Fictional Trip Fund holds ¥30,000.");
+      const strap = { ...spend("Fictional Strap", "2026-11-11", 15_000, "other"), kind: "bill" as const, id: "bill-1@2026-11-11" };
+      const [bill] = only(state, "pot_match", rec(), [strap]);
+      assert.deepEqual([bill.key, bill.refId, bill.facts[0].name], ["match:bill:bill-1:2026-11-11", "bill:bill-1|2026-11-11", "bill_amount"]);
+      assert.equal(purchaseRef({ kind: "bill", id: "bill-1", on: "2026-11-11" }), bill.refId);
+      assert.deepEqual(only(withPots([{ ...camera, category: "government_tax" }]), "pot_match", rec(), [lens]), [], "never the tax pot");
+      assert.deepEqual(only(withPots([{ ...camera, doneOn: "2026-11-01" }]), "pot_match", rec(), [lens]), [], "never a done pot");
+      assert.deepEqual(only(state, "pot_match", rec([move("pot-trip", "spend", -1000, "2026-11-11", { purchase: { kind: "charge", id: lens.id, on: null, label: "x" } })]), [lens]), [], "a purchase a pot already paid for is not asked about");
+    });
+
+    await check("medal: the newest medal earned in the last week, in its key and words, for a week", () => {
+      const state = withPots([]);
+      const earned = (day: string) => rec([], [choice("c1", 12_000, day)]);
+      const [medal] = only(state, "medal", earned("2026-11-12"));
+      assert.deepEqual([medal.key, medal.action, medal.refId, medal.urgency], ["medal:choices:0", "wins", null, 5]);
+      assert.equal(medal.title, "New medal: Bronze for what your choices saved");
+      assert.equal(medal.reason, "¥10,000; earned Nov 12.");
+      assert.deepEqual(medal.facts.map(item => [item.name, item.value, item.about!.id]), [["medal_earned_on", "2026-11-12", "choices:0"], ["choices_saved", 10_000, "choices:0"]]);
+      amountsAreFacts(medal);
+      assert.deepEqual(findingAction(medal), { label: "See your wins", href: "/saving#wins" });
+      assert.equal(only(state, "medal", earned("2026-11-07")).length, 1, "seven days later is still its week");
+      assert.deepEqual(only(state, "medal", earned("2026-11-06")), [], "eight days later it is gone");
+      const both = rec([], [choice("c1", 120_000, "2026-11-13")]);
+      assert.equal(only(state, "medal", both)[0].key, "medal:choices:1", "the newest level of the day");
+      assert.equal(only(state, "medal", both)[0].reason, "¥100,000; earned Nov 13.");
+      const goals = rec([move("pot-camera", "spend", -100, "2026-11-12")]);
+      assert.deepEqual(only(withPots([{ ...camera, doneOn: "2026-11-12" }]), "medal", goals).map(row => [row.key, row.title, row.reason]), [["medal:goals:0", "New medal: Bronze for goals reached", "1 goal; earned Nov 12."]]);
+      const months = rec(["2026-09-08", "2026-10-08", "2026-11-08"].map(day => move("pot-camera", "fill", 1000, day)));
+      assert.deepEqual(only(state, "medal", months).map(row => [row.key, row.title, row.reason]), [["medal:months:0", "New medal: Bronze for months with something set aside", "3 months; earned Nov 8."]]);
+      assert.deepEqual(only(state, "medal", rec([], [choice("c1", 5000, "2026-11-12")])), [], "no level reached");
+    });
+
+    await check("the three kinds need saving_wins on, and none is made while it is off or without a record", () => {
+      const state = withPots([camera]);
+      const lens = spend("Fictional Lens", "2026-11-10", 15_000, "other");
+      const items = [...foodItems, lens];
+      const record = rec([], [choice("c1", 12_000, "2026-11-12")]);
+      assert.deepEqual(saving(state, record, items).map(row => row.kind), ["found_saving", "pot_match", "medal"], "all three, after every other kind");
+      const off = defaultRules();
+      off.saving_wins.enabled = false;
+      assert.deepEqual(saving(state, record, items, off), []);
+      assert.deepEqual(saving(state, null, items), [], "no record is read while the rule is off");
+      assert.deepEqual(saving(state, record, []), saving(state, record, []).filter(row => row.kind === "medal"));
+      assert.deepEqual(FINDING_RULE.found_saving, "saving_wins");
+      assert.ok((["found_saving", "pot_match", "medal"] as const).every(kind => FINDING_RULE[kind] === "saving_wins"));
+    });
+
     const demo = await seedBen(db, { isDemo: true });
     const other = await seedBen(db, { isDemo: true });
     const history = (id: string) => db.select().from(schema.suggestions).where(eq(schema.suggestions.householdId, id));
@@ -341,6 +513,8 @@ async function main() {
     await check("fresh Try it on Nov 14 and Reset have no suggestions and use the documented rule defaults", async () => {
       assert.deepEqual(await rulesFor(db, demo), defaultRules());
       assert.deepEqual(await openSuggestions(db, demo), []);
+      assert.equal((await rulesFor(db, demo)).saving_wins.enabled, true, "the rule is on, and Ben still has none of the three: no pot, no choice");
+      assert.deepEqual((await history(demo)).filter(row => ["found_saving", "pot_match", "medal"].includes(row.kind)), []);
       const old = await seedBen(db, { isDemo: true });
       await pending(old);
       await run(old);
@@ -471,6 +645,67 @@ async function main() {
       assert.equal((await history(hid)).find(row => row.id === nudge.id)?.status, "approved");
       await run(hid);
       assert.ok(!(await openSuggestions(db, hid)).some(row => row.kind === "invoice_nudge"), "the nudge fires once per invoice");
+    });
+
+    await check("saving-win findings in a household: a purchase is asked about once, Dismiss is final, answering closes it, and a rule turned off makes none", async () => {
+      const form = { madeBy: "form" } as const;
+      const hid = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ bankBalanceMinor: 5_000_000 }).where(eq(schema.households.id, hid));
+      const [card] = await db.select({ id: schema.cards.id }).from(schema.cards).where(and(eq(schema.cards.householdId, hid), eq(schema.cards.label, "Card A")));
+      await savePot(db, hid, potInput.parse({ id: crypto.randomUUID(), name: "Fictional Camera Fund", saved: "50000", category: "travel" }), "confirmed", form);
+      const buy = (merchant: string, date: string, amount: string) => insertCharge(db, hid, chargeInput.parse({ id: crypto.randomUUID(), cardId: card.id, merchant, date, amount, category: "travel" }), "confirmed", "manual", form);
+      const kindsOf = async () => (await openSuggestions(db, hid)).filter(row => ["found_saving", "pot_match", "medal"].includes(row.kind));
+      const lens = await buy("Fictional Lens", "2026-11-10", "15000");
+      const [asked] = await kindsOf();
+      assert.deepEqual([asked.kind, asked.title, asked.reason, asked.action, asked.refId], ["pot_match", "From your Fictional Camera Fund?", "Fictional Lens ¥15,000 on Nov 10. Fictional Camera Fund holds ¥50,000.", "match", "charge:" + lens]);
+      assert.equal(await dismiss(db, hid, asked.id, day(today)), true);
+      for (const date of [today, "2026-11-15", "2026-11-20"]) {
+        await moveDemoDay(hid, date);
+        await run(hid, date);
+        assert.deepEqual(await kindsOf(), [], "Dismiss means not from saving, and it stays so");
+      }
+      assert.equal((await history(hid)).filter(row => row.kind === "pot_match" && row.status === "dismissed").length, 1);
+      await moveDemoDay(hid, today);
+      const strap = await buy("Fictional Strap", "2026-11-11", "12000");
+      const [second] = await kindsOf();
+      assert.equal(second.refId, "charge:" + strap);
+      await db.transaction(tx => closeByRef(tx, hid, "charge:" + strap, ["match"]));
+      assert.deepEqual(await kindsOf(), []);
+      await run(hid);
+      assert.deepEqual(await kindsOf(), [], "answered once, never asked again");
+      assert.equal((await history(hid)).filter(row => row.kind === "pot_match").length, 2, "one row per purchase");
+
+      // A saving found in October is one finding for the month, however often the pass runs.
+      await db.insert(schema.charges).values([["2026-07-10", 30_000], ["2026-08-10", 30_000], ["2026-09-10", 30_000], ["2026-10-10", 24_000]].map(([date, amountMinor], i) => ({
+        householdId: hid, cardId: card.id, merchant: "Fictional Grocer " + i, date: String(date), amountMinor: Number(amountMinor), currency: "JPY", category: "food", source: "manual" as const })));
+      await run(hid); await run(hid);
+      const [saved] = await kindsOf();
+      assert.deepEqual([saved.kind, saved.refId, saved.action, saved.title], ["found_saving", "2026-10:cat:food", "keep_win", categoryLabel("food") + " came in ¥6,000 under your usual"]);
+      assert.equal((await history(hid)).filter(row => row.kind === "found_saving").length, 1);
+      assert.deepEqual(findingAction(saved), { label: "Review the saving", href: "/saving?win=2026-10%3Acat%3Afood#wins" });
+      await db.transaction(tx => closeByRef(tx, hid, "2026-10:cat:food", ["keep_win"]));
+      await run(hid);
+      assert.deepEqual(await kindsOf(), [], "kept or not, the October question is asked once");
+
+      // A medal shows for a week and then goes.
+      await saveChoice(db, hid, { id: crypto.randomUUID(), source: "said", happenedOn: "2026-11-12", aboutMinor: 12_000, words: "Fictional cheaper choice", category: null, foundKey: null, memberId: null }, "confirmed", form);
+      await run(hid);
+      const [medal] = await kindsOf();
+      assert.deepEqual([medal.kind, medal.title, medal.action, medal.refId], ["medal", "New medal: Bronze for what your choices saved", "wins", null]);
+      await moveDemoDay(hid, "2026-11-22");
+      await run(hid, "2026-11-22");
+      assert.deepEqual(await kindsOf(), [], "gone after its week");
+      assert.equal((await history(hid)).find(row => row.id === medal.id)?.status, "resolved");
+
+      // Turned off, a household gets none of the three.
+      const quiet = await seedBen(db, { isDemo: true });
+      await db.update(schema.households).set({ bankBalanceMinor: 5_000_000 }).where(eq(schema.households.id, quiet));
+      await savePot(db, quiet, potInput.parse({ id: crypto.randomUUID(), name: "Fictional Camera Fund", saved: "50000", category: "travel" }), "confirmed", form);
+      await changeStandingRule(db, quiet, { ruleKind: "saving_wins", enabled: false, value: null });
+      const [quietCard] = await db.select({ id: schema.cards.id }).from(schema.cards).where(and(eq(schema.cards.householdId, quiet), eq(schema.cards.label, "Card A")));
+      await insertCharge(db, quiet, chargeInput.parse({ id: crypto.randomUUID(), cardId: quietCard.id, merchant: "Fictional Lens", date: "2026-11-10", amount: "15000", category: "travel" }), "confirmed", "manual", form);
+      await run(quiet);
+      assert.deepEqual((await openSuggestions(db, quiet)).filter(row => ["found_saving", "pot_match", "medal"].includes(row.kind)), []);
     });
 
     await check("an open row of a retired kind resolves on the next pass", async () => {

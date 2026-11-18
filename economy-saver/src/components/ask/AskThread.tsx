@@ -14,7 +14,7 @@ import { seeItButtons } from "@/lib/agent/see-it";
 import { PROVIDERS } from "@/lib/ai/providers";
 import { NEEDS_KEY_OWNER, NEEDS_KEY_MEMBER } from "@/lib/agent/availability";
 import { SESSION_ENDED } from "@/lib/session-ended";
-import { DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document-card";
+import { CHOICE_PROMPT_WORDS, DOCUMENT_WORDS, type DocumentCard as Card } from "@/lib/reader/document-card";
 import type { AskView } from "@/db/ask-view";
 import type { DraftView, TurnView } from "@/lib/agent/view";
 import type { TurnSource } from "@/lib/schema/turn";
@@ -47,6 +47,8 @@ export function AskThread({
 }) {
   const keyProviders = PROVIDERS.filter(provider => provider.getKeyUrl);
   const { drafts, changed } = useDrafts(turns, busy);
+  // D81: the receipt line goes under the first card of this thread that has a confirmed one-off (stored nowhere, so it follows the cards).
+  const promptTurn = turns.find(turn => turn.kind === "document" && turn.documentId && cards[turn.documentId]?.items.some(item => item.choicePrompt))?.id;
   // A new turn scrolls the thread to its newest end; the first render keeps the top.
   const seen = useRef(turns.length);
   useEffect(() => {
@@ -93,6 +95,7 @@ export function AskThread({
           ? <DocumentCard documentId={turn.documentId} initial={cards[turn.documentId] ?? null} form={form} readOnly={!canWrite} returnTo={spaceHref} onCard={onTakeCard} busy={busy}
             onCanvas={drawn => onDocumentCanvas(turn.documentId as string, drawn)} />
           : <p className="ui-hint">{DOCUMENT_WORDS.notKept}</p>)}
+        {turn.id === promptTurn && <p className="ui-hint ask-choice-prompt">{CHOICE_PROMPT_WORDS}</p>}
         {!readOnly && (!turn.incognito || incognito) && turn.kind === "clarify" && turn.choices && <div className="ask-choices">{turn.choices.map(choice =>
           <button key={choice} type="button" className="ui-button" disabled={busy} onClick={() => onAsk(choice)}>{choice}</button>)}</div>}
         {(drafts[turn.id] ?? []).length === 0 && <SeeIt links={turn.links} sources={turn.sources} sourceDisplay={sourceDisplay} onNoteLink={onNoteLink} />}

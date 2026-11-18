@@ -26,7 +26,8 @@ import { chargeInput, insertCharge, removeCharge } from "@/db/charges";
 import { confirmPending } from "@/db/confirm";
 import { loadMoneyState } from "@/db/household";
 import { addMember } from "@/db/people";
-import { potInput, savePot } from "@/db/pots";
+import { movePot, potInput, removePendingMove, savePot } from "@/db/pots";
+import { removePendingChoice, saveChoice } from "@/db/choices";
 import { loadSpending } from "@/db/spending";
 import type { ViewResult } from "@/lib/views/types";
 import { chipOf } from "@/lib/agent/draft-card";
@@ -280,6 +281,58 @@ async function main() {
       read = await draftsOfTurns(db, d, [turnId, other], await context());
       assert.equal(read[turnId][1].state, "not_added");
       assert.deepEqual(read[other].map(x => x.state), ["waiting"]);
+    });
+
+    await check("a turn's choice and moves read as cards: a win with no result, a move with the pot's holding, who only with two members, Remove only while waiting", async () => {
+      const d = await seedBen(db, { isDemo: true });
+      const today = await householdDate(db, d);
+      const context = async () => {
+        const state = await loadMoneyState(db, d, today), current = today.slice(0, 7);
+        return { state, spending: await loadSpending(db, d, { from: monthBounds(monthsBack(current, HISTORY_MONTHS)).first, to: monthBounds(current).last }) };
+      };
+      const rowsOf = (draft: { result: ViewResult | null }) => (draft.result as ViewResult<"before_after">).data!.rows;
+      const hakone = crypto.randomUUID(), rainy = crypto.randomUUID();
+      await savePot(db, d, potInput.parse({ id: hakone, name: "Hakone weekend", saved: "30000", target: "80000", targetDate: "2027-03-31" }), "confirmed", { madeBy: "form" });
+      await savePot(db, d, potInput.parse({ id: rainy, name: "Rainy day", saved: "5000" }), "confirmed", { madeBy: "form" });
+      const turnId = crypto.randomUUID(), by = { madeBy: "ask", askId: turnId } as const;
+      const choiceId = crypto.randomUUID(), putId = crypto.randomUUID(), carryId = crypto.randomUUID();
+      await saveChoice(db, d, { id: choiceId, source: "said", happenedOn: today, aboutMinor: 150_000, words: "Economy to Osaka instead of business", category: "travel", foundKey: null, memberId: null }, "pending", by);
+      await movePot(db, d, { id: putId, potId: hakone, kind: "add", amountMinor: 10_000, toPotId: null, purchase: null, choiceId: null, reason: null, memberId: null, done: false }, "pending", by);
+      await movePot(db, d, { id: carryId, potId: hakone, kind: "carry", amountMinor: 4_000, toPotId: rainy, purchase: null, choiceId: null, reason: "Spare", memberId: null, done: false }, "pending", by);
+
+      let read = (await draftsOfTurns(db, d, [turnId], await context()))[turnId];
+      assert.deepEqual(read.map(x => [x.kind, x.state, x.kindLabel]), [["win", "waiting", "Choice"], ["move", "waiting", "Pot move"], ["move", "waiting", "Pot move"]]);
+      const [win, put, carry] = read;
+      assert.equal(win.result, null, "a win shows no result");
+      assert.deepEqual(win.fields.map(f => f.label), ["Choice", "Saves", "Day"], "one member: no who");
+      assert.equal(win.fields[1].value, "about ¥150,000 (you said)");
+      assert.deepEqual([win.remove, win.removeKind, win.confirmKind], ["/api/remove", "choice", "choice"]);
+      assert.equal(put.name, "Hakone weekend: put in ¥10,000");
+      assert.deepEqual(rowsOf(put).find(row => row.key === `pot-${hakone}`), { key: `pot-${hakone}`, label: "In Hakone weekend", before: "¥30,000", after: "¥40,000", change: "+¥10,000" });
+      assert.equal(rowsOf(put).filter(row => row.key.startsWith("pot-")).length, 1);
+      assert.equal(carry.name, "Hakone weekend: move to Rainy day ¥4,000");
+      const both = rowsOf(carry).filter(row => row.key.startsWith("pot-"));
+      assert.deepEqual(both.map(row => [row.label, row.before, row.after]), [["In Hakone weekend", "¥30,000", "¥26,000"], ["In Rainy day", "¥5,000", "¥9,000"]], "both pots for a carry");
+      assert.deepEqual([put.remove, put.removeKind, put.confirmKind], ["/api/remove", "move", "move"]);
+      assert.equal(put.edit, null);
+
+      await addMember(db, d, { name: "Aki" });
+      read = (await draftsOfTurns(db, d, [turnId], await context()))[turnId];
+      assert.deepEqual(read[0].fields.map(f => f.label), ["Choice", "Saves", "Day", "Who chose this?"], "two members: asked");
+
+      assert.equal(await confirmPending(db, d, "choice", choiceId), true);
+      assert.equal(await confirmPending(db, d, "move", putId), true);
+      read = (await draftsOfTurns(db, d, [turnId], await context()))[turnId];
+      assert.deepEqual(read.map(x => x.state), ["confirmed", "confirmed", "waiting"]);
+      assert.equal(read[0].saved?.line, "Economy to Osaka instead of business · about ¥150,000");
+      assert.equal(read[1].saved?.line, "Added ¥10,000 to Hakone weekend");
+      assert.equal(read[0].result, null);
+      assert.equal(await removePendingChoice(db, d, choiceId), false, "a confirmed choice cannot be removed");
+      assert.equal(await removePendingMove(db, d, putId), false, "a confirmed move cannot be removed");
+      assert.equal(await removePendingMove(db, d, carryId), true);
+      read = (await draftsOfTurns(db, d, [turnId], await context()))[turnId];
+      assert.equal(read[2].state, "not_added");
+      assert.equal(read[2].name, "Moved ¥4,000 from Hakone weekend to Rainy day");
     });
 
     await check("turns and pins go with the household, and a Reset starts clean", async () => {

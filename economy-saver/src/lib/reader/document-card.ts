@@ -32,6 +32,10 @@ export const DOCUMENT_WORDS = {
   answerFirst: (words: string) => `Answer the question first: ${words}`,
 } as const;
 
+/** D81: the receipt line under the first confirmed one-off in these categories. Nothing is stored; the person answers in Ask. */
+export const CHOICE_PROMPT_WORDS = "Chose this over something pricier? Tell me, and it counts as a win.";
+const CHOICE_CATEGORIES: readonly string[] = ["food", "travel", "transport"];
+
 export type DocumentCardItem = {
   readingId: string;
   status: "to_check" | "confirmed" | "rejected";
@@ -41,6 +45,7 @@ export type DocumentCardItem = {
   checks: Check[]; // checksFor(readingProposal(...), state, waiting); [] unless to_check
   target: { kind: "bill" | "charge"; id: string } | null; // the saved bill or charge once confirmed (readings.extracted.targetId); else null
   saved: SavedCard | null; // where the confirmed item now lives; null unless confirmed (and the money state was loaded)
+  choicePrompt: boolean; // D81: a confirmed one-off in Food, Travel or Transport while the saving-wins rule is on; Ask draws the receipt line under the first such card of a thread
 };
 
 /** What a confirmed item shows instead of "Added.": one line and the pages it can be found on. */
@@ -149,7 +154,7 @@ export type CardReading = { id: string; status: "to_check" | "confirmed" | "reje
 /** The card. `context` is null only when nothing needs the money state (no readings, or `draw: false`); `waiting` is every to_check reading of the household as proposals. */
 export function buildCard(
   input: { documentId: string; doc: { status: "queued" | "reading" | "read" | "failed"; error: string | null } | null; readings: CardReading[] },
-  context: CanvasContext | null, waiting: readonly Proposal[] = [],
+  context: CanvasContext | null, waiting: readonly Proposal[] = [], savingWins = false,
 ): DocumentCard {
   const { documentId, doc, readings } = input;
   if (doc === null) return { documentId, status: "gone", words: DOCUMENT_WORDS.deleted, error: null, items: [], canvas: null };
@@ -162,6 +167,9 @@ export function buildCard(
     checks: reading.status === "to_check" && context ? checksFor(readingProposal({ id: reading.id, value: reading.value }), context.state, waiting) : [],
     target: reading.status === "confirmed" && reading.targetId ? { kind: reading.value.kind, id: reading.targetId } : null,
     saved: null,
+    // a one-off: a card charge, or a bill that does not repeat and joined no series
+    choicePrompt: savingWins && reading.status === "confirmed" && !!reading.targetId && reading.value.category !== null && CHOICE_CATEGORIES.includes(reading.value.category)
+      && (reading.value.kind === "charge" || (reading.value.repeat === null && !reading.seriesId)),
   }));
   if (context) for (const [index, item] of items.entries()) if (item.target) item.saved = savedCard({ value: item.value, target: item.target, seriesId: readings[index].seriesId ?? null }, context);
   let canvas: DocumentCard["canvas"] = null;

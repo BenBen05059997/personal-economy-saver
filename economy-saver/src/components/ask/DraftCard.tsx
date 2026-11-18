@@ -41,7 +41,7 @@ export function DraftCard({ draft, returnTo, canWrite, device, onChanged }: { dr
     </div>}
     {canWrite && <div className="ask-draft-actions">
       <ApiForm action="/api/confirm" onDone={onChanged}>
-        <input type="hidden" name="kind" value={draft.kind} />{hidden}
+        <input type="hidden" name="kind" value={draft.confirmKind} />{hidden}
         <button className="ui-button primary" aria-label={`Confirm ${draft.name}`}>Confirm</button>
       </ApiForm>
       {draft.edit && <Link className="ui-button" href={draft.edit} prefetch={false} aria-label={`Edit ${draft.name}`}>Edit</Link>}

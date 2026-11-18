@@ -46,6 +46,7 @@ import { minorMoney, minorPerUnit } from "@/lib/money/format";
 import { canvasWords, FIXED } from "@/lib/agent/reply";
 import { changeStandingRule } from "@/db/rules";
 import { savePot } from "@/db/pots";
+import { chargeInput, insertCharge } from "@/db/charges";
 import { addMember } from "@/db/people";
 import { planFor, planLine } from "@/lib/money/plan";
 import { HouseholdSnapshot } from "@/lib/schema/household";
@@ -142,7 +143,7 @@ async function main() {
     // The one log line per Ask (D50) is captured here instead of printed.
     const logged: Record<string, unknown>[] = [];
     console.info = (...args: unknown[]) => { const first = String(args[0]); if (first.startsWith('{"at":')) logged.push(JSON.parse(first)); else realInfo(...args); };
-    const ask = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { now?: () => number; source?: "voice" | "manual"; askId?: string; onStep?: (step: string) => void } = {}) =>
+    const ask = (hid: string, question: string, fetch: typeof globalThis.fetch, extra: { now?: () => number; source?: "voice" | "manual"; askId?: string; onStep?: (step: string) => void; memberId?: string | null; assembled?: { systemData: string; memoryForAmounts: string[]; earlierQuestions?: string[]; memory: [] } } = {}) =>
       runAgent({ db, householdId: hid, question, askId: extra.askId ?? crypto.randomUUID(), appUrl: APP, connection: () => aiConnection(db, hid, "text"), fetch, ...extra });
 
     if (budgetProbe) {
@@ -706,6 +707,122 @@ async function main() {
       assert.deepEqual((await stateOf(a)).pots.map(p => p.name), ["Car"], "a pending pot does not count");
       await ask(a, "Same again.", script().fetch, { askId });
       assert.equal((await db.select().from(schema.pots).where(eq(schema.pots.id, trip))).length, 1);
+    });
+
+    await check("D81 add_win and pot_move are draft tools: amounts must be typed in this Ask, the code subtracts, rows wait in To check and an invented amount is not confirmed", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const memberId = (await db.select().from(schema.members).where(eq(schema.members.householdId, c)))[0].id;
+      for (const name of ["add_win", "pot_move"]) assert.equal(tools.find(t => t.name === name)!.scope, "draft");
+      const choices = () => db.select().from(schema.choices).where(eq(schema.choices.householdId, c));
+      const one = (input: unknown) => transport([() => reply("tool_use", [toolUse("w", "add_win", input)]), () => reply("end_turn", [text("It is in To check.")])]);
+      const win = { what: "Economy to Osaka instead of business", amount: "150000", instead: null, paid: null, on: null, category: "travel", who: null };
+      const said = "I took economy to Osaka instead of business, about ¥150,000 less";
+
+      // typed in the question: a pending said choice, an event, the member, and the tool result's fact confirms the number
+      const run = one(win);
+      const result = await ask(c, said, run.fetch, { memberId });
+      assert.equal(result.pending, true);
+      const [row] = await choices();
+      assert.deepEqual([row.status, row.source, row.aboutMinor, row.memberId, row.madeBy, row.category], ["pending", "said", 150_000, memberId, "ask", "travel"]);
+      assert.equal((await db.select().from(schema.events).where(and(eq(schema.events.householdId, c), eq(schema.events.kind, "to_check"), eq(schema.events.refId, row.id)))).length, 1);
+      const out = JSON.parse(toolResults(run.bodies[1])[0].content);
+      assert.deepEqual(out.facts.map((f: CompactFact) => [f.name, f.value]), [["to_check_amount", 150_000]]);
+      assert.match(out.note, /Waiting in To check/);
+
+      // an invented amount in the answer is not confirmed
+      const invented = transport([() => reply("tool_use", [toolUse("w", "add_win", { ...win, what: "Another trip choice" })]), () => reply("end_turn", [text("That is about ¥164,000 less.")])]);
+      await assert.rejects(ask(c, said, invented.fetch), (error: Error) => error instanceof AgentError && error.outcome === "unconfirmed_amount");
+
+      // the amount was never typed, or is only in memory: refused, nothing written
+      const before = (await choices()).length;
+      for (const [question, extra] of [
+        ["I took economy instead of business", {}],
+        ["Note my economy choice", { assembled: { systemData: "", memoryForAmounts: ["Last time it was about ¥150,000 less."], earlierQuestions: [], memory: [] } }],
+      ] as unknown as [string, Parameters<typeof ask>[3]][]) {
+        const refused = one({ ...win, what: "Memory only" });
+        await ask(c, question, refused.fetch, extra);
+        const [error] = toolResults(refused.bodies[1]);
+        assert.equal(error.is_error, true);
+        assert.match(JSON.stringify(error.content), /fipa never guesses a price/);
+      }
+      assert.equal((await choices()).length, before, "nothing was written");
+
+      // said in an earlier question of this conversation: allowed
+      const earlier = one({ ...win, what: "Earlier question" });
+      await ask(c, "Note my economy choice", earlier.fetch, { assembled: { systemData: "", memoryForAmounts: [], earlierQuestions: ["It was about ¥150,000 less"], memory: [] } });
+      assert.ok(!toolResults(earlier.bodies[1])[0].is_error);
+
+      // instead and paid: the code subtracts; both must be said; instead must be more than paid
+      const both = one({ ...win, amount: null, instead: "200000", paid: "50000", what: "Economy at the lower price" });
+      await ask(c, "Economy cost ¥50,000 where business cost ¥200,000", both.fetch);
+      assert.equal((await choices()).find(r => r.words === "Economy at the lower price")?.aboutMinor, 150_000);
+      for (const [input, question] of [
+        [{ ...win, amount: null, instead: "50000", paid: "200000" }, "Economy cost ¥200,000 where business cost ¥50,000"],
+        [{ ...win, amount: null, instead: "200000", paid: "50000" }, "Business cost ¥200,000"],
+        [{ ...win, amount: null, instead: "200000", paid: null }, "Business cost ¥200,000"],
+        [{ ...win, instead: "200000", paid: "50000" }, "About ¥150,000 less, ¥200,000 and ¥50,000"],
+      ] as const) {
+        const refused = one(input);
+        await ask(c, question, refused.fetch);
+        assert.equal(toolResults(refused.bodies[1])[0].is_error, true, JSON.stringify(input));
+      }
+      // a named member
+      const nobody = one({ ...win, who: "Nobody", what: "Named nobody" });
+      await ask(c, said, nobody.fetch);
+      assert.match(JSON.stringify(toolResults(nobody.bodies[1])[0].content), /Nobody called Nobody/);
+
+      // pot_move: pending rows, defaults and the amount check
+      const rainy = crypto.randomUUID(), hakone = crypto.randomUUID(), laptop = crypto.randomUUID();
+      for (const [id, name, saved] of [[rainy, "Rainy day", "50000"], [hakone, "Hakone weekend", "30000"], [laptop, "Laptop", "0"]] as const)
+        await savePot(db, c, { id, name, target: null, targetDate: null, saved, fillPct: null, memberId: null, category: null }, "confirmed", { madeBy: "form" });
+      const cState = await stateOf(c);
+      const chargeId = crypto.randomUUID();
+      await insertCharge(db, c, chargeInput.parse({ id: chargeId, cardId: cState.cards[0].id, merchant: "Hakone hotel", amount: "48600", date: cState.today, category: "travel" }), "confirmed", "manual", { madeBy: "form" });
+      const moves = () => db.select().from(schema.potMoves).where(and(eq(schema.potMoves.householdId, c), eq(schema.potMoves.status, "pending")));
+      const move = (input: Record<string, unknown>) => transport([() => reply("tool_use", [toolUse("m", "pot_move", { amount: null, purchase: null, purchase_on: null, to_pot: null, words: null, who: null, ...input })]), () => reply("end_turn", [text("It is in To check.")])]);
+
+      const put = move({ pot: "rainy day", kind: "put_in", amount: "10000", words: "bonus" });
+      await ask(c, "Put ¥10,000 in Rainy day", put.fetch, { memberId });
+      assert.deepEqual((await moves()).map(m => [m.potId, m.kind, m.amountMinor, m.reason, m.memberId, m.madeBy]), [[rainy, "add", 10_000, "bonus", memberId, "ask"]]);
+      assert.equal((await stateOf(c)).pots.find(p => p.id === rainy)!.saved, 50_000, "a pending move changes nothing");
+      assert.equal((await db.select().from(schema.events).where(and(eq(schema.events.householdId, c), eq(schema.events.kind, "to_check"), eq(schema.events.refId, (await moves())[0].id)))).length, 1);
+
+      const unsaid = move({ pot: "Rainy day", kind: "take_out", amount: "7000" });
+      await ask(c, "Take some out of Rainy day", unsaid.fetch);
+      assert.match(JSON.stringify(toolResults(unsaid.bodies[1])[0].content), /fipa never guesses a price/);
+      const noAmount = move({ pot: "Rainy day", kind: "put_in" });
+      await ask(c, "Put some in Rainy day", noAmount.fetch);
+      assert.equal(toolResults(noAmount.bodies[1])[0].is_error, true);
+      const tooMuch = move({ pot: "Rainy day", kind: "take_out", amount: "90000" });
+      await ask(c, "Take ¥90,000 out of Rainy day", tooMuch.fetch);
+      assert.match(JSON.stringify(toolResults(tooMuch.bodies[1])[0].content), /holds/);
+      const unknownPot = move({ pot: "Boat", kind: "put_in", amount: "1000" });
+      await ask(c, "Put ¥1,000 in Boat", unknownPot.fetch);
+      assert.match(JSON.stringify(toolResults(unknownPot.bodies[1])[0].content), /No pot called Boat/);
+
+      // paid_for with no amount takes the purchase, capped at the balance (Hakone holds ¥30,000)
+      const paid = move({ pot: "Hakone weekend", kind: "paid_for", purchase: "Hakone hotel", purchase_on: cState.today });
+      await ask(c, "The hotel came from our Hakone saving", paid.fetch);
+      const spend = (await moves()).filter(m => m.kind === "spend");
+      assert.deepEqual(spend.map(m => [m.potId, m.chargeId, m.amountMinor]), [[hakone, chargeId, -30_000]], "capped at what the pot holds");
+      const missing = move({ pot: "Hakone weekend", kind: "paid_for", purchase: "Hakone ferry", purchase_on: cState.today });
+      await ask(c, "The ferry came from our Hakone saving", missing.fetch);
+      assert.match(JSON.stringify(toolResults(missing.bodies[1])[0].content), /No purchase matching/);
+
+      // move_to: two pending rows, one carry; the tax pot never carries
+      const carry = move({ pot: "Rainy day", kind: "move_to", to_pot: "Laptop", amount: "20000" });
+      await ask(c, "Move ¥20,000 from Rainy day to Laptop", carry.fetch);
+      assert.deepEqual((await moves()).filter(m => m.kind === "carry").map(m => [m.potId, m.amountMinor]).sort(), [[laptop, 20_000], [rainy, -20_000]].sort());
+      const noTo = move({ pot: "Rainy day", kind: "move_to", amount: "20000" });
+      await ask(c, "Move ¥20,000 from Rainy day", noTo.fetch);
+      assert.equal(toolResults(noTo.bodies[1])[0].is_error, true);
+
+      // MCP has no `said` or `known`: Confirm in To check is its guard, so the same call writes a pending row
+      const mcp = tools.find(t => t.name === "add_win")!;
+      const mcpCtx = { madeBy: "mcp" as const, db, householdId: c, state: () => stateOf(c), appUrl: APP, requestId: crypto.randomUUID() };
+      const written = await mcp.run(mcpCtx as never, mcp.input.parse({ what: "MCP choice", amount: "123456" }) as never);
+      assert.match(written, /Waiting in To check/);
+      assert.equal((await choices()).find(r => r.words === "MCP choice")?.status, "pending");
     });
 
     await check("set_whose (D61) is a draft tool with a strict schema; a household of one gets the tool's refusal as an error the model can relay", async () => {

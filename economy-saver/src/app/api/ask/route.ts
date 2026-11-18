@@ -8,7 +8,7 @@ import { QUESTIONS_USED_UP, questionsLeft, spendAiBudget } from "@/db/ai-cap";
 import { limited, text, tooMany } from "@/lib/door";
 import { NO_STORE, readBounded } from "@/lib/form-fetch";
 import { QUESTION_MAX } from "@/lib/question-limit";
-import { householdRequest } from "@/lib/session";
+import { currentMemberId, householdRequest } from "@/lib/session";
 
 import { MissingAuthSetting } from "@/lib/supabase-auth";
 
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   };
   let began!: (value: "began") => void;
   const start = new Promise<"began">(resolve => { began = resolve; });
-  const finished = answerQuestion(connection, hid, data.data, { onStep: step => { began("began"); send({ step }); } })
+  const finished = answerQuestion(connection, hid, data.data, { onStep: step => { began("began"); send({ step }); }, memberId: await currentMemberId(hid) })
     .then(reply => ({ reply }), (error: unknown) => ({ error }));
   const first = await Promise.race([start, finished]);
   if (first !== "began" && "error" in first && first.error instanceof InputError) return text(first.error.message, 400);

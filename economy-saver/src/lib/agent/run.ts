@@ -7,11 +7,11 @@ import { householdDate } from "@/db/account";
 import { loadMoneyState, requireHousehold, withHousehold, type Db } from "@/db/household";
 import { InputError } from "@/db/input-error";
 import { listMemory } from "@/db/memory";
-import { unconfirmedNumbers, type CheckFact } from "@/lib/ai/number-check";
+import { numbersSaid, unconfirmedNumbers, type CheckFact } from "@/lib/ai/number-check";
 import { openSuggestions } from "@/db/suggestions";
 import { fundingOptions } from "@/lib/money/options";
 import { rulesFor } from "@/db/rules";
-import { minorMoney } from "@/lib/money/format";
+import { minorMoney, minorPerUnit } from "@/lib/money/format";
 import { normalise } from "@/lib/money/name-key";
 import { callModel } from "@/lib/ai/call";
 import { ModelError, type Connection, type ToolResult, type ToolSpec, type Turn } from "@/lib/ai/types";
@@ -106,6 +106,8 @@ type AskOptions = {
   context?: string;
   assembled?: { systemData: string; memoryForAmounts: string[]; earlierQuestions?: string[]; memory: MemoryItem[] };
   spaceId?: string;
+  /** D81: the member this question is asked as; a win or a move it drafts names them. */
+  memberId?: string | null;
   deviceHistory?: ContextTurn[];
   incognito?: boolean;
   /** D59: when the household keeps its memory on one device, the list the question carried. It is used for this question only; `remember` and `forget` change it in place and record `changes` for the reply. Without it, memory is read from the cloud. */
@@ -196,7 +198,11 @@ async function converse(opts: AskOptions, trace: Trace): Promise<AskResult> {
   // What Home always shows (D79): its outlook and the window. They only confirm a number; the model is never sent them.
   toolFacts.push(...outlookFacts(initialState, "home"), engineFact("days_shown", WINDOW_DAYS, { from: "home" }));
   const ctx: ScopedToolContext = {
-    madeBy: "ask", db: opts.db, householdId: hid, state, appUrl: opts.appUrl, askId: opts.askId, source: opts.source,
+    madeBy: "ask", db: opts.db, householdId: hid, state, appUrl: opts.appUrl, askId: opts.askId, source: opts.source, memberId: opts.memberId,
+    // D81: what the person typed in this conversation (never memory) and the engine's money facts of this Ask decide which amount a draft may carry.
+    said: numbersSaid([opts.question, ...(opts.assembled?.earlierQuestions ?? [])].join("\n")),
+    known: minor => ctx.said!.some(n => Math.round(n * minorPerUnit(homeCurrency)) === minor)
+      || toolFacts.some(fact => fact.unit === "money" && typeof fact.value === "number" && Math.abs(fact.value) === minor),
     addLink: link => { if (!links.some(known => known.href === link.href)) links.push(link); },
     onCanvas: next => { recipe = next; drawn.push(next); },
     onView: reading => {

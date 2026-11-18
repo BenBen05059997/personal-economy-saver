@@ -5,7 +5,8 @@ import { majorMoney, minorMoney } from "@/lib/money/format";
 import { goalPace } from "@/lib/money/goals";
 import { storedId } from "@/lib/money/name-key";
 import { addDays } from "@/lib/money/dates";
-import { foundWins, isTaxPot, monthWins, type FoundWin } from "@/lib/money/saving";
+import { foundWins, isTaxPot, matchCandidates, monthWins, type FoundWin } from "@/lib/money/saving";
+import { foundPot, purchaseRef } from "@/lib/money/suggest";
 import { monthBounds, monthName, monthsBack, spendingItems } from "@/lib/money/spending";
 import { monthYear, moneyInPotsLine, potLine, roomLine, roomNote } from "@/lib/money/plan";
 import { ApiForm } from "@/components/ui/ApiForm";
@@ -141,7 +142,7 @@ async function WhatYouKeep({ state }: { state: MoneyState }) {
 }
 
 /** Saving → What our choices saved (D81): the wins view, each saving found in the records with Keep (and the pot to put it in), and each confirmed choice with Withdraw. */
-async function Wins({ state }: { state: MoneyState }) {
+async function Wins({ state, win }: { state: MoneyState; win?: string }) {
   const hid = await currentHouseholdId();
   if (!hid) return null;
   const [ctx, places] = await Promise.all([
@@ -154,16 +155,18 @@ async function Wins({ state }: { state: MoneyState }) {
   const months = [2, 3, 4].map(count => monthsBack(today.slice(0, 7), count));
   const fresh: FoundWin[] = months.flatMap(month => monthWins(record, foundWins(items, currency, month, record, today), month).fresh);
   const open = state.pots.filter(pot => pot.doneOn === undefined && !isTaxPot(pot));
+  // ?win=<key> (from the finding on Home) marks that saving and chooses the pot Home named: the one the last kept saving went into, else the only pot.
+  const chosen = foundPot(record, state.pots)?.id ?? "";
   const said = record.choices.filter(choice => choice.withdrawnOn === null).sort((a, b) => a.happenedOn < b.happenedOn ? 1 : a.happenedOn > b.happenedOn ? -1 : 0).slice(0, 12);
   const questions: PanelQuestion[] = [{ key: "wins", label: "What our choices saved", heading: "What our choices saved", result: wins, figure: <StackedColumns key="wins" result={wins} /> }];
   return <div id="wins" className="saving-wins">
     <ViewPanel id="wins" questions={questions} device={places.canvases === "device" ? { householdId: hid } : undefined} />
     {fresh.length > 0 && <section className="saving-win-list" aria-label="Savings found in your records">
       <h3>Found in your records</h3>
-      {fresh.map(win => <ApiForm key={win.key} action="/api/wins" className="ui-row saving-win">
-        <input type="hidden" name="kind" value="keep" /><input type="hidden" name="foundKey" value={win.key} /><input type="hidden" name="returnTo" value="/saving" />
-        <div>{win.label}<small>{monthName(win.month)} · {minorMoney(win.winMinor, currency)} {win.kind === "under_usual" ? "under your usual" : win.kind === "cost_stopped" ? "from a cost that stopped" : "less than the month before"}</small></div>
-        {open.length > 0 && <label className="ui-field">and put it in<select name="potId" defaultValue=""><option value="">No pot</option>{open.map(pot => <option key={pot.id} value={pot.id}>{pot.name}</option>)}</select></label>}
+      {fresh.map(row => <ApiForm key={row.key} action="/api/wins" className={row.key === win ? "ui-row saving-win saving-win-opened" : "ui-row saving-win"}>
+        <input type="hidden" name="kind" value="keep" /><input type="hidden" name="foundKey" value={row.key} /><input type="hidden" name="returnTo" value="/saving" />
+        <div>{row.label}<small>{monthName(row.month)} · {minorMoney(row.winMinor, currency)} {row.kind === "under_usual" ? "under your usual" : row.kind === "cost_stopped" ? "from a cost that stopped" : "less than the month before"}</small></div>
+        {open.length > 0 && <label className="ui-field">and put it in<select name="potId" defaultValue={row.key === win ? chosen : ""}><option value="">No pot</option>{open.map(pot => <option key={pot.id} value={pot.id}>{pot.name}</option>)}</select></label>}
         <button className="ui-button primary">Keep</button>
       </ApiForm>)}
     </section>}
@@ -178,7 +181,28 @@ async function Wins({ state }: { state: MoneyState }) {
   </div>;
 }
 
-export function SavingView({ state, selected }: { state: MoneyState; selected?: string }) {
+/** "Paid from a pot?" (D81): a purchase of the last two weeks that a pot in its category could have paid for, with a button for each such pot. Reached from the finding on Home by `?paid=<purchase>`. */
+async function PaidFrom({ state, paid }: { state: MoneyState; paid: string }) {
+  const hid = await currentHouseholdId();
+  if (!hid) return null;
+  const ctx = await loadViewContext(db(), hid, ["spending", "moves"], { state });
+  const { today, homeCurrency: currency } = state, record = { moves: ctx.moves ?? [], choices: [] };
+  const items = ctx.spending ? spendingItems(ctx.spending, monthBounds(monthsBack(today.slice(0, 7), 12)).first, monthBounds(today.slice(0, 7)).last) : [];
+  const match = matchCandidates(state, record, items).find(row => purchaseRef(row.purchase) === paid);
+  if (!match) return <section className="saving-win-list" aria-label="Paid from a pot"><h3 id="paid-from">Paid from a pot?</h3><p className="ui-hint">That purchase isn’t waiting on an answer any more.</p></section>;
+  const { purchase } = match;
+  return <section className="saving-win-list" aria-label="Paid from a pot">
+    <h3 id="paid-from">Paid from a pot?</h3>
+    <p className="ui-hint">{purchase.label} · {minorMoney(purchase.amountMinor, currency)} · {purchase.date}. If a pot paid for it, say which and it counts as spent from that pot.</p>
+    {match.pots.map(pot => <ApiForm key={pot.id} action="/api/pots/move" className="ui-row saving-win">
+      <input type="hidden" name="kind" value="paid_for" /><input type="hidden" name="potId" value={pot.id} /><input type="hidden" name="purchase" value={paid} /><input type="hidden" name="returnTo" value="/saving" />
+      <div>{pot.name}<small>{majorMoney(pot.saved, currency)} saved</small></div>
+      <button className="ui-button primary">Paid from {pot.name}</button>
+    </ApiForm>)}
+  </section>;
+}
+
+export function SavingView({ state, selected, win, paid }: { state: MoneyState; selected?: string; win?: string; paid?: string }) {
   const pot = selected ? state.pots.find(row => row.id === selected) : undefined;
   if (selected && !pot) notFound();
   const money = (n: number) => majorMoney(n, state.homeCurrency);
@@ -190,8 +214,9 @@ export function SavingView({ state, selected }: { state: MoneyState; selected?: 
       {roomNote(state) && <p className="ui-hint">{roomNote(state)}</p>}
       {inPots && <p className="ui-hint">{inPots}</p>}
     </div>
+    {paid && <PaidFrom state={state} paid={paid} />}
     <WhatYouKeep state={state} />
-    <Wins state={state} />
+    <Wins state={state} win={win} />
     {state.pots.map(item => {
       const goal = goalPace(item, state);
       return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={`/saving/${item.id}`} aria-label={item.name} aria-current={item.id === selected ? "page" : undefined}>

@@ -2,16 +2,18 @@
 // those facts, so a finding says nothing its facts do not (D79). The facts are the ones the matching picture carries for the same subject.
 import { AMOUNT_NOT_KNOWN } from "./gaps";
 import { engineFact, fact, type Fact } from "./facts";
-import { dayLabel, minorMoney, toMinor } from "./format";
+import { dayLabel, fromMinor, minorMoney, plural, toMinor } from "./format";
 import { goalPaces } from "./goals";
 import { invoiceAbout } from "./pace";
 import { cancelNotices, resolveBills } from "./repeat";
 import { REGULAR_MONTHS, regularCosts } from "./regular";
 import { arrivals, dueItems, expectedPayBasis, overdue, safeToSpend } from "./runway";
-import { monthBounds, monthPeriod, monthsBack, spendingItems } from "./spending";
+import { foundWins, isTaxPot, lastFoundPot, matchCandidates, medals } from "./saving";
+import { monthBounds, monthName, monthPeriod, monthsBack, spendingItems, type SpendItem } from "./spending";
 import type { Finding, StandingRule, StandingRules } from "./suggestion-types";
 import { TAX_AHEAD_DAYS, taxAhead } from "./tax-ahead";
-import type { MoneyState } from "./types";
+import { labelOf } from "./terms";
+import type { MoneyState, Pot, SavingRecord } from "./types";
 import { stateThrough } from "./window";
 import { storedId } from "./name-key";
 import { addDays, daysBetween } from "./dates";
@@ -183,7 +185,102 @@ function safeBelowFindings(state: MoneyState, rules: StandingRules): Finding[] {
     reason: said(safe) + " safe to spend, below " + minorMoney(minimum, currency) + ".", action: "runway", refId: null, urgency: 0, facts: [safe] }];
 }
 
-export function findSuggestions(state: MoneyState, rules: StandingRules): Finding[] {
+// ---- Saving wins (D81): three kinds that need the saving_wins rule, ask only what the engine found, and come after every other kind ----
+
+const SAVING_URGENCY = 5;
+const MEDAL_DAYS = 7;
+const openSaving = (pot: Pot) => pot.doneOn === undefined && !isTaxPot(pot);
+
+/** The pot a found win goes to: the one the newest found win went into, else the only open saving pot, else none. */
+export function foundPot(record: SavingRecord, pots: readonly Pot[]): Pot | null {
+  const learned = lastFoundPot(record, pots);
+  if (learned) return learned;
+  const open = pots.filter(openSaving);
+  return open.length === 1 ? open[0] : null;
+}
+
+/** The largest saving found in the last closed month that was not kept yet, with the pot it would go to and what safe to spend would be after the move. */
+function foundSavingFindings(state: MoneyState, rules: StandingRules, record: SavingRecord | null, items: readonly SpendItem[]): Finding[] {
+  if (!rules.saving_wins.enabled || !record) return [];
+  const { today, homeCurrency: currency } = state;
+  const month = monthsBack(today.slice(0, 7), 2);
+  const kept = new Set(record.choices.map(choice => choice.foundKey));
+  const win = foundWins(items, currency, month, record, today).find(row => !kept.has(row.key));
+  if (!win || !state.pots.some(openSaving)) return [];
+  const pot = foundPot(record, state.pots);
+  const about = { type: "choice" as const, id: win.key, name: win.label }, money = { from: FROM, currency, about };
+  const facts: Fact[] = [engineFact("found_win", win.winMinor, { ...money, period: monthPeriod(month) })];
+  if (win.kind === "under_usual") {
+    const group = { type: "category" as const, id: win.ownId ?? win.category!, name: win.label };
+    facts.push(engineFact("category_total", win.monthMinor, { from: FROM, currency, period: monthPeriod(month), about: group }), engineFact("usual_spending", win.baselineMinor, { ...money, period: monthPeriod(month) }));
+  } else {
+    const cost = { type: "cost" as const, id: win.key.slice(month.length + ":cost:".length), name: win.label };
+    facts.push(engineFact("change_from_last_month", win.monthMinor - win.baselineMinor, { from: FROM, currency, period: monthPeriod(month), about: cost }));
+  }
+  let after: number | null = null;
+  if (pot) {
+    const moved = { ...state, pots: state.pots.map(row => row.id === pot.id ? { ...row, saved: row.saved + fromMinor(win.winMinor, currency) } : row) };
+    const safe = safeToSpend(moved);
+    const minimum = threshold(rules.safe_below);
+    if (safe.low.amount < 0 || (minimum !== null && rules.safe_below.currency === currency && toMinor(safe.amount, currency) < minimum)) return [];
+    after = toMinor(safe.amount, currency);
+    facts.push(engineFact("safe_to_spend_after_change", after, { from: FROM, currency }),
+      engineFact("pot", toMinor(pot.saved, currency), { from: FROM, currency, about: { type: "pot", id: pot.id, name: pot.name } }));
+  }
+  const label = String(win.label), name = monthName(month), got = said(named(facts, "found_win"));
+  const put = pot ? "Put " + got + " in " + pot.name + "? Safe to spend would be " + said(named(facts, "safe_to_spend_after_change")) + "." : "Put it in a pot?";
+  const [title, reason] = win.kind === "under_usual"
+    ? [label + " came in " + got + " under your usual", name + ": " + said(named(facts, "category_total")) + " against your usual " + said(named(facts, "usual_spending")) + ". " + put]
+    : win.kind === "cost_stopped"
+      ? [label + " stopped in " + name, name + ": " + label + " cost " + got + " less than the month before. " + put]
+      : [label + " cost " + got + " less in " + name, name + ": " + label + " cost " + got + " less than the month before. " + put];
+  return [{ kind: "found_saving", key: "found:" + month, title, reason, action: "keep_win", refId: win.key, urgency: SAVING_URGENCY, facts }];
+}
+
+/** A purchase as the Saving page's move route names it: `charge:<id>`, or `bill:<id>|<day>` for a one-off bill. */
+export const purchaseRef = (purchase: { kind: "charge" | "bill"; id: string; on: string | null }) => purchase.kind === "bill" ? "bill:" + purchase.id + "|" + purchase.on : "charge:" + purchase.id;
+
+/** A purchase of the last 14 days that may have come from a pot: asked once, because its key is remembered when the finding is made. */
+function potMatchFindings(state: MoneyState, rules: StandingRules, record: SavingRecord | null, items: readonly SpendItem[]): Finding[] {
+  if (!rules.saving_wins.enabled || !record) return [];
+  const { homeCurrency: currency } = state;
+  const findings: Finding[] = [];
+  for (const { purchase, pots } of matchCandidates(state, record, items)) {
+    const candidates = pots.filter(openSaving);
+    if (candidates.length === 0) continue;
+    const bill = purchase.kind === "bill";
+    const about = { type: purchase.kind, id: purchase.id, name: purchase.label } as const;
+    const facts: Fact[] = [engineFact(bill ? "bill_amount" : "charge_amount", purchase.amountMinor, { from: FROM, currency, about, period: { on: purchase.date } })];
+    for (const pot of candidates) facts.push(engineFact("pot", toMinor(pot.saved, currency), { from: FROM, currency, about: { type: "pot", id: pot.id, name: pot.name } }));
+    const holds = facts.filter(item => item.name === "pot").map(item => item.about!.name + " holds " + said(item));
+    findings.push({ kind: "pot_match", key: "match:" + (bill ? "bill:" + purchase.id + ":" + purchase.on : "charge:" + purchase.id),
+      title: candidates.length === 1 ? "From your " + candidates[0].name + "?" : "One of the things you saved for?",
+      reason: purchase.label + " " + said(named(facts, bill ? "bill_amount" : "charge_amount")) + " on " + dayLabel(purchase.date) + ". " + holds.join(". ") + ".",
+      action: "match", refId: purchaseRef(purchase), urgency: SAVING_URGENCY, facts });
+  }
+  return findings;
+}
+
+const MEDAL_WHAT = { choices: labelOf("choices_saved"), goals: labelOf("goals_reached"), months: labelOf("months_set_aside") } as const;
+
+/** The newest medal earned in the last week. */
+function medalFindings(state: MoneyState, rules: StandingRules, record: SavingRecord | null): Finding[] {
+  if (!rules.saving_wins.enabled || !record) return [];
+  const { today, homeCurrency: currency } = state;
+  const [medal] = medals(record, state.pots).filter(row => row.earnedOn !== null && row.earnedOn <= today && daysBetween(row.earnedOn, today) <= MEDAL_DAYS)
+    .sort((a, b) => (a.earnedOn! < b.earnedOn! ? 1 : a.earnedOn! > b.earnedOn! ? -1 : b.level - a.level));
+  if (!medal) return [];
+  const about = { type: "medal" as const, id: medal.kind + ":" + medal.level, name: medal.name + ": " + MEDAL_WHAT[medal.kind] };
+  const facts: Fact[] = [engineFact("medal_earned_on", medal.earnedOn!, { from: FROM, about }),
+    medal.kind === "choices" ? engineFact("choices_saved", medal.threshold, { from: FROM, currency, about })
+      : medal.kind === "goals" ? engineFact("goals_reached", medal.threshold, { from: FROM, about }) : engineFact("months_set_aside", medal.threshold, { from: FROM, about })];
+  const value = medal.kind === "choices" ? said(facts[1]) : plural(Number(facts[1].value), medal.kind === "goals" ? "goal" : "month");
+  return [{ kind: "medal", key: "medal:" + medal.kind + ":" + medal.level, title: "New medal: " + medal.name + " for " + MEDAL_WHAT[medal.kind].replace(/^./, c => c.toLowerCase()),
+    reason: value + "; earned " + dayLabel(String(named(facts, "medal_earned_on").value)) + ".", action: "wins", refId: null, urgency: SAVING_URGENCY, facts }];
+}
+
+/** `record` is the confirmed pot moves and choices and `items` the spending back to the four months before the last closed month; both are null and empty while the saving_wins rule is off. */
+export function findSuggestions(state: MoneyState, rules: StandingRules, record: SavingRecord | null, items: readonly SpendItem[]): Finding[] {
   return [
     ...invoiceNudgeFindings(state, rules),
     ...dueFindings(state, rules),
@@ -191,5 +288,8 @@ export function findSuggestions(state: MoneyState, rules: StandingRules): Findin
     ...cancelByFindings(state),
     ...(rules.goal_behind.enabled ? [...goalBehindFindings(state), ...taxShortFindings(state)] : []),
     ...safeBelowFindings(state, rules),
+    ...foundSavingFindings(state, rules, record, items),
+    ...potMatchFindings(state, rules, record, items),
+    ...medalFindings(state, rules, record),
   ];
 }

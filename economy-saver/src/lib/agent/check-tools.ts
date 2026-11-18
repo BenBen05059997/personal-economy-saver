@@ -6,6 +6,7 @@ import { setReadingWhose } from "@/db/readings";
 import { checksFor, pendingProposals, readingProposal, type Check, type Proposal } from "@/lib/money/checks";
 import { engineFact, forModel, type Fact } from "@/lib/money/facts";
 import { toMinor } from "@/lib/money/format";
+import { moveLine, waitingMoves } from "@/lib/money/to-check";
 import type { Tool, ToolContext } from "./tools";
 
 const checkOut = (checks: Check[]) => checks.map(({ kind, words, choices }) => ({ kind, words, choices: choices.map(choice => choice.label) }));
@@ -33,11 +34,13 @@ export const checkTools: Tool[] = [
           ...drafts.map(p => item(p, fromOf.get(p.id) ?? "form")),
           ...state.balanceUpdates.map(update => ({ source: "balance", id: update.id, what: "bank_balance", name: null, amountMinor: toMinor(update.amount, state.homeCurrency), currency: state.homeCurrency, date: null, repeat: null, from: update.madeBy ?? "form", checks: [] })),
           ...state.pendingPots.map(pot => ({ source: "pot", id: pot.id, what: "pot", name: pot.name, amountMinor: toMinor(pot.saved, state.homeCurrency), currency: state.homeCurrency, date: null, repeat: null, from: pot.madeBy ?? "form", checks: [] })),
+          ...state.pendingChoices.map(choice => ({ source: "choice", id: choice.id, what: "choice", name: choice.words, amountMinor: choice.minor, currency: state.homeCurrency, date: choice.happenedOn, repeat: null, from: choice.madeBy ?? "form", checks: [] })),
+          ...waitingMoves(state).map(({ move, other }) => ({ source: "move", id: move.id, what: "pot_move", name: moveLine(state, move, other), amountMinor: Math.abs(move.minor), currency: state.homeCurrency, date: null, repeat: null, from: move.madeBy ?? "form", checks: [] })),
       ];
       // Every amount here waits for the person's yes: a fact the check accepts, and one that counts for nothing.
       const facts: Fact[] = items.flatMap(entry => entry.amountMinor === null || entry.currency === null ? [] : [engineFact("to_check_amount", entry.amountMinor, {
         from: "to_check", currency: entry.currency,
-        about: { type: entry.what === "charge" ? "charge" : entry.what === "pot" ? "pot" : "bill", id: entry.id, name: entry.name ?? "Bank balance" },
+        about: { type: entry.what === "charge" ? "charge" : entry.what === "choice" ? "choice" : entry.what === "pot" || entry.what === "pot_move" ? "pot" : "bill", id: entry.id, name: entry.name ?? "Bank balance" },
         ...(entry.date && { period: { on: entry.date } }),
       })]);
       return JSON.stringify({

@@ -51,9 +51,9 @@ const message = (stop_reason: string, content: unknown[], usage = { input_tokens
 const chat = (finish_reason: string, msg: Record<string, unknown>, usage: unknown = { prompt_tokens: 5, completion_tokens: 6, total_tokens: 11 }) => chatReply(finish_reason, msg, { id: "c1", model: "m-text", usage });
 
 async function main() {
-  await check("the model tool catalogue stays below 20,000 characters and preserves bulk item fields", () => {
+  await check("the model tool catalogue stays below 22,000 characters and preserves bulk item fields", () => {
     const specs = tools.map(tool => ({ name: tool.name, description: tool.description, schema: toolInputSchema(tool) }));
-    assert.ok(JSON.stringify(specs).length <= 20_000);
+    assert.ok(JSON.stringify(specs).length <= 22_000);
     for (const [single, bulk] of [["add_bill", "add_bills"], ["log_charge", "log_charges"]]) {
       const item = specs.find(spec => spec.name === single)!.schema;
       const { items } = specs.find(spec => spec.name === bulk)!.schema.properties as {

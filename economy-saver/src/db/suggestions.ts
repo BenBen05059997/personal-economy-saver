@@ -3,9 +3,12 @@ import { jobError } from "@/lib/job-error";
 import { stableId } from "@/lib/stable-id";
 import { findSuggestions } from "@/lib/money/suggest";
 import { FINDING_RULE, type Finding } from "@/lib/money/suggestion-types";
-import { monthsBack } from "@/lib/money/spending";
+import { resolveBills } from "@/lib/money/repeat";
+import { monthBounds, monthsBack, spendingItems } from "@/lib/money/spending";
 import { REGULAR_MONTHS } from "@/lib/money/regular";
+import { loadChoices } from "./choices";
 import { clockForHousehold } from "./clock";
+import { loadPotMoves } from "./pot-moves";
 import { CHARGE_LOOKBACK_DAYS, householdClockRow, loadMoneyState, recordEvent, requireHousehold, withHousehold, type Db } from "./household";
 import { rulesFor } from "./rules";
 import { events, households, spaces, standingRules, suggestions } from "./schema";
@@ -23,9 +26,13 @@ export async function runPass(db: Db, id: string, now = new Date()) {
     const rules = await rulesFor(tx, hid);
     const lookback = addDays(today, -CHARGE_LOOKBACK_DAYS);
     const regularFrom = monthsBack(today.slice(0, 7), REGULAR_MONTHS) + "-01";
-    const chargesFrom = rules.cost_up.enabled && regularFrom < lookback ? regularFrom : lookback;
+    // Saving wins (D81) look four months before the last closed month: the charges and the record are read only while the rule is on.
+    const month = today.slice(0, 7), winsFrom = monthBounds(monthsBack(month, 5)).first;
+    const chargesFrom = [lookback, ...(rules.cost_up.enabled ? [regularFrom] : []), ...(rules.saving_wins.enabled ? [winsFrom] : [])].reduce((a, b) => a < b ? a : b);
     const state = await loadMoneyState(tx, hid, today, household, chargesFrom);
-    const findings = findSuggestions(state, rules);
+    const record = rules.saving_wins.enabled ? { moves: await loadPotMoves(tx, hid), choices: await loadChoices(tx, hid) } : null;
+    const items = record ? spendingItems({ ...state, bills: resolveBills(state.storedBills, today, state.homeCurrency) }, winsFrom, monthBounds(month).last) : [];
+    const findings = findSuggestions(state, rules, record, items);
     const current = findings.map(finding => finding.key);
     await tx.update(suggestions).set({ status: "resolved", closedAt: now })
       .where(and(eq(suggestions.householdId, hid), active(), current.length ? notInArray(suggestions.key, current) : undefined));

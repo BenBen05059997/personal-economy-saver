@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { db } from "@/db/client";
 import { keepFoundWin, withdrawChoice } from "@/db/choices";
+import { withHousehold } from "@/db/household";
 import { InputError } from "@/db/input-error";
+import { closeByRef } from "@/db/suggestions";
 import { badFields, failure, householdForm, returnPath } from "@/lib/door";
 import { redirectTo } from "@/lib/form-redirect";
 import { currentMemberId } from "@/lib/session";
@@ -24,7 +26,12 @@ export async function POST(request: Request) {
       if (!await withdrawChoice(db(), hid, parsed.data.id)) throw new InputError("That choice isn't on your record, or it is already withdrawn.");
     } else {
       const memberId = await currentMemberId(hid);
-      await keepFoundWin(db(), hid, { foundKey: parsed.data.foundKey, potId: parsed.data.potId }, { madeBy: "form", ...(memberId && { memberId }) });
+      const { foundKey, potId } = parsed.data;
+      // Keeping it answers the finding about it, in the same transaction, so a refused keep leaves the finding open.
+      await withHousehold(db(), hid, async tx => {
+        await closeByRef(tx, hid, foundKey, ["keep_win"]);
+        await keepFoundWin(tx, hid, { foundKey, potId }, { madeBy: "form", ...(memberId && { memberId }) });
+      });
     }
     return redirectTo(returnPath(form.get("returnTo")), request);
   } catch (error) {

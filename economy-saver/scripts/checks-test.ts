@@ -9,6 +9,9 @@ import { householdDate } from "@/db/account";
 import { loadMoneyState } from "@/db/household";
 import { seedBen } from "@/db/seed";
 import { checkTools } from "@/lib/agent/check-tools";
+import { saveChoice } from "@/db/choices";
+import { movePot, potInput, savePot } from "@/db/pots";
+import { toCheck } from "@/lib/money/to-check";
 import { toolInputSchema, type ToolContext } from "@/lib/agent/tools";
 import { extractSchema } from "@/lib/reader/extract";
 import { dayLabel } from "@/lib/money/format";
@@ -267,6 +270,31 @@ async function main() {
       assert.equal(out.items.find(i => i.name === "Hikari Denki")!.from, "form");
       await db.update(schema.bills).set({ madeBy: "ask" }).where(and(eq(schema.bills.householdId, a), eq(schema.bills.status, "pending")));
       assert.equal((await run(a)).items.find(i => i.name === "Hikari Denki")!.from, "ask");
+    });
+
+    await check("To check rows for a waiting choice and moves, in D78 words, and the to_check tool lists them with to_check_amount", async () => {
+      const fresh = await seedBen(db, { isDemo: true });
+      const today = await householdDate(db, fresh);
+      const hakone = crypto.randomUUID(), rainy = crypto.randomUUID(), by = { madeBy: "ask", askId: crypto.randomUUID() } as const;
+      await savePot(db, fresh, potInput.parse({ id: hakone, name: "Hakone weekend", saved: "30000" }), "confirmed", { madeBy: "form" });
+      await savePot(db, fresh, potInput.parse({ id: rainy, name: "Rainy day" }), "confirmed", { madeBy: "form" });
+      await saveChoice(db, fresh, { id: crypto.randomUUID(), source: "said", happenedOn: today, aboutMinor: 150_000, words: "Economy to Osaka instead of business", category: "travel", foundKey: null, memberId: null }, "pending", by);
+      const move = (kind: "add" | "take_out" | "carry", amountMinor: number) => movePot(db, fresh, { id: crypto.randomUUID(), potId: hakone, kind, amountMinor, toPotId: kind === "carry" ? rainy : null, purchase: null, choiceId: null, reason: null, memberId: null, done: false }, "pending", by);
+      await move("add", 10_000); await move("take_out", 2_000); await move("carry", 4_000);
+      const state = await loadMoneyState(db, fresh, today);
+      const rows = toCheck(state).filter(row => row.kind === "choice" || row.kind === "move");
+      assert.deepEqual(rows.map(row => row.title), [
+        "Choice: Economy to Osaka instead of business, about ¥150,000 (you said)",
+        "Hakone weekend: put in ¥10,000", "Hakone weekend: take out ¥2,000", "Hakone weekend: move to Rainy day ¥4,000",
+      ]);
+      assert.equal(rows.filter(row => row.kind === "move").length, 3, "a carry waits as two rows and shows once");
+      assert.ok(rows.every(row => row.madeBy === "ask"));
+      const out = await run(fresh);
+      const mine = out.items.filter(item => item.source === "choice" || item.source === "move");
+      assert.deepEqual(mine.map(item => [item.source, item.amountMinor]), [["choice", 150_000], ["move", 10_000], ["move", 2_000], ["move", 4_000]]);
+      assert.equal(mine[3].name, "Hakone weekend: move to Rainy day ¥4,000");
+      const facts = (out as unknown as { facts: { name: string; value: number }[] }).facts.filter(fact => fact.name === "to_check_amount").map(fact => fact.value);
+      for (const amount of [150_000, 10_000, 2_000, 4_000]) assert.ok(facts.includes(amount), `to_check_amount ${amount}`);
     });
 
     await check("the plan window: a yearly bill due past the window is seen by already saved and repeat not known", async () => {

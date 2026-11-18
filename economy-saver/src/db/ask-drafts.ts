@@ -1,12 +1,12 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
-import { balanceUpdates, charges, events } from "@/db/schema";
+import { balanceUpdates, charges, choices, events, potMoves } from "@/db/schema";
 import { requireHousehold, type Db } from "@/db/household";
-import { draftViews, type BalanceRow, type DraftRow } from "@/lib/agent/draft-card";
+import { draftViews, type BalanceRow, type DraftRow, type SavingRows } from "@/lib/agent/draft-card";
 import type { DraftKind, DraftView } from "@/lib/agent/view";
 import type { SpendingInput } from "@/lib/money/spending";
 import type { MoneyState } from "@/lib/money/types";
 
-const KIND_OF_REF: Record<string, DraftKind> = { bill: "bill", charge: "charge", pot: "pot", balance_update: "balance" };
+const KIND_OF_REF: Record<string, DraftKind> = { bill: "bill", charge: "charge", pot: "pot", balance_update: "balance", choice: "win", pot_move: "move" };
 
 /**
  * What each turn drafted, read from the rows now (D60). A draft is the `to_check` event its tool wrote under the turn's ask id; the item it names is
@@ -35,7 +35,14 @@ export async function draftsOfTurns(tx: Db, householdId: string, turnIds: readon
   const chargeIds = [...byTurn.values()].flat().filter(row => row.kind === "charge").map(row => row.id);
   const older = new Map<string, "pending" | "confirmed">();
   if (chargeIds.length > 0) for (const row of await tx.select({ id: charges.id, status: charges.status }).from(charges).where(and(eq(charges.householdId, hid), inArray(charges.id, chargeIds)))) older.set(row.id, row.status);
+  // D81: a choice or move is waiting while its row is pending and confirmed once it is; a confirmed one is not in the state, so its row is read here.
+  const wanted = (kind: DraftKind) => [...byTurn.values()].flat().filter(row => row.kind === kind).map(row => row.id);
+  const saving: SavingRows = { choices: new Map(), moves: new Map() };
+  if (wanted("win").length > 0) for (const row of await tx.select({ id: choices.id, status: choices.status, words: choices.words, minor: choices.aboutMinor, on: choices.happenedOn }).from(choices)
+    .where(and(eq(choices.householdId, hid), inArray(choices.id, wanted("win"))))) saving.choices.set(row.id, row);
+  if (wanted("move").length > 0) for (const row of await tx.select({ id: potMoves.id, status: potMoves.status }).from(potMoves)
+    .where(and(eq(potMoves.householdId, hid), inArray(potMoves.id, wanted("move"))))) saving.moves.set(row.id, row.status);
   const out: Record<string, DraftView[]> = {};
-  for (const [turn, rows] of byTurn) out[turn] = draftViews(rows, ctx, balances, older);
+  for (const [turn, rows] of byTurn) out[turn] = draftViews(rows, ctx, balances, older, saving);
   return out;
 }

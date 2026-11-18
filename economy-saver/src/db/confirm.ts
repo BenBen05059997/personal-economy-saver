@@ -5,17 +5,20 @@ import { type Db, recordEvent, requireHousehold, withHousehold } from "./househo
 import { bills, charges, households } from "./schema";
 import { fromMinor } from "./money";
 import { confirmBalanceUpdate } from "./bank-balance";
-import { confirmPot } from "./pots";
+import { confirmMove, confirmPot } from "./pots";
+import { confirmChoice } from "./choices";
 import { syncClosedStatementCharge } from "./statement-charge";
 import { linkToSeries } from "./bills";
 
-export async function confirmPending(db: Db, householdId: string, kind: "bill" | "charge" | "balance" | "pot", id: string) {
+export async function confirmPending(db: Db, householdId: string, kind: "bill" | "charge" | "balance" | "pot" | "choice" | "move", id: string) {
   const hid = requireHousehold(householdId);
   const saved = await withHousehold(db, hid, async tx => {
     const [household] = await tx.select({ id: households.id, previous: households.runwayShort }).from(households).where(eq(households.id, hid)).for("update");
     if (!household) return false;
     if (kind === "balance") return confirmBalanceUpdate(tx, hid, id);
     if (kind === "pot") return confirmPot(tx, hid, id);
+    if (kind === "choice") return confirmChoice(tx, hid, id);
+    if (kind === "move") return confirmMove(tx, hid, id);
     const table = kind === "bill" ? bills : charges;
     const pending = and(eq(table.householdId, hid), eq(table.id, id), eq(table.status, "pending"));
     if (household.previous === null) {

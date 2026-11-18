@@ -7,6 +7,7 @@ import { goalPace } from "@/lib/money/goals";
 import { allocate } from "@/lib/money/split";
 import type { SpendingInput } from "@/lib/money/spending";
 import type { Charge, MoneyState, Pot, StoredBill } from "@/lib/money/types";
+import { moveLine, moveWhat, waitingMoves } from "@/lib/money/to-check";
 import { resolveView } from "@/lib/views/resolve";
 import { ViewError, type ViewResult } from "@/lib/views/types";
 import type { DraftKind, DraftView } from "./view";
@@ -16,8 +17,15 @@ export type DraftRow = { kind: DraftKind; id: string; eventTitle: string };
 /** A bank balance update row. The data keeps only the new balance, never the one it replaced, so a saved balance has no before to compare. */
 export type BalanceRow = { amountMinor: number; status: "pending" | "confirmed" };
 
-const KIND_LABEL: Record<DraftKind, string> = { bill: "Bill", charge: "Card charge", pot: "Pot", balance: "Bank balance" };
-const EVENT_SUFFIX = / (bill|charge|pot) to check$/;
+/** A choice or move row as it stands in the database now: its choice's words, amount and day, so a confirmed one can be read back (the state keeps only the waiting ones). */
+export type SavingRows = {
+  choices: Map<string, { status: "pending" | "confirmed"; words: string; minor: number; on: string }>;
+  moves: Map<string, "pending" | "confirmed">;
+};
+
+const KIND_LABEL: Record<DraftKind, string> = { bill: "Bill", charge: "Card charge", pot: "Pot", balance: "Bank balance", win: "Choice", move: "Pot move" };
+const EVENT_SUFFIX = / (bill|charge|pot|win|move) to check$/;
+const EVENT_WORDS = /^A choice to check: |, to check$/g; // the to_check events of a choice and of a move
 
 /** "Sat Nov 14". */
 function dayWithWeekday(iso: string): string {
@@ -39,7 +47,7 @@ function whatChangedOf(ctx: Context, itemId: string): ViewResult | null {
   catch (error) { if (error instanceof ViewError) return null; throw error; }
 }
 
-type Built = Omit<DraftView, "id" | "kind" | "state" | "kindLabel" | "result" | "title"> & { label: string; name: string };
+type Built = Omit<DraftView, "id" | "kind" | "state" | "kindLabel" | "confirmKind" | "result" | "title"> & { label: string; name: string };
 
 const members = (state: MoneyState) => state.split.members;
 const fieldIf = (label: string, value: string | null | undefined) => value ? [{ label, value }] : [];
@@ -96,6 +104,33 @@ function potWords(pot: Pot, state: MoneyState) {
   };
 }
 
+const capital = (words: string) => words.charAt(0).toUpperCase() + words.slice(1);
+const whoChose = (state: MoneyState, memberId: string | null) => state.split.members.find(member => member.id === memberId)?.name;
+
+/** D81: a choice the person said, drawn with the words, "about <amount>", the day and, with two or more members, who chose it. It shows no result: it counts for nothing until confirmed. */
+function choiceWords(row: { words: string; minor: number; on: string; memberId?: string | null; source?: "said" | "found" }, state: MoneyState) {
+  const amount = minorMoney(row.minor, state.homeCurrency), many = members(state).length >= 2;
+  const who = !many ? [] : [{ label: "Who chose this?", value: whoChose(state, row.memberId ?? null) ?? "Not said yet" }];
+  return {
+    name: row.words, label: `Choice “${row.words}”`, day: dayWithWeekday(row.on),
+    fields: [{ label: "Choice", value: row.words }, { label: "Saves", value: `about ${amount}${row.source === "found" ? "" : " (you said)"}` }, { label: "Day", value: dayWithWeekday(row.on) }, ...who],
+    summary: `${row.words} · about ${amount}`,
+  };
+}
+
+function moveCard(state: MoneyState, itemId: string) {
+  const waiting = waitingMoves(state).find(item => item.move.id === itemId);
+  if (!waiting) return null;
+  const { move, other } = waiting, many = members(state).length >= 2, line = moveLine(state, move, other);
+  const potNames = other ? `${move.potName} to ${other.potName}` : move.potName;
+  return {
+    name: line, label: line, day: null as string | null,
+    fields: [{ label: other ? "Pots" : "Pot", value: potNames }, { label: "Move", value: capital(moveWhat(state, move, other)) }, ...fieldIf("Why", move.reason),
+      ...(many ? [{ label: "Who", value: whoChose(state, move.memberId) ?? "Not said yet" }] : [])],
+    summary: line,
+  };
+}
+
 function balanceWords(amountMinor: number, state: MoneyState) {
   const money = (minor: number) => minorMoney(minor, state.homeCurrency);
   return {
@@ -111,6 +146,7 @@ function placesOf(kind: DraftKind, id: string, charge: Charge | undefined, state
   if (kind === "bill") return { places: [{ label: "See the bill ›", href: `/bills#bill-${id}` }, ...sharedHome], edit: `/bills#bill-${id}` };
   if (kind === "charge" && charge) return { places: [{ label: `See ${card ?? "the card"} ›`, href: `/cards/${charge.cardId}#charge-${id}` }, ...sharedHome], edit: `/cards/${charge.cardId}#charge-${id}` };
   if (kind === "pot") return { places: [{ label: "See Saving ›", href: "/saving" }], edit: "/saving" };
+  if (kind === "win" || kind === "move") return { places: [{ label: "See Saving ›", href: "/saving" }], edit: "" };
   return { places: [{ label: "See Home ›", href: "/" }], edit: "/#bank-balance" };
 }
 
@@ -118,12 +154,13 @@ function placesOf(kind: DraftKind, id: string, charge: Charge | undefined, state
  * The drafts a turn made, in the order they were made. `balances` holds the balance update rows by id (the state keeps only the pending ones).
  * A row that no longer exists is "not added": it was removed before it counted.
  */
-export function draftViews(rows: readonly DraftRow[], ctx: Context, balances: ReadonlyMap<string, BalanceRow>, olderCharges: ReadonlyMap<string, "pending" | "confirmed"> = new Map()): DraftView[] {
+export function draftViews(rows: readonly DraftRow[], ctx: Context, balances: ReadonlyMap<string, BalanceRow>, olderCharges: ReadonlyMap<string, "pending" | "confirmed"> = new Map(), saving: SavingRows = { choices: new Map(), moves: new Map() }): DraftView[] {
   const { state } = ctx;
   return rows.map((row): DraftView => {
-    const base = { id: row.id, kind: row.kind, kindLabel: KIND_LABEL[row.kind] };
+    const confirmKind = ({ win: "choice", move: "move" } as const)[row.kind as "win" | "move"] ?? row.kind as Exclude<DraftKind, "win" | "move">;
+    const base = { id: row.id, kind: row.kind, kindLabel: KIND_LABEL[row.kind], confirmKind };
     const removed = (): DraftView => ({
-      ...base, state: "not_added", name: row.eventTitle.replace(EVENT_SUFFIX, "").replace(/ update to check$/, ""), fields: [], saved: null, result: null,
+      ...base, state: "not_added", name: row.eventTitle.replace(EVENT_SUFFIX, "").replace(EVENT_WORDS, "").replace(/ update to check$/, ""), fields: [], saved: null, result: null,
       title: "", places: [], edit: null, remove: null, removeKind: null,
     });
     let built: Built | null = null, itemState: DraftView["state"] = "not_added", day: string | null = null, summary = "";
@@ -154,6 +191,21 @@ export function draftViews(rows: readonly DraftRow[], ctx: Context, balances: Re
       itemState = waiting ? "waiting" : "confirmed"; summary = words.summary;
       built = { ...words, saved: null, places: [], edit: null, remove: null, removeKind: null };
       result = whatChangedOf(ctx, row.id);
+    } else if (row.kind === "win") {
+      const waiting = state.pendingChoices.find(item => item.id === row.id), kept = saving.choices.get(row.id);
+      if (!waiting && !kept) return removed();
+      const words = waiting ? choiceWords({ ...waiting, on: waiting.happenedOn }, state) : choiceWords(kept!, state);
+      itemState = waiting ? "waiting" : "confirmed"; day = words.day; summary = words.summary;
+      built = { ...words, saved: null, places: [], edit: null, remove: null, removeKind: null };
+    } else if (row.kind === "move") {
+      const waiting = moveCard(state, row.id), status = saving.moves.get(row.id);
+      if (!waiting && !status) return removed();
+      itemState = waiting ? "waiting" : "confirmed";
+      const name = waiting?.name ?? row.eventTitle.replace(EVENT_WORDS, "");
+      built = { name, label: name, fields: waiting?.fields ?? [], saved: null, places: [], edit: null, remove: null, removeKind: null };
+      summary = name;
+      // A confirmed move has left the waiting list, so only the pending side can be compared.
+      if (waiting) result = whatChangedOf(ctx, row.id);
     } else {
       const update = balances.get(row.id);
       if (!update) return removed();
@@ -169,9 +221,9 @@ export function draftViews(rows: readonly DraftRow[], ctx: Context, balances: Re
       ...base, state: itemState, name: built.name, fields: built.fields,
       saved: itemState === "confirmed" ? { day, line: summary } : null,
       result: result && itemState === "confirmed" ? { ...result, title } : result,
-      title, places, edit,
-      remove: row.kind === "bill" || row.kind === "charge" ? "/api/remove" : row.kind === "pot" ? "/api/pots/remove" : null,
-      removeKind: row.kind === "bill" || row.kind === "charge" ? row.kind : null,
+      title, places, edit: edit || null,
+      remove: row.kind === "bill" || row.kind === "charge" || row.kind === "win" || row.kind === "move" ? "/api/remove" : row.kind === "pot" ? "/api/pots/remove" : null,
+      removeKind: row.kind === "bill" || row.kind === "charge" || row.kind === "move" ? row.kind : row.kind === "win" ? "choice" : null,
     };
   });
 }

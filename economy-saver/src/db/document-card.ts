@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireHousehold, withHousehold, type Db } from "./household";
 import { bills, documents, households, readings, spaces } from "./schema";
 import { readPlaces } from "./place";
+import { rulesFor } from "./rules";
 import { readerInbox } from "./reader-inbox";
 import { storeDocument } from "./reader-job";
 import { requireSpace } from "./spaces";
@@ -47,8 +48,9 @@ export async function documentCard(db: Db, householdId: string, documentId: stri
   const series = new Map((billIds.length ? await db.select({ id: bills.id, repeatUnit: bills.repeatUnit, seriesBillId: bills.seriesBillId }).from(bills)
     .where(and(eq(bills.householdId, hid), inArray(bills.id, billIds))) : []).map(row => [row.id, row.seriesBillId ?? (row.repeatUnit !== null ? row.id : null)]));
   for (const item of items) item.seriesId = item.targetId ? series.get(item.targetId) ?? null : null;
+  const savingWins = draw && (await rulesFor(db, hid)).saving_wins.enabled;
   const waiting = (inbox?.readings ?? []).map(reading => readingProposal(reading));
-  return buildCard({ documentId, doc: { status: doc.status as "queued" | "reading" | "read" | "failed", error: doc.error }, readings: items }, context, waiting);
+  return buildCard({ documentId, doc: { status: doc.status as "queued" | "reading" | "read" | "failed", error: doc.error }, readings: items }, context, waiting, savingWins);
 }
 
 /**

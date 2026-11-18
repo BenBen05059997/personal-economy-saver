@@ -17,8 +17,8 @@ type Identity = { uid: string; email: string | null } | null;
 type Channel = typeof reminders.$inferInsert.channel;
 type Subscription = Pick<typeof pushSubscriptions.$inferInsert, "endpoint" | "p256dh" | "auth">;
 type Recipient = Pick<typeof reminderSettings.$inferSelect, "memberId" | "email">;
-/** What the digest tells about: every kind of finding except a cost that went up. */
-const DIGEST_KINDS = SUGGESTION_KINDS.filter(kind => kind !== "cost_up");
+/** What the digest tells about: every kind of finding except a cost that went up and the three about saving wins (D81), which wait on Home. */
+const DIGEST_KINDS = SUGGESTION_KINDS.filter(kind => kind !== "cost_up" && kind !== "found_saving" && kind !== "pot_match" && kind !== "medal");
 
 async function memberFor(db: Db, hid: string, identity: Identity) {
   const [row] = identity ? await db.select({ id: users.memberId }).from(users)

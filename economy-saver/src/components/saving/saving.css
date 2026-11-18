@@ -10,3 +10,4 @@
 .saving-win-list h3 { margin: 0 0 var(--space-2); font-size: 14px; }
 .saving-win { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--space-2); }
 .saving-win small { display: block; }
+.saving-win-opened { padding: var(--space-2); border: 1px solid var(--accent-border); border-radius: var(--radius-control); background: var(--accent-wash); }

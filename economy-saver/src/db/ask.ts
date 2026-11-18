@@ -152,7 +152,7 @@ function incognitoRetry(id: string): AskReply {
 }
 
 /** Free-form questions go to the agent (D40). `pending` is true when a tool left a bill or charge in To check (D39). */
-export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date; onStep?: (step: string) => void } = {}): Promise<AskReply> {
+export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof askInput>, deps: { fetch?: typeof globalThis.fetch; at?: Date; onStep?: (step: string) => void; memberId?: string | null } = {}): Promise<AskReply> {
   const { id, conversationId, spaceId, text, source, screen, canvas, memory, recent, earlierCount, deviceBrief, history, incognito } = askInput.parse(input);
   const householdId = requireHousehold(hid);
   // Before any read, model call or write: a pasted key is never sent to a model or kept.
@@ -218,7 +218,7 @@ export async function answerQuestion(db: Db, hid: string, input: z.infer<typeof 
   let result: AskResult;
   try {
     result = await runAgent({
-      db, householdId, question: text, askId: id, source, appUrl: appUrl(), context: assembled.context, assembled, spaceId: effectiveSpaceId, fetch: deps.fetch, deviceMemory, deviceHistory: history ?? recent, incognito, onStep: deps.onStep,
+      db, householdId, question: text, askId: id, source, appUrl: appUrl(), context: assembled.context, assembled, spaceId: effectiveSpaceId, fetch: deps.fetch, deviceMemory, deviceHistory: history ?? recent, incognito, onStep: deps.onStep, memberId: deps.memberId,
       onWrote: incognito || recent === undefined ? undefined : () => withHousehold(db, householdId, tx => noteAskWrote(tx, householdId, id)),
       connection: () => aiConnection(db, householdId, "text"),
     });

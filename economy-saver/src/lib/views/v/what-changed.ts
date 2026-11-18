@@ -1,7 +1,7 @@
 // What did this change (D77): the picture without an item and with it. The two sides are worked out by `whatChanged`; this draws them in words.
 import { engineFact, type Fact, type FactAbout } from "@/lib/money/facts";
 import { WhatChangedError, whatChanged } from "@/lib/money/what-changed";
-import { toMinor } from "@/lib/money/format";
+import { minorPerUnit, toMinor } from "@/lib/money/format";
 import { WINDOW_DAYS } from "@/lib/money/runway";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type TableTwin, type ViewResult } from "../types";
@@ -39,9 +39,11 @@ export const whatChangedView: Resolver<"what_changed"> = (args, ctx): ViewResult
     const bill = state.bills.find(item => storedId(item.id) === id && item.status === "pending" && item.amount !== null);
     const charge = state.charges.find(item => item.id === id && item.status === "pending");
     const pot = state.pendingPots.find(item => item.id === id), update = state.balanceUpdates.find(item => item.id === id);
+    const move = state.pendingMoves.find(item => item.id === id);
     const waiting: { about: FactAbout; amount: number; on: string | null } | null = bill ? { about: { type: "bill", id, name: bill.biller }, amount: bill.amount, on: bill.due }
       : charge ? { about: { type: "charge", id, name: charge.merchant }, amount: charge.amount, on: charge.date }
       : pot ? { about: { type: "pot", id, name: pot.name }, amount: pot.saved, on: null }
+      : move ? { about: { type: "pot", id: move.potId, name: move.potName }, amount: Math.abs(move.minor) / minorPerUnit(currency), on: null }
       : update ? { about: { type: "bill", id, name: result.name }, amount: update.amount, on: null } : null;
     if (waiting) facts.push(engineFact("to_check_amount", minor(waiting.amount), { from, currency, about: waiting.about, ...(waiting.on && { period: { on: waiting.on } }) }));
   }

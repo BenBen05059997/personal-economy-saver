@@ -1,16 +1,34 @@
-import { shareLabel } from "./categories";
+import { categoryLabel, shareLabel } from "./categories";
 import { ownLabel } from "./own-category";
 import { DATE_NOT_KNOWN, gapAmountWords, gapDateWords, gapQuestion, openGaps } from "./gaps";
 import { dayLabel, minorMoney, repeatWords, toMinor } from "./format";
 import { monthYear } from "./plan";
 import { lastOneWords } from "./repeat";
 import { pendingCharges } from "./runway";
-import type { MadeBy, MoneyState } from "./types";
+import type { MadeBy, MoneyState, PendingMove } from "./types";
 
 /** D50: the muted words after a title when the agent drafted the row; nothing for any other maker. */
 export function draftedLabel(madeBy: MadeBy | undefined): string | null {
   return madeBy === "ask" ? "Drafted by Ask" : madeBy === "mcp" ? "Drafted through MCP" : null;
 }
+
+/** D81: the waiting moves, one per move: a carry waits as two rows and is drawn once, by its negative (source) side, with the pot it goes to. */
+export function waitingMoves(state: MoneyState): { move: PendingMove; other: PendingMove | undefined }[] {
+  return state.pendingMoves.filter(move => move.kind !== "carry" || move.minor < 0)
+    .map(move => ({ move, other: move.pairId === null ? undefined : state.pendingMoves.find(row => row.id !== move.id && row.pairId === move.pairId) }));
+}
+
+/** D78 words for what a waiting move does: "put in ¥10,000", "take out …", "paid <purchase> …", "move to <pot> …". */
+export function moveWhat(state: MoneyState, move: PendingMove, other: PendingMove | undefined): string {
+  const money = minorMoney(Math.abs(move.minor), state.homeCurrency);
+  if (move.kind === "add") return `put in ${money}`;
+  if (move.kind === "take_out") return `take out ${money}`;
+  if (move.kind === "spend") return move.purchase ? `paid ${move.purchase.label} ${money}` : `paid ${money}`;
+  if (move.kind === "carry") return `move to ${other?.potName ?? "another pot"} ${money}`;
+  return `${move.minor < 0 ? "take out" : "put in"} ${money}`;
+}
+
+export const moveLine = (state: MoneyState, move: PendingMove, other: PendingMove | undefined) => `${move.potName}: ${moveWhat(state, move, other)}`;
 
 export function toCheck(state: MoneyState) {
   const minor = (amount: number) => toMinor(amount, state.homeCurrency);
@@ -26,6 +44,16 @@ export function toCheck(state: MoneyState) {
       kind: "pot" as const, id: pot.id, amount: null, madeBy: pot.madeBy,
       title: `New pot: ${pot.name}${pot.target === undefined ? "" : `, ${minorMoney(minor(pot.target), state.homeCurrency)}${pot.targetDate ? ` by ${monthYear(pot.targetDate)}` : ""}`}`,
       detail: pot.category === "government_tax" ? "Ready for tax bills" : pot.fillPct === undefined ? "Money set aside is not spendable" : `Sets aside ${pot.fillPct}% of each client payment`,
+    })),
+    ...state.pendingChoices.map(choice => ({
+      kind: "choice" as const, id: choice.id, amount: null, madeBy: choice.madeBy,
+      title: `Choice: ${choice.words}, about ${minorMoney(choice.minor, state.homeCurrency)} (${choice.source === "said" ? "you said" : "found in your records"})`,
+      detail: [dayLabel(choice.happenedOn), choice.category && categoryLabel(choice.category), state.split.members.length >= 2 ? payer(choice.memberId ?? "") : undefined].filter(Boolean).join(" · "),
+    })),
+    ...waitingMoves(state).map(({ move, other }) => ({
+      kind: "move" as const, id: move.id, amount: null, madeBy: move.madeBy,
+      title: moveLine(state, move, other),
+      detail: [move.reason, state.split.members.length >= 2 ? payer(move.memberId ?? "") : undefined].filter(Boolean).join(" · "),
     })),
     ...state.bills.filter(bill => bill.status === "pending").map(bill => {
       const gap = gaps.get(bill.id) ?? null;

@@ -163,6 +163,21 @@ async function main() {
       assert.deepEqual(digest.text.match(/https?:\/\/\S+/g), ["https://example.test/"]);
     });
 
+    await check("the saving-win findings (found saving, pot match, medal) wait on Home: they trigger no digest and are in none", async () => {
+      const day = "2026-11-30", at = new Date(day + "T02:00:00Z"), before = sends.length;
+      for (const kind of ["found_saving", "pot_match", "medal"] as const) await finding(day, kind);
+      await runReminders(db, hid, at, transport);
+      assert.equal(sends.length, before, "three saving findings alone send nothing");
+      await finding(day, "bill_due");
+      await runReminders(db, hid, at, transport);
+      assert.equal(sends.length, before + 1);
+      const body = JSON.parse(String(sends.at(-1)!.body)).text as string;
+      assert.match(body, /A bill is due soon/);
+      assert.doesNotMatch(body, /saving|medal|pot/i);
+      const digest = reminderDigest([{ kind: "found_saving" }, { kind: "pot_match" }, { kind: "medal" }], "https://example.test/");
+      assert.equal(digest, null, "the digest text has no line for them either");
+    });
+
     await check("a tax pot short is in the digest, with its amounts from facts, and a row with no money fact still prints", () => {
       const tax = [engineFact("tax_ahead", 12_000, { from: "test", currency: "JPY" }), engineFact("tax_short_on", "2026-11-27", { from: "test" }),
         engineFact("bill_amount", 30_000, { from: "test", currency: "JPY" })];
