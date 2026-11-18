@@ -191,7 +191,7 @@
     ],
     "steps": [
       "Add → A pot: add Tax set-aside, category Government & tax, ¥30,000 held",
-      "Add → A pot: add Standing desk, ¥20,000 held, then in its panel press Edit and mark it Done",
+      "Add → A pot: add Standing desk, ¥20,000 held, then in its panel under Edit → Paid from this pot choose Not one of these, enter ¥15,000 and tick This was the goal",
       "Open Saving"
     ],
     "expected": [
@@ -306,7 +306,8 @@
     ],
     "expected": [
       "From your assistant shows \"New medal: Bronze for goals reached\"",
-      "The button lands on Saving at the \"What our choices saved\" section, scrolled into view"
+      "The button lands on Saving at the \"What our choices saved\" section, scrolled into view",
+      "That section says \"New medal: Bronze for goals reached, earned <day>.\" even before any choice is on the record"
     ],
     "refs": [
       "D81"

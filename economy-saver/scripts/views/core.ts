@@ -66,7 +66,8 @@ async function main() {
         // D79: nothing is stated only in words. Every number in the line is one of the view's facts, and every fact name is a term.
         assert.deepEqual(unconfirmedNumbers(result.line ?? "", result.facts, { today: drawn.state.today }), [], "every number in the line is one of the view's facts");
         for (const item of result.facts) assert.doesNotThrow(() => termOf(item.name), `${item.name} is a term`);
-        assert.equal(result.facts.length > 0, result.empty === null, "a view with a picture carries facts");
+        if (result.empty === null) assert.ok(result.facts.length > 0, "a view with a picture carries facts");
+        assert.deepEqual(unconfirmedNumbers(result.empty?.words ?? "", result.facts, { today: drawn.state.today }), [], "every number in an empty state's words is one of the view's facts");
         assert.ok(result.table !== null || result.empty !== null, "a table or an empty state");
         assert.equal(result.data === null, result.empty !== null, "data is null exactly when empty is set");
         assert.ok(result.aria.length > 0);

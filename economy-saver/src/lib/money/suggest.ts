@@ -8,11 +8,10 @@ import { invoiceAbout } from "./pace";
 import { cancelNotices, resolveBills } from "./repeat";
 import { REGULAR_MONTHS, regularCosts } from "./regular";
 import { arrivals, dueItems, expectedPayBasis, overdue, safeToSpend } from "./runway";
-import { foundWins, isTaxPot, lastFoundPot, matchCandidates, medals } from "./saving";
+import { foundWins, isTaxPot, lastFoundPot, matchCandidates, medalAbout, medals, medalTitle } from "./saving";
 import { monthBounds, monthName, monthPeriod, monthsBack, spendingItems, type SpendItem } from "./spending";
 import type { Finding, StandingRule, StandingRules } from "./suggestion-types";
 import { TAX_AHEAD_DAYS, taxAhead } from "./tax-ahead";
-import { labelOf } from "./terms";
 import type { MoneyState, Pot, SavingRecord } from "./types";
 import { stateThrough } from "./window";
 import { storedId } from "./name-key";
@@ -261,7 +260,6 @@ function potMatchFindings(state: MoneyState, rules: StandingRules, record: Savin
   return findings;
 }
 
-const MEDAL_WHAT = { choices: labelOf("choices_saved"), goals: labelOf("goals_reached"), months: labelOf("months_set_aside") } as const;
 
 /** The newest medal earned in the last week. */
 function medalFindings(state: MoneyState, rules: StandingRules, record: SavingRecord | null): Finding[] {
@@ -270,12 +268,12 @@ function medalFindings(state: MoneyState, rules: StandingRules, record: SavingRe
   const [medal] = medals(record, state.pots).filter(row => row.earnedOn !== null && row.earnedOn <= today && daysBetween(row.earnedOn, today) <= MEDAL_DAYS)
     .sort((a, b) => (a.earnedOn! < b.earnedOn! ? 1 : a.earnedOn! > b.earnedOn! ? -1 : b.level - a.level));
   if (!medal) return [];
-  const about = { type: "medal" as const, id: medal.kind + ":" + medal.level, name: medal.name + ": " + MEDAL_WHAT[medal.kind] };
+  const about = medalAbout(medal);
   const facts: Fact[] = [engineFact("medal_earned_on", medal.earnedOn!, { from: FROM, about }),
     medal.kind === "choices" ? engineFact("choices_saved", medal.threshold, { from: FROM, currency, about })
       : medal.kind === "goals" ? engineFact("goals_reached", medal.threshold, { from: FROM, about }) : engineFact("months_set_aside", medal.threshold, { from: FROM, about })];
   const value = medal.kind === "choices" ? said(facts[1]) : plural(Number(facts[1].value), medal.kind === "goals" ? "goal" : "month");
-  return [{ kind: "medal", key: "medal:" + medal.kind + ":" + medal.level, title: "New medal: " + medal.name + " for " + MEDAL_WHAT[medal.kind].replace(/^./, c => c.toLowerCase()),
+  return [{ kind: "medal", key: "medal:" + medal.kind + ":" + medal.level, title: "New medal: " + medalTitle(medal),
     reason: value + "; earned " + dayLabel(String(named(facts, "medal_earned_on").value)) + ".", action: "wins", refId: null, urgency: SAVING_URGENCY, facts }];
 }
 

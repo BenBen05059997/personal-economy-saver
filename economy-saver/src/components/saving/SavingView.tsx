@@ -65,7 +65,7 @@ function MoveForms({ state, pot, purchases }: { state: MoneyState; pot: Pot; pur
       <button className="ui-button">Take out</button>
     </ApiForm>
     {!tax && <ApiForm action="/api/pots/move" className="saving-move">
-      {hidden("paid_for")}<h4 id="paid-from">Paid from this pot</h4>
+      {hidden("paid_for")}<h4>Paid from this pot</h4>
       <label className="ui-field">Purchase from the last 60 days<select name="purchase" defaultValue="">
         <option value="">Not one of these</option>
         {purchases.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
@@ -215,8 +215,6 @@ export function SavingView({ state, selected, win, paid }: { state: MoneyState; 
       {inPots && <p className="ui-hint">{inPots}</p>}
     </div>
     {paid && <PaidFrom state={state} paid={paid} />}
-    <WhatYouKeep state={state} />
-    <Wins state={state} win={win} />
     {state.pots.map(item => {
       const goal = goalPace(item, state);
       return <Link key={item.id} prefetch={false} className="ui-row directory-link" href={`/saving/${item.id}`} aria-label={item.name} aria-current={item.id === selected ? "page" : undefined}>
@@ -231,5 +229,7 @@ export function SavingView({ state, selected, win, paid }: { state: MoneyState; 
       </Link>;
     })}
     {state.pots.length === 0 && <PanelHint className="directory-empty" add="pot" label="Add a pot">No pots yet. Put money aside for tax, a trip or a car. Money in a pot stops counting as safe to spend.</PanelHint>}
+    <WhatYouKeep state={state} />
+    <Wins state={state} win={win} />
   </ListPage>;
 }

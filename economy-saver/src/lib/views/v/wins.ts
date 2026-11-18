@@ -2,7 +2,7 @@
 // What choices saved is never money set aside and the two are never added: this view never states money set aside.
 import { engineFact, type Fact } from "@/lib/money/facts";
 import { dayLabel, minorMoney, plural } from "@/lib/money/format";
-import { foundWins, medals, milestones, monthWins, personalBests, type MonthWins } from "@/lib/money/saving";
+import { foundWins, medalAbout, medals, medalTitle, milestones, monthWins, personalBests, type MonthWins } from "@/lib/money/saving";
 import { HISTORY_MONTHS, monthBounds, monthLabel, monthName, monthPeriod, monthsBack, spendingItems } from "@/lib/money/spending";
 import { labelOf } from "@/lib/money/terms";
 import { VIEW_META } from "../catalogue";
@@ -10,7 +10,6 @@ import { monthAxisLabel, monthRowLabel, SO_FAR } from "../words";
 import { ViewError, type Resolver, type ViewResult } from "../types";
 
 const EMPTY = "Choices that save show here: a regular cost that went down, a month under your usual, or a cheaper choice you tell Ask.";
-const MEDAL_WHAT = { choices: labelOf("choices_saved"), goals: labelOf("goals_reached"), months: labelOf("months_set_aside") } as const;
 
 export const winsView: Resolver<"wins"> = (args, ctx): ViewResult => {
   const { spending, moves, choices, state } = ctx;
@@ -27,7 +26,21 @@ export const winsView: Resolver<"wins"> = (args, ctx): ViewResult => {
   const months = span.map(month => ({ month, name: monthName(month), current: month === current, wins: monthWins(record, found, month) }));
   const base = { view: "wins" as const, args: args as Record<string, unknown>, form: meta.form as "stacked_columns", title: "What your choices saved", question: meta.question, hint: meta.hint, currency, strip: null, source: "Your spending records and the choices you told fipa about" };
   const total = months.reduce((sum, month) => sum + month.wins.totalMinor, 0), n = months.reduce((sum, month) => sum + month.wins.count, 0);
-  if (n === 0) return { ...base, data: null, table: null, line: null, aria: "No choices to show yet.", facts: [] as Fact[], empty: { words: EMPTY, add: null, addLabel: null } };
+
+  // Medals: every level earned, and what is still to go to the next of each kind. Totals, never a run. A goal reached or months set aside
+  // earn them before any choice, so they are stated even when no month has a win.
+  const all = medals(record, state.pots), medalFacts: Fact[] = [];
+  for (const medal of all) {
+    const about = medalAbout(medal);
+    if (medal.earnedOn !== null) medalFacts.push(engineFact("medal_earned_on", medal.earnedOn, { from: "wins", about }));
+    else if (medal.toGo !== null) medalFacts.push(medal.kind === "choices" ? engineFact("next_medal_at", medal.toGo, { from: "wins", currency, about }) : engineFact("next_medal_count", medal.toGo, { from: "wins", about }));
+  }
+  const { goalDays, monthDays } = milestones(record, state.pots), goals = goalDays.length, setAsideMonths = monthDays.length;
+  if (goals > 0) medalFacts.push(engineFact("goals_reached", goals, { from: "wins" }));
+  if (setAsideMonths > 0) medalFacts.push(engineFact("months_set_aside", setAsideMonths, { from: "wins" }));
+  const newest = all.filter(medal => medal.earnedOn !== null && medal.earnedOn >= `${span[0]}-01`).sort((a, b) => (a.earnedOn! < b.earnedOn! ? 1 : a.earnedOn! > b.earnedOn! ? -1 : b.level - a.level))[0];
+  const medalLine = newest ? `New medal: ${medalTitle(newest)}, earned ${dayLabel(newest.earnedOn!)}.` : "";
+  if (n === 0) return { ...base, data: null, table: null, line: null, aria: "No choices to show yet.", facts: medalFacts, empty: { words: medalLine ? `${medalLine} ${EMPTY}` : EMPTY, add: null, addLabel: null } };
 
   // The facts first (D79); the sentence is written from them.
   const span2 = { from: monthPeriod(span[0]).from, to: monthPeriod(current).to };
@@ -46,18 +59,7 @@ export const winsView: Resolver<"wins"> = (args, ctx): ViewResult => {
       if (win.kind === "under_usual") facts.push(money("usual_spending", win.baselineMinor, period, about));
     }
   }
-  facts.push(money("choices_saved", total, span2), engineFact("win_count", n, { from: "wins", period: span2 }));
-
-  // Medals: every level earned, and what is still to go to the next of each kind. Totals, never a run.
-  const all = medals(record, state.pots);
-  for (const medal of all) {
-    const about = { type: "medal" as const, id: `${medal.kind}:${medal.level}`, name: `${medal.name}: ${MEDAL_WHAT[medal.kind]}` };
-    if (medal.earnedOn !== null) facts.push(engineFact("medal_earned_on", medal.earnedOn, { from: "wins", about }));
-    else if (medal.toGo !== null) facts.push(medal.kind === "choices" ? engineFact("next_medal_at", medal.toGo, { from: "wins", currency, about }) : engineFact("next_medal_count", medal.toGo, { from: "wins", about }));
-  }
-  const { goalDays, monthDays } = milestones(record, state.pots), goals = goalDays.length, setAsideMonths = monthDays.length;
-  if (goals > 0) facts.push(engineFact("goals_reached", goals, { from: "wins" }));
-  if (setAsideMonths > 0) facts.push(engineFact("months_set_aside", setAsideMonths, { from: "wins" }));
+  facts.push(money("choices_saved", total, span2), engineFact("win_count", n, { from: "wins", period: span2 }), ...medalFacts);
   const closed = monthsBack(current, 2), bests = personalBests(record, items, currency, closed, today);
   if (bests.choices) facts.push(engineFact("best_month_choices", bests.choices.minor, { from: "wins", currency, period: monthPeriod(bests.choices.month) }));
 
@@ -66,8 +68,7 @@ export const winsView: Resolver<"wins"> = (args, ctx): ViewResult => {
   const when = `${monthLabel(latest.month, today)}${latest.current ? ` ${SO_FAR}` : ""}`;
   const split = w.foundMinor > 0 && w.saidMinor > 0 ? `: ${format(w.foundMinor)} found in your records and about ${format(w.saidMinor)} you said`
     : w.foundMinor > 0 ? ", all found in your records" : ", all you said";
-  const newest = all.filter(medal => medal.earnedOn !== null && medal.earnedOn >= `${span[0]}-01`).sort((a, b) => (a.earnedOn! < b.earnedOn! ? 1 : a.earnedOn! > b.earnedOn! ? -1 : b.level - a.level))[0];
-  const line = `In ${when} your choices saved about ${format(w.totalMinor)} (${plural(w.count, "choice")})${split}.${newest ? ` New medal: ${newest.name}, earned ${dayLabel(newest.earnedOn!)}.` : ""}`;
+  const line = `In ${when} your choices saved about ${format(w.totalMinor)} (${plural(w.count, "choice")})${split}.${medalLine ? ` ${medalLine}` : ""}`;
 
   const columns = months.map(month => {
     const parts = [month.wins.foundMinor, month.wins.saidMinor], tot = month.wins.totalMinor;

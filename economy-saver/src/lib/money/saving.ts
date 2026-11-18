@@ -7,6 +7,7 @@ import { categoryLabel, type CategoryKey } from "./categories";
 import { fromMinor, toMinor } from "./format";
 import { nameKey, storedId } from "./name-key";
 import { regularCosts } from "./regular";
+import { labelOf } from "./terms";
 import { monthBounds, monthsBack, type SpendItem } from "./spending";
 import type { Choice, MoneyState, Pot, PotMove, Purchase, SavingRecord } from "./types";
 
@@ -212,6 +213,12 @@ export function monthWins(record: SavingRecord, found: readonly FoundWin[], mont
 }
 
 // ---- Medals ----
+
+const MEDAL_WHAT = { choices: labelOf("choices_saved"), goals: labelOf("goals_reached"), months: labelOf("months_set_aside") } as const;
+/** A medal in words, the same on Home and in the wins picture: "Bronze for goals reached". */
+export const medalTitle = (medal: Pick<Medal, "kind" | "name">) => `${medal.name} for ${MEDAL_WHAT[medal.kind].replace(/^./, c => c.toLowerCase())}`;
+/** What a medal's facts are about: one id and one name wherever it is stated. */
+export const medalAbout = (medal: Pick<Medal, "kind" | "level" | "name">) => ({ type: "medal" as const, id: `${medal.kind}:${medal.level}`, name: `${medal.name}: ${MEDAL_WHAT[medal.kind]}` });
 
 type MedalKind = "choices" | "goals" | "months";
 export type Medal = {

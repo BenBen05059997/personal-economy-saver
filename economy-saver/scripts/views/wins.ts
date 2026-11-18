@@ -73,7 +73,7 @@ check("this month holds what was said so far, and found wins wait for the month 
 
 check("a medal earned in the span is named with its day; the next one says what is still to go", () => {
   const view = draw(ctxOf(food, [choice("c1", 12_000, "2026-10-12")]));
-  assert.match(view.line!, / New medal: Bronze, earned Oct 12\.$/);
+  assert.match(view.line!, / New medal: Bronze for what your choices saved, earned Oct 12\.$/, "the same words as Home's medal");
   assert.deepEqual(unconfirmedNumbers(view.line!, view.facts, { today }), []);
   const earned = view.facts.find(item => item.name === "medal_earned_on")!;
   assert.deepEqual([earned.value, earned.about!.id], ["2026-10-12", "choices:0"]);
@@ -101,7 +101,17 @@ check("nothing saved yet draws no chart and says what shows here", () => {
   assert.equal(view.data, null);
   assert.equal(view.line, null);
   assert.equal(view.empty!.words, "Choices that save show here: a regular cost that went down, a month under your usual, or a cheaper choice you tell Ask.");
-  assert.deepEqual(view.facts, []);
+  assert.ok(view.facts.length > 0 && view.facts.every(item => item.name === "next_medal_at" || item.name === "next_medal_count"), "only what is still to go to each first medal");
+});
+
+check("a goal reached before any choice still names its medal where Home's See your wins lands", () => {
+  const pot = { id: "cam", name: "Camera", saved: 0, doneOn: "2026-10-20" };
+  const move = (id: string, kind: "fill" | "spend", minor: number, on: string) => ({ id, potId: "cam", potName: "Camera", potCategory: null, kind, minor, on, memberId: null, reason: null, invoiceId: null, purchase: null, choiceId: null, pairId: null });
+  const view = draw({ ...ctxOf([], []), state: { ...benMoney, pots: [pot] }, moves: [move("a", "fill", 12_000, "2026-10-05"), move("b", "spend", -12_000, "2026-10-20")] });
+  assert.equal(view.data, null);
+  assert.equal(view.empty!.words, "New medal: Bronze for goals reached, earned Oct 20. Choices that save show here: a regular cost that went down, a month under your usual, or a cheaper choice you tell Ask.");
+  assert.deepEqual(unconfirmedNumbers(view.empty!.words, view.facts, { today }), []);
+  assert.equal(fact(view.facts, "goals_reached")!.value, 1);
 });
 
 check("the figure draws, the table twin adds up, and the months argument is bounded", () => {
