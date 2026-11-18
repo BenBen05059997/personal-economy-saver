@@ -310,7 +310,7 @@ async function settle(
     if (increment > 0 && paid.payerMemberId === null) { // a member's share is not income: it fills no pot
       const homeCredit = connection.balanceCurrency === owner.home ? increment
         : convertMinor(increment, connection.balanceCurrency, owner.home, fromRateMicro(await usdRateMicro(tx, owner.householdId, owner.home, paid.businessDate!)));
-      await fillPots(tx, owner.householdId, homeCredit, `${client.name}'s payment`);
+      await fillPots(tx, owner.householdId, homeCredit, paid.id, `${client.name}'s payment`);
     }
     // D45: a member's request that is paid records the transfers as settled, exactly as Mark settled does, in this same transaction.
     if (paid.payerMemberId !== null) await settleUpInTx(tx, owner.householdId);

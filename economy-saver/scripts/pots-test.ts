@@ -11,7 +11,9 @@ import { confirmPending } from "@/db/confirm";
 import { InputError } from "@/db/input-error";
 import { markPaidOutside } from "@/db/invoice-paid";
 import { loadMoneyState } from "@/db/household";
-import { fillPots, parseFillBp, potInput, removePot, savePot } from "@/db/pots";
+import { saveChoice, confirmChoice, withdrawChoice, removePendingChoice, loadChoices, type ChoiceInput } from "@/db/choices";
+import { confirmMove, fillPots, markPotDone, movePot, parseFillBp, potInput, removePendingMove, removePot, savePot, type MoveInput } from "@/db/pots";
+import { loadPotMoves } from "@/db/pot-moves";
 import { seedBen } from "@/db/seed";
 import { loadNavigationData } from "@/db/workspace";
 import { applyVerifiedDelivery } from "@/lib/events";
@@ -284,19 +286,20 @@ async function main() {
       const car = input({ name: "Car", target: "100000" }), waiting = input({ name: "Waiting", fillPct: "50" });
       for (const p of [tax, tenth, car]) await savePot(db, c, p, "confirmed", { madeBy: "form" });
       await savePot(db, c, waiting, "pending", { madeBy: "form" });
-      assert.equal(await db.transaction(tx => fillPots(tx, c, 37_500, "Acme Corp's payment")), 2);
+      const fillIn = async (credit: number, label: string) => { const inv = await invoice(c, "Northwind", 100); return db.transaction(tx => fillPots(tx, c, credit, inv, label)); };
+      assert.equal(await fillIn(37_500, "Acme Corp's payment"), 2);
       assert.deepEqual([await saved(tax.id), await saved(tenth.id), await saved(car.id), await saved(waiting.id)], [1000 + 9375, 3750, 0, 0]);
       const rows = await filled(c);
       assert.deepEqual(rows.map(r => r.title).sort(), ["Set aside ¥3,750 for Tenth (10% of Acme Corp's payment)", "Set aside ¥9,375 for Tax (25% of Acme Corp's payment)"]);
       assert.ok(rows.every(r => r.refType === "pot" && !r.notify));
-      assert.equal(await db.transaction(tx => fillPots(tx, c, 0, "x")), 0);
-      await db.transaction(tx => fillPots(tx, c, 5, "tiny")); // 10% of 5 = 0.5 -> 1; 25% of 5 = 1.25 -> 1
+      assert.equal(await fillIn(0, "x"), 0);
+      await fillIn(5, "tiny"); // 10% of 5 = 0.5 -> 1; 25% of 5 = 1.25 -> 1
       assert.deepEqual([await saved(tax.id), await saved(tenth.id)], [1000 + 9375 + 1, 3750 + 1]);
-      await db.transaction(tx => fillPots(tx, c, 4, "tiny")); // 10% of 4 = 0.4 -> 0, skipped; 25% -> 1
+      await fillIn(4, "tiny"); // 10% of 4 = 0.4 -> 0, skipped; 25% -> 1
       assert.deepEqual([await saved(tax.id), await saved(tenth.id)], [1000 + 9375 + 2, 3751]);
       assert.equal((await filled(c)).length, 5, "a share that rounds to zero records nothing");
-      await assert.rejects(db.transaction(tx => fillPots(tx, c, -1, "x")));
-      await assert.rejects(db.transaction(tx => fillPots(tx, c, 1.5, "x")));
+      await assert.rejects(fillIn(-1, "x"));
+      await assert.rejects(fillIn(1.5, "x"));
     });
 
     await check("marking an invoice paid outside PayPal fills the pots: 25% of a $250 payment at the stored rate", async () => {
@@ -339,6 +342,216 @@ async function main() {
       // The available cash is the credited balance less the pot.
       const state = await stateOf(c);
       assert.equal(availableCash(state), state.paypal + state.bank - 9_375);
+    });
+
+
+    // ---- the record of moves (D81)
+    const OWN = { madeBy: "form" } as const;
+    const sumsOf = async (hid: string) => {
+      const pots = await db.select().from(schema.pots).where(and(eq(schema.pots.householdId, hid), eq(schema.pots.status, "confirmed")));
+      const moves = await db.select().from(schema.potMoves).where(and(eq(schema.potMoves.householdId, hid), eq(schema.potMoves.status, "confirmed")));
+      for (const p of pots) assert.equal(moves.filter(m => m.potId === p.id).reduce((n, m) => n + m.amountMinor, 0), p.savedMinor, `${p.name}: its moves add up to what it holds`);
+      return pots.length;
+    };
+    const move = (over: Partial<MoveInput> & Pick<MoveInput, "potId" | "kind">): MoveInput =>
+      ({ id: randomUUID(), amountMinor: 1000, toPotId: null, purchase: null, choiceId: null, reason: null, memberId: null, done: false, ...over });
+    const refused = (hid: string, m: MoveInput, words: RegExp, status: "confirmed" | "pending" = "confirmed") => assert.rejects(movePot(db, hid, m, status, OWN), (e: unknown) => e instanceof InputError && words.test(e.message), words.source);
+    const movesOf = (hid: string, potId: string) => db.select().from(schema.potMoves).where(and(eq(schema.potMoves.householdId, hid), eq(schema.potMoves.potId, potId)));
+
+    await check("every writer keeps a pot's confirmed moves equal to saved_minor: create, edit, confirm, fill, add, take out, spend, carry, confirm a move, remove a pending one", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const trip = input({ name: "Trip", saved: "10000" }), spare = input({ name: "Spare", saved: "0", fillPct: "10" }), waiting = input({ name: "Waiting", saved: "700" });
+      await savePot(db, c, trip, "confirmed", OWN); await savePot(db, c, spare, "confirmed", OWN);
+      assert.deepEqual((await movesOf(c, trip.id)).map(m => [m.kind, m.amountMinor, m.status, m.movedOn]), [["adjust", 10_000, "confirmed", DEMO_DATE]]);
+      assert.deepEqual(await movesOf(c, spare.id), [], "a starting amount of zero writes no move");
+      await sumsOf(c);
+      await savePot(db, c, { ...trip, saved: "12000" }, "confirmed", OWN);
+      await savePot(db, c, { ...trip, saved: "9000" }, "confirmed", OWN);
+      assert.deepEqual((await movesOf(c, trip.id)).map(m => m.amountMinor).sort((a, b) => a - b), [-3000, 2000, 10_000]);
+      assert.equal(await saved(trip.id), 9000); await sumsOf(c);
+      await savePot(db, c, waiting, "pending", OWN);
+      assert.deepEqual(await movesOf(c, waiting.id), [], "a pending pot has no moves yet");
+      await confirmPending(db, c, "pot", waiting.id);
+      assert.deepEqual((await movesOf(c, waiting.id)).map(m => [m.kind, m.amountMinor]), [["adjust", 700]]);
+      await sumsOf(c);
+      const fillInvoice = await invoice(c, "Northwind", 10_000);
+      await db.transaction(tx => fillPots(tx, c, 15_000, fillInvoice, "Northwind's payment"));
+      const fill = (await movesOf(c, spare.id))[0];
+      assert.deepEqual([fill.kind, fill.amountMinor, fill.invoiceId, fill.movedOn], ["fill", 1500, fillInvoice, DEMO_DATE]);
+      assert.equal(fill.id, (await filled(c))[0].id, "the fill's id is its pot_filled event's id");
+      await sumsOf(c);
+      await movePot(db, c, move({ potId: trip.id, kind: "add", amountMinor: 500, reason: "A bonus" }), "confirmed", OWN);
+      await movePot(db, c, move({ potId: trip.id, kind: "take_out", amountMinor: 1200 }), "confirmed", OWN);
+      await movePot(db, c, move({ potId: trip.id, kind: "spend", amountMinor: 800 }), "confirmed", OWN);
+      await sumsOf(c);
+      const carry = move({ potId: trip.id, kind: "carry", toPotId: spare.id, amountMinor: 2000 });
+      await movePot(db, c, carry, "confirmed", OWN);
+      const pair = (await movesOf(c, spare.id)).find(m => m.kind === "carry")!;
+      assert.deepEqual([pair.amountMinor, pair.pairId], [2000, (await movesOf(c, trip.id)).find(m => m.kind === "carry")!.pairId]);
+      assert.equal(await saved(trip.id), 9000 + 500 - 1200 - 800 - 2000); assert.equal(await saved(spare.id), 1500 + 2000); await sumsOf(c);
+      const later = move({ potId: trip.id, kind: "take_out", amountMinor: 100 }), laterCarry = move({ potId: spare.id, kind: "carry", toPotId: trip.id, amountMinor: 50 });
+      await movePot(db, c, later, "pending", OWN); await movePot(db, c, laterCarry, "pending", OWN);
+      assert.equal(await saved(trip.id), 9000 + 500 - 1200 - 800 - 2000, "a pending move counts for nothing");
+      const state = await stateOf(c);
+      assert.deepEqual(state.pendingMoves!.map(m => [m.kind, m.minor]).sort(), [["carry", -50], ["carry", 50], ["take_out", -100]]);
+      assert.equal((await events(c, "to_check")).filter(e => e.refType === "pot_move").length, 2);
+      await db.transaction(tx => confirmMove(tx, c, later.id)); await sumsOf(c);
+      assert.equal(await db.transaction(tx => confirmMove(tx, c, later.id)), false, "a move confirms once");
+      await db.transaction(tx => confirmMove(tx, c, laterCarry.id)); await sumsOf(c);
+      assert.deepEqual([await saved(trip.id), await saved(spare.id)], [9000 + 500 - 1200 - 800 - 2000 - 100 + 50, 1500 + 2000 - 50]);
+      const drop = move({ potId: trip.id, kind: "take_out", amountMinor: 10 });
+      await movePot(db, c, drop, "pending", OWN);
+      assert.equal(await removePendingMove(db, c, drop.id), true);
+      assert.equal(await removePendingMove(db, c, drop.id), false);
+      const dropCarry = move({ potId: trip.id, kind: "carry", toPotId: spare.id, amountMinor: 10 });
+      await movePot(db, c, dropCarry, "pending", OWN);
+      assert.equal(await removePendingMove(db, c, dropCarry.id), true);
+      assert.deepEqual((await stateOf(c)).pendingMoves, [], "a carry goes with its partner row");
+      assert.equal(await removePot(db, c, spare.id), true); await sumsOf(c);
+      assert.equal((await db.select().from(schema.potMoves).where(eq(schema.potMoves.potId, spare.id))).length, 0, "removing a pot removes its moves");
+      const log = await loadPotMoves(db, c);
+      assert.ok(log.every(m => m.potName === "Trip" || m.potName === "Waiting") && log.every(m => /^\d{4}-\d\d-\d\d$/.test(m.on)));
+      assert.equal((await events(c, "pot_moved")).length >= 5, true);
+      const money = (await stateOf(c)).pots.find(p => p.id === trip.id)!;
+      assert.deepEqual([money.became, money.lastMovedOn], [800, DEMO_DATE], "became is what was spent");
+    });
+
+    await check("movePot refuses in words: other households' and pending pots, more than a pot holds, the tax pot spent, too much for a purchase, money into a done pot", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const small = input({ name: "Small", saved: "1000" }), tax = input({ name: "Tax", saved: "5000", category: "government_tax" }), other = input({ name: "Other", saved: "5000" }), waiting = input({ name: "Later" });
+      for (const p of [small, tax, other]) await savePot(db, c, p, "confirmed", OWN);
+      await savePot(db, c, waiting, "pending", OWN);
+      const foreign = input({ name: "Foreign", saved: "100" }); await savePot(db, b, foreign, "confirmed", OWN);
+      await refused(c, move({ potId: foreign.id, kind: "take_out" }), /Choose one of your pots/);
+      await refused(c, move({ potId: small.id, kind: "carry", toPotId: foreign.id }), /Choose one of your pots/);
+      await refused(c, move({ potId: waiting.id, kind: "add" }), /still waiting in To check/);
+      await refused(c, move({ potId: small.id, kind: "carry", toPotId: waiting.id, amountMinor: 10 }), /still waiting in To check/);
+      await refused(c, move({ potId: small.id, kind: "take_out", amountMinor: 1001 }), /holds ¥1,000, which is less than that/);
+      await refused(c, move({ potId: small.id, kind: "take_out", amountMinor: 1001 }), /holds ¥1,000/, "pending");
+      await refused(c, move({ potId: small.id, kind: "take_out", amountMinor: 0 }), /above zero/);
+      await refused(c, move({ potId: small.id, kind: "take_out", amountMinor: 1.5 }), /above zero/);
+      await refused(c, move({ potId: small.id, kind: "carry", toPotId: small.id }), /different pot/);
+      await refused(c, move({ potId: small.id, kind: "add", toPotId: other.id }), /second pot/);
+      await refused(c, move({ potId: small.id, kind: "add", purchase: { kind: "charge", id: randomUUID(), on: null } }), /Only money spent/);
+      await refused(c, move({ potId: small.id, kind: "take_out", choiceId: randomUUID() }), /Only money added/);
+      await refused(c, move({ potId: small.id, kind: "add", done: true }), /marked done at once/);
+      await refused(c, move({ potId: small.id, kind: "take_out", done: true }), /for you to do/, "pending");
+      await refused(c, move({ potId: small.id, kind: "take_out", reason: "x".repeat(201) }), /200 characters/);
+      await refused(c, move({ potId: small.id, kind: "take_out", memberId: memberB }), /member of this household/);
+      await refused(c, move({ potId: small.id, kind: "take_out", amountMinor: null }), /Enter an amount/);
+      await refused(c, move({ potId: tax.id, kind: "spend", amountMinor: 100 }), /ready for tax, so it can't be marked as spent/);
+      await movePot(db, c, move({ potId: tax.id, kind: "take_out", amountMinor: 100 }), "confirmed", OWN); // only a spend is refused
+      const card = (await first(db.select().from(schema.cards).where(eq(schema.cards.householdId, c)))).id;
+      const charge = (await first(db.insert(schema.charges).values({ householdId: c, cardId: card, merchant: "Fictional cafe", amountMinor: 1200, currency: "JPY", date: "2026-11-10", source: "manual" }).returning())).id;
+      const purchase = { kind: "charge", id: charge, on: null } as const;
+      await refused(c, move({ potId: other.id, kind: "spend", amountMinor: 1300, purchase }), /Fictional cafe cost ¥1,200 and pots have already covered ¥0/);
+      await refused(c, move({ potId: small.id, kind: "spend", amountMinor: 1200, purchase }), /holds ¥1,000/);
+      await movePot(db, c, move({ potId: small.id, kind: "spend", amountMinor: 700, purchase }), "confirmed", OWN);
+      await refused(c, move({ potId: other.id, kind: "spend", amountMinor: 600, purchase }), /already covered ¥700/);
+      await refused(c, move({ potId: small.id, kind: "spend", amountMinor: 100, purchase: { kind: "charge", id: randomUUID(), on: null } }), /Choose one of your charges/);
+      await movePot(db, c, move({ potId: other.id, kind: "spend", amountMinor: null, purchase }), "confirmed", OWN); // takes what is left of the purchase, ¥500
+      assert.equal(await saved(other.id), 4500);
+      await assert.rejects(movePot(db, c, move({ potId: other.id, kind: "spend", amountMinor: null, purchase }), "confirmed", OWN), /holds nothing to spend|already covered all/);
+      await movePot(db, c, move({ potId: small.id, kind: "take_out", amountMinor: 200, done: true }), "confirmed", OWN);
+      assert.equal((await rowOf(small.id)).doneOn, DEMO_DATE);
+      await refused(c, move({ potId: other.id, kind: "carry", toPotId: small.id, amountMinor: 10 }), /Small is done and takes no more money/);
+      await refused(c, move({ potId: small.id, kind: "add" }), /done and takes no more money/);
+      await movePot(db, c, move({ potId: small.id, kind: "take_out", amountMinor: 100 }), "confirmed", OWN); // a done pot can still give money
+      const dupe = move({ potId: other.id, kind: "add", amountMinor: 10 });
+      await movePot(db, c, dupe, "confirmed", OWN); await movePot(db, c, dupe, "confirmed", OWN);
+      assert.equal((await movesOf(c, other.id)).filter(m => m.id === dupe.id).length, 1, "the same move again is the same row");
+      await assert.rejects(movePot(db, c, { ...dupe, amountMinor: 11 }, "confirmed", OWN), /already in use/);
+      await sumsOf(c);
+      const mine = (await events(c, "pot_moved")).find(e => e.refId === dupe.id)!;
+      assert.deepEqual([mine.refType, mine.title, mine.notify], ["pot_move", "Added ¥10 to Other", false]);
+    });
+
+    await check("a move takes its member from the input, else from the maker; a bill is a purchase on one of its days; a done pot never fills; markPotDone sets the day once", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const memberC = (await first(db.select().from(schema.members).where(eq(schema.members.householdId, c)))).id;
+      const pool = input({ name: "Pool", saved: "5000", fillPct: "50" });
+      await savePot(db, c, pool, "confirmed", OWN);
+      const a1 = move({ potId: pool.id, kind: "add", amountMinor: 10 }), a2 = move({ potId: pool.id, kind: "add", amountMinor: 20, memberId: memberC }), a3 = move({ potId: pool.id, kind: "add", amountMinor: 30 });
+      await movePot(db, c, a1, "confirmed", { madeBy: "form", memberId: memberC });
+      await movePot(db, c, a2, "confirmed", OWN); await movePot(db, c, a3, "confirmed", OWN);
+      const memberOf = async (id: string) => (await first(db.select().from(schema.potMoves).where(eq(schema.potMoves.id, id)))).memberId;
+      assert.deepEqual([await memberOf(a1.id), await memberOf(a2.id), await memberOf(a3.id)], [memberC, memberC, null]);
+      const bill = (await first(db.insert(schema.bills).values({ householdId: c, biller: "Fictional power", amountMinor: 3000, currency: "JPY", due: "2026-12-01", category: "utilities" }).returning())).id;
+      await refused(c, move({ potId: pool.id, kind: "spend", amountMinor: 100, purchase: { kind: "bill", id: bill, on: null } }), /which day of the bill/);
+      const spend = move({ potId: pool.id, kind: "spend", amountMinor: null, purchase: { kind: "bill", id: bill, on: "2026-12-01" } });
+      await movePot(db, c, spend, "confirmed", OWN);
+      const row = await first(db.select().from(schema.potMoves).where(eq(schema.potMoves.id, spend.id)));
+      assert.deepEqual([row.amountMinor, row.billId, row.billOn], [-3000, bill, "2026-12-01"]);
+      assert.deepEqual((await loadPotMoves(db, c)).find(m => m.id === spend.id)!.purchase, { kind: "bill", id: bill, on: "2026-12-01", label: "Fictional power" });
+      await db.delete(schema.bills).where(eq(schema.bills.id, bill));
+      assert.deepEqual((await loadPotMoves(db, c)).find(m => m.id === spend.id)!.purchase, { kind: "bill", id: "", on: "2026-12-01", label: "A removed purchase" });
+      assert.equal(await markPotDone(db, c, pool.id), true);
+      assert.equal(await markPotDone(db, c, pool.id), false, "done is set once");
+      assert.equal(await markPotDone(db, c, randomUUID()), false);
+      assert.equal(await (async () => { const inv = await invoice(c, "Northwind", 100); return db.transaction(tx => fillPots(tx, c, 10_000, inv, "x")); })(), 0, "a done pot never fills");
+      assert.deepEqual((await movesOf(c, pool.id)).filter(m => m.kind === "fill"), []);
+    });
+
+    await check("each partial unique index on the moves refuses a second row", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const p = input({ name: "Unique", saved: "100000" }), q = input({ name: "Unique too", saved: "100000" });
+      await savePot(db, c, p, "confirmed", OWN); await savePot(db, c, q, "confirmed", OWN);
+      const card = (await first(db.select().from(schema.cards).where(eq(schema.cards.householdId, c)))).id;
+      const charge = (await first(db.insert(schema.charges).values({ householdId: c, cardId: card, merchant: "Fictional shop", amountMinor: 900, currency: "JPY", date: "2026-11-10", source: "manual" }).returning())).id;
+      const bill = (await first(db.insert(schema.bills).values({ householdId: c, biller: "Fictional water", amountMinor: 900, currency: "JPY", due: "2026-12-01", category: "utilities" }).returning())).id;
+      const inv = await invoice(c, "Northwind", 100);
+      const row = (over: Partial<typeof schema.potMoves.$inferInsert>): typeof schema.potMoves.$inferInsert => ({ householdId: c, potId: p.id, kind: "spend", amountMinor: -1, currency: "JPY", status: "confirmed", movedOn: DEMO_DATE, confirmedAt: new Date(), ...over });
+      const twice = async (first_: Partial<typeof schema.potMoves.$inferInsert>, constraint: string, second?: Partial<typeof schema.potMoves.$inferInsert>) => {
+        await db.insert(schema.potMoves).values(row(first_));
+        await assert.rejects(db.insert(schema.potMoves).values(row(second ?? first_)), violates(constraint), constraint);
+      };
+      await twice({ kind: "fill", amountMinor: 5, invoiceId: inv }, "pot_moves_fill_invoice_uq");
+      await twice({ chargeId: charge }, "pot_moves_spend_charge_uq");
+      await twice({ billId: bill, billOn: "2026-12-01" }, "pot_moves_spend_bill_uq");
+      const pair = randomUUID();
+      await twice({ kind: "carry", amountMinor: -5, pairId: pair }, "pot_moves_carry_uq");
+      await db.insert(schema.potMoves).values(row({ potId: q.id, kind: "fill", amountMinor: 5, invoiceId: inv }));
+      await db.insert(schema.potMoves).values(row({ billId: bill, billOn: "2027-01-01" }));
+      await db.insert(schema.potMoves).values(row({ potId: q.id, kind: "carry", amountMinor: 5, pairId: pair }));
+    });
+
+    await check("choices save, confirm, withdraw and remove; a repeat is the same row; refusals are in words", async () => {
+      const c = await seedBen(db, { isDemo: true });
+      const choice = (over: Partial<ChoiceInput> = {}): ChoiceInput => ({ id: randomUUID(), source: "said", happenedOn: "2026-11-10", aboutMinor: 1800, words: "Skipped the taxi", category: null, foundKey: null, memberId: null, ...over });
+      const said = choice({ category: "transport" });
+      assert.equal(await saveChoice(db, c, said, "confirmed", OWN), said.id);
+      await saveChoice(db, c, said, "confirmed", OWN);
+      assert.equal((await events(c, "choice_added")).length, 1);
+      await assert.rejects(saveChoice(db, c, { ...said, aboutMinor: 1 }, "confirmed", OWN), /already in use/);
+      const found = choice({ source: "found", foundKey: "found:subscription:1", words: "Cancelled an unused subscription" });
+      await saveChoice(db, c, found, "pending", OWN);
+      assert.deepEqual((await stateOf(c)).pendingChoices!.map(x => [x.id, x.words, x.minor]), [[found.id, found.words, 1800]]);
+      assert.deepEqual((await loadChoices(db, c)).map(x => x.id), [said.id], "a pending choice is not on the record");
+      assert.equal((await events(c, "to_check")).filter(e => e.refType === "choice").length, 1);
+      await assert.rejects(saveChoice(db, c, choice({ source: "found", foundKey: "found:subscription:1" }), "pending", OWN), /already found/);
+      assert.equal(await db.transaction(tx => confirmChoice(tx, c, found.id)), true);
+      assert.equal(await db.transaction(tx => confirmChoice(tx, c, found.id)), false);
+      assert.deepEqual((await stateOf(c)).pendingChoices, []);
+      const all = await loadChoices(db, c);
+      assert.deepEqual(all.map(x => [x.source, x.category, x.confirmedOn, x.withdrawnOn]), [["said", "transport", DEMO_DATE, null], ["found", null, DEMO_DATE, null]]);
+      assert.equal(await withdrawChoice(db, c, said.id), true);
+      assert.equal(await withdrawChoice(db, c, said.id), false);
+      assert.equal(await withdrawChoice(db, c, randomUUID()), false);
+      assert.equal((await loadChoices(db, c)).find(x => x.id === said.id)!.withdrawnOn, DEMO_DATE, "the row stays, with the day");
+      const draft = choice({ words: "A draft" });
+      await saveChoice(db, c, draft, "pending", OWN);
+      assert.equal(await removePendingChoice(db, c, found.id), false, "a confirmed choice is never removed this way");
+      assert.equal(await removePendingChoice(db, c, draft.id), true);
+      assert.equal(await removePendingChoice(db, c, draft.id), false);
+      for (const [bad, words] of [[{ aboutMinor: 0 }, /above zero/], [{ words: "  " }, /what it was about/], [{ words: "x".repeat(161) }, /160/], [{ source: "found" as const }, /needs its key/],
+        [{ foundKey: "k" }, /Only something the app found/], [{ memberId: memberB }, /member of this household/]] as const) {
+        await assert.rejects(saveChoice(db, c, choice(bad), "confirmed", OWN), (e: unknown) => e instanceof Error && words.test(e.message), JSON.stringify(bad));
+      }
+      const addChoice = input({ name: "For choices", saved: "1000" });
+      await savePot(db, c, addChoice, "confirmed", OWN);
+      await movePot(db, c, move({ potId: addChoice.id, kind: "add", amountMinor: 1800, choiceId: said.id }), "confirmed", OWN);
+      assert.equal((await loadPotMoves(db, c)).find(m => m.choiceId === said.id)!.minor, 1800);
+      await refused(c, move({ potId: addChoice.id, kind: "add", choiceId: randomUUID() }), /Choose one of your choices/);
     });
 
     console.log(`Pots checks passed (${tally.passed}).`);

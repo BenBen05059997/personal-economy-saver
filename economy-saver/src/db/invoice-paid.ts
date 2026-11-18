@@ -48,7 +48,7 @@ export async function markPaidOutside(db: Db, householdId: string, invoiceId: st
       amount: { value: fromMinor(invoice.amountMinor, invoice.currency), currency: invoice.currency },
       ref: { type: "invoice", id }, notify: false,
     });
-    await fillPots(tx, hid, credit, `${row.client}'s payment`);
+    await fillPots(tx, hid, credit, id, `${row.client}'s payment`);
     await observeRunway(tx, hid);
     return true;
   });

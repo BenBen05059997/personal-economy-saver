@@ -39,7 +39,7 @@ A personal money agent for people paid through PayPal (D2, D29). Home is one sen
 - After a schema change, restart `next dev`: a running server can keep an old build of an API route's data module and silently skip a new column.
 - A `next dev` stuck in a hot-reload loop (its log fills with `✓ Compiled in 1ms`) drains the database pool and the HTTP suites time out. Close the tab, restart `next dev`, open one tab.
 - The Claude desktop app's browser pane is throttled while hidden and can sit on "Opening …". Take a screenshot or wait; it is not an app bug.
-- Migrations 0018 and 0032 are hand-edited after `db:generate` (the `ON DELETE SET NULL` column list). Keep their SQL as it is.
+- Migrations 0018, 0032, 0036 and 0037 are hand-edited after `db:generate` (the `ON DELETE SET NULL` column list, or grants, policies and backfill). Keep their SQL as it is.
 - Don't run `wrangler types`: its file clashes with the DOM types.
 
 ## Where things are

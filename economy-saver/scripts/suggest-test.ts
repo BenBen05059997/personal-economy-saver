@@ -18,6 +18,7 @@ import { createSpace, deleteSpace, generalSpace, renameSpace } from "@/db/spaces
 import { closeByRef, dismiss, notNow, openSuggestions, runPass } from "@/db/suggestions";
 import { applyVerifiedDelivery } from "@/lib/events";
 import { readRule, ruleWords } from "@/lib/money/rules";
+import { RULE_KINDS } from "@/lib/money/suggestion-types";
 import { fundingOptions } from "@/lib/money/options";
 import { arrivals, expectedPayBasis } from "@/lib/money/runway";
 import { findSuggestions } from "@/lib/money/suggest";
@@ -63,7 +64,7 @@ async function main() {
         ...defaultRules(), nudge_after: { enabled: true, threshold: 60, currency: null },
       });
       for (const hid of [legacy, legacyOff]) {
-        assert.equal((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length, 6);
+        assert.equal((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length, RULE_KINDS.length);
       }
       assert.deepEqual((await pg.query("select * from rules where household_id = $1", [legacy])).rows, correctionsBefore,
         "the original reader correction row and its table shape are preserved");
@@ -79,12 +80,12 @@ async function main() {
       const audit = await db.select().from(schema.events)
         .where(and(eq(schema.events.householdId, hid), eq(schema.events.kind, "rules_initialized")));
       assert.deepEqual(audit.map(row => row.title), ["Default standing rules added"]);
-      assert.equal((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length, 6);
+      assert.equal((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length, RULE_KINDS.length);
 
       await db.delete(schema.standingRules)
         .where(and(eq(schema.standingRules.householdId, hid), eq(schema.standingRules.kind, "safe_below")));
       await assert.rejects(rulesFor(db, hid), /Missing standing rule: safe_below/);
-      assert.equal((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length, 5);
+      assert.equal((await db.select().from(schema.standingRules).where(eq(schema.standingRules.householdId, hid))).length, RULE_KINDS.length - 1);
     });
 
     await check("new rule edits validate days, percent, currency and money limits in the same parser as Ask", () => {
@@ -215,6 +216,7 @@ async function main() {
       assert.deepEqual(kinds({ ...quiet, pots: [pot] }), ["goal_behind"]);
       assert.deepEqual(kinds({ ...quiet, pots: [{ ...pot, targetDate: undefined }] }), []);
       assert.deepEqual(kinds({ ...quiet, pots: [{ ...pot, saved: pot.target }] }), []);
+      assert.deepEqual(kinds({ ...quiet, pots: [{ ...pot, doneOn: "2026-11-10" }] }), [], "a done pot has no pace to fall behind");
       const rules = defaultRules();
       rules.goal_behind.enabled = false;
       rules.safe_below = { enabled: true, threshold: 128_001, currency: "JPY" };
@@ -295,7 +297,7 @@ async function main() {
     });
 
     await check("tax_short is a goal_behind finding: it carries the short amount, the day and the bill due, equal to tax_ahead's, and the switch silences it", () => {
-      const tax = { id: "pot-tax", name: "Tax", saved: 10_000, fillPct: 20 };
+      const tax = { id: "pot-tax", name: "Tax", saved: 10_000, fillPct: 20, category: "government_tax" as const };
       const taxBill = { id: "tax-1", biller: "Resident tax", amount: 100_000, due: "2026-12-20", category: "government_tax", businessBp: 0, status: "confirmed" } satisfies Bill;
       const state: MoneyState = { ...benMoney, bills: [taxBill], storedBills: [], statements: [], charges: [], pots: [tax] };
       const found = find(state).filter(row => row.kind === "tax_short");
@@ -308,6 +310,8 @@ async function main() {
       rules.goal_behind.enabled = false;
       assert.deepEqual(find(state, rules).filter(row => row.kind === "tax_short"), []);
       assert.deepEqual(find({ ...state, bills: [{ ...taxBill, amount: 40_000 }] }).filter(row => row.kind === "tax_short"), [], "a covered pot says nothing");
+      assert.deepEqual(find({ ...state, pots: [{ ...tax, category: undefined }] }).filter(row => row.kind === "tax_short"), [], "a fill-rule saving pot is not the tax pot");
+      assert.equal(find({ ...state, pots: [{ ...tax, fillPct: undefined }] }).filter(row => row.kind === "tax_short").length, 1, "the tax pot needs no fill rule");
     });
 
     await check("safe_below carries safe to spend, equal to the forecast's", () => {

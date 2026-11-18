@@ -1,5 +1,6 @@
 // D69: spaces have one permanent General, their own thread, and household-scoped lifecycle and export.
 // PGlite only. Every fixture is fictional and no model, network or credentials are needed.
+import { SNAPSHOT_VERSION } from "@/lib/schema/household";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { PGlite } from "@electric-sql/pglite";
@@ -133,7 +134,7 @@ async function main() {
     await check("the journal counts work spaces and threads, and export and import preserve links with new ids", async () => {
       assert.equal(await countKind(store, blank, "journal"), 3, "two turns plus one task space");
       const exported = await loadHouseholdSnapshot(store, blank, snapshotOptions);
-      assert.equal(exported.version, 4);
+      assert.equal(exported.version, SNAPSHOT_VERSION);
       const saved = exported.spaces?.find(s => s.id === source.space.id);
       assert.deepEqual(saved?.brief, source.brief);
       assert.equal(exported.memory?.find(row => row.id === source.note.id)?.spaceId, source.space.id);

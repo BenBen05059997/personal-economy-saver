@@ -15,6 +15,7 @@ export function defaultRules(): StandingRules {
     cost_up: { enabled: false, threshold: null, currency: null },
     safe_below: { enabled: false, threshold: null, currency: null },
     goal_behind: { enabled: true, threshold: null, currency: null },
+    saving_wins: { enabled: true, threshold: null, currency: null },
   };
 }
 

@@ -1,5 +1,5 @@
 // The one versioned shape of a household (D44). The database builds it (src/db/snapshot.ts), Settings exports it,
-// the `household_snapshot` tool hands it to the agent and MCP, and schema/household.v4.json is generated from it
+// the `household_snapshot` tool hands it to the agent and MCP, and schema/household.v5.json is generated from it
 // (npm run schema). Every object is strict, so a key that is not listed here is refused.
 //
 // Rules for every field: money is an integer count of minor units (whole yen, cents for USD) next to a 3-letter
@@ -14,8 +14,8 @@ import { BriefAuthor, BriefSchema } from "@/lib/agent/brief";
 import { RepeatUnitSchema } from "@/lib/money/repeat";
 import { ConversationTurn } from "@/lib/schema/turn";
 
-/** Version 4 adds the person's own categories (D75) and the one each bill and charge is filed under. Version 3 added the spaces of the Ask journal (D69), in the export only. */
-export const SNAPSHOT_VERSION = 4;
+/** Version 5 adds what a pot is for, the day it was done, every move of a pot's money and the choices a saving can name (D81). Version 4 adds the person's own categories (D75) and the one each bill and charge is filed under. Version 3 added the spaces of the Ask journal (D69), in the export only. */
+export const SNAPSHOT_VERSION = 5;
 
 const id = z.uuid();
 const day = z.string().date().describe("A calendar day, YYYY-MM-DD.");
@@ -149,8 +149,46 @@ const Pot = z.object({
   targetDate: day.nullable(),
   savedMinor: minor.describe("Set aside and not spendable once the pot is confirmed."),
   fillBp: z.number().int().min(1).max(10_000).nullable().describe("Share of each client payment added to the pot, in basis points (2500 = 25%)."),
+  category: category.nullable().optional().describe("What the pot is for; government_tax makes it the tax pot. Absent in a version 2 to 4 file."),
+  doneOn: day.nullable().optional().describe("The day the person marked the pot done; null = not done. Absent in a version 2 to 4 file."),
   currency,
   status,
+  madeBy,
+}).strict();
+
+const PotMove = z.object({
+  id,
+  potId: id,
+  kind: z.enum(["adjust", "fill", "add", "take_out", "spend", "carry"]).describe("adjust = a start or correction, either sign; fill = a share of a client payment; add = money put in; take_out = money taken out; spend = a purchase paid from the pot; carry = money moved between pots, one row in each, joined by `pairId`."),
+  amountMinor: minor.describe("Signed: fill and add are above zero, take_out and spend below, adjust and carry are never zero."),
+  currency,
+  movedOn: day.nullable().describe("The day it happened; null while it is pending."),
+  reason: z.string().nullable(),
+  memberId: id.nullable().describe("Who made it."),
+  invoiceId: id.nullable().describe("The client payment a fill came from."),
+  chargeId: id.nullable().describe("The charge a spend paid."),
+  billId: id.nullable().describe("The bill a spend paid; with `billOn`, the occurrence."),
+  billOn: day.nullable(),
+  choiceId: id.nullable().describe("The choice an add was about."),
+  pairId: id.nullable().describe("Joins the two rows of a carry."),
+  status,
+  confirmedAt: moment.nullable(),
+  madeBy,
+}).strict();
+
+const Choice = z.object({
+  id,
+  memberId: id.nullable().describe("Who chose; null = unknown."),
+  source: z.enum(["said", "found"]).describe("said = the person told the assistant; found = the app found it in their records."),
+  happenedOn: day,
+  aboutMinor: minor.describe("What it was about, always above zero."),
+  currency,
+  words: z.string().min(1).max(160),
+  category: category.nullable(),
+  foundKey: z.string().nullable().describe("Set exactly when source is found; one choice per key."),
+  status,
+  confirmedAt: moment.nullable(),
+  withdrawnAt: moment.nullable().describe("When the person withdrew it; only a confirmed choice can be withdrawn."),
   madeBy,
 }).strict();
 
@@ -251,6 +289,8 @@ export const HouseholdSnapshot = z.object({
   clients: z.array(Client),
   invoices: z.array(Invoice),
   pots: z.array(Pot),
+  potMoves: z.array(PotMove).optional().describe("Every move of every pot's money (D81); a confirmed pot's `savedMinor` is the sum of its confirmed moves. Absent in a version 2 to 4 file."),
+  choices: z.array(Choice).optional().describe("The choices savings can name (D81). Absent in a version 2 to 4 file."),
   settlements: z.array(Settlement).describe("Every transfer recorded by Mark settled, oldest first."),
   ownCategories: z.array(OwnCategory).optional().describe("The person's own categories (D75), by category. Absent in a version 2 or 3 file."),
   balanceUpdates: z.array(BalanceUpdate).describe("Bank balances set (confirmed) and waiting in To check (pending). Pending bills, charges and pots carry `status` in their own lists."),
@@ -261,6 +301,6 @@ export const HouseholdSnapshot = z.object({
   canvases: z.array(PinnedCanvasExport).optional().describe("The canvases pinned to Home, in order (D57). Only in the export."),
   journal: z.array(ConversationTurn).optional().describe("The conversation turns, oldest first (D60). Only in the export."),
   spaces: z.array(SpaceExport).optional().describe("The journal’s spaces, with their briefs (D69). Only in the export."),
-}).strict().describe("A whole household at one moment: version 4 of the Personal Economy Saver household schema, including the person's own categories and, in the export, spaces.");
+}).strict().describe("A whole household at one moment: version 5 of the Personal Economy Saver household schema, including the person's own categories, pot moves and choices and, in the export, spaces.");
 
 export type HouseholdSnapshot = z.infer<typeof HouseholdSnapshot>;

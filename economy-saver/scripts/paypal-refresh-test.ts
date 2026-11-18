@@ -57,7 +57,7 @@ async function test() {
       queries.length = 0;
       const money = await loadMoneyState(tx, untouched, clockForHousehold(household).today, household);
       await observeRunway(tx, untouched, money, household);
-      assert.equal(queries.length, 13, "workspace reuses its household for twelve money queries and one baseline update");
+      assert.equal(queries.length, 16, "workspace reuses its household for fifteen money queries and one baseline update");
       assert.ok(!queries.some(query => /from "households"|for update/i.test(query)), "no repeated household reads or locks");
       await assert.rejects(loadMoneyState(tx, a, money.today, household), /does not match/);
       await assert.rejects(observeRunway(tx, a, money, household), /does not match/);

@@ -2,7 +2,7 @@ import type { Currency } from "@/lib/catalogue/types";
 import { hrefFor } from "@/lib/links";
 import type { Fact } from "./facts";
 
-export const RULE_KINDS = ["nudge_after", "statement_ahead", "bill_ahead", "cost_up", "safe_below", "goal_behind"] as const;
+export const RULE_KINDS = ["nudge_after", "statement_ahead", "bill_ahead", "cost_up", "safe_below", "goal_behind", "saving_wins"] as const;
 export type RuleKind = typeof RULE_KINDS[number];
 export type StandingRule = { enabled: boolean; threshold: number | null; currency: Currency | null; spaceId?: string };
 export type StandingRules = Record<RuleKind, StandingRule>;

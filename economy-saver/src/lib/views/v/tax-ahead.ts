@@ -15,7 +15,7 @@ export const taxAheadView: Resolver<"tax_ahead"> = (args, ctx): ViewResult => {
   const base = { view: "tax_ahead" as const, args: args as Record<string, unknown>, form: meta.form as "step_line", title: `${pot.name}: tax ahead`, question: meta.question, hint: meta.hint, currency, strip: null, source: "The pot, your open invoices on their usual pay days and your Government & tax bills" };
   const none = (words: string, add: "bill" | null, addLabel: string | null) => ({ ...base, data: null, table: null, line: null, aria: "No tax picture yet.", facts: [] as Fact[], empty: { words, add, addLabel } });
   const ahead = taxAhead(state, args.potId, days);
-  if (!ahead) return none("Set a fill rule on this pot to see the tax ahead.", null, null);
+  if (!ahead) return none("Set this pot's category to Government & tax to see the tax ahead.", null, null);
   if (ahead.taxBills.length === 0) return none("Add your tax bills (Government & tax) to see whether this pot covers them.", "bill", "Add a bill");
 
   const date = (i: number) => addDays(state.today, i);

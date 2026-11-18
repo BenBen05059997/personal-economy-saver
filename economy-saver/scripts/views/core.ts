@@ -41,16 +41,16 @@ async function main() {
     const needs = [...new Set(all.flatMap(view => VIEW_META[view].needs))];
     const ctx = await loadViewContext(db, hid, needs);
 
-    await check("the context holds what the needs name, and income and pot fills as integer minor units", () => {
-      assert.ok(ctx.spending && ctx.income && ctx.potFills && ctx.foreignCosts);
+    await check("the context holds what the needs name, and income and pot moves as integer minor units", () => {
+      assert.ok(ctx.spending && ctx.income && ctx.moves && ctx.foreignCosts);
       assert.equal(ctx.income!.length, 16);
       assert.ok(ctx.income!.every(row => row.homeMinor !== null && Number.isInteger(row.homeMinor) && row.sentOn !== null && row.clientId !== null));
-      assert.deepEqual(ctx.potFills, [], "Ben has no pots");
+      assert.deepEqual(ctx.moves, [], "Ben has no pots");
     });
 
     await check("loadViewContext reads only what is asked", async () => {
       const bare = await loadViewContext(db, hid, []);
-      assert.ok(bare.state && !bare.spending && !bare.income && !bare.potFills && !bare.foreignCosts);
+      assert.ok(bare.state && !bare.spending && !bare.income && !bare.moves && !bare.foreignCosts);
       const some = await loadViewContext(db, hid, ["income"], { state: bare.state });
       assert.equal(some.state, bare.state, "the state the caller has is used as it is");
       assert.ok(some.income && !some.spending);

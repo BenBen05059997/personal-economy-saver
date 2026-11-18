@@ -10,6 +10,7 @@ export const RULE_NAMES: Record<RuleKind, string> = {
   cost_up: "Regular cost increase",
   safe_below: "Minimum safe to spend",
   goal_behind: "Goal behind pace",
+  saving_wins: "Saving wins",
 };
 
 export function ruleNumberLimit(kind: RuleKind) {
@@ -22,7 +23,7 @@ export function ruleNumberLimit(kind: RuleKind) {
 
 export function readRule(kind: RuleKind, enabled: boolean, value: string | null, home: Currency): StandingRule | { problem: string } {
   const text = value?.trim() || null;
-  if (kind === "goal_behind") {
+  if (kind === "goal_behind" || kind === "saving_wins") {
     return text ? { problem: "This rule uses on or off." } : { enabled, threshold: null, currency: null };
   }
   if (text === null) {
@@ -51,6 +52,7 @@ export function ruleWords(kind: RuleKind, rule: StandingRule) {
     case "cost_up": words = threshold === null ? "Flag a regular cost increase" : "Flag a regular cost when it rises by more than " + threshold + "%"; break;
     case "safe_below": words = threshold === null || currency === null ? "Flag low safe to spend" : "Flag safe to spend below " + minorMoney(threshold, currency); break;
     case "goal_behind": words = "Flag a goal that is behind pace"; break;
+    case "saving_wins": words = "Offer savings found in your records, ask once whether a purchase came from a saving pot, and show new medals"; break;
   }
   return enabled ? words : words + " (off)";
 }

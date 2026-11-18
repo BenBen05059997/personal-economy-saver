@@ -1,6 +1,6 @@
 // A goal's pace (D66, D77): what is saved against where the goal expects you to be today, and when this pace reaches it. Pure; integer minor units.
 import { engineFact, type Fact } from "@/lib/money/facts";
-import { dayLabel, minorMoney } from "@/lib/money/format";
+import { dayLabel, minorMoney, toMinor } from "@/lib/money/format";
 import { goalPace, paceWords } from "@/lib/money/goals";
 import { VIEW_META } from "../catalogue";
 import { ViewError, type Resolver, type ViewResult } from "../types";
@@ -12,6 +12,11 @@ export const goalPaceView: Resolver<"goal_pace"> = (args, ctx): ViewResult => {
   if (!pot) throw new ViewError("I couldn't find that pot.");
   const meta = VIEW_META.goal_pace, currency = state.homeCurrency, format = (minor: number) => minorMoney(minor, currency);
   const base = { view: "goal_pace" as const, args: args as Record<string, unknown>, form: meta.form as "goal_line", title: `${pot.name}: its pace`, question: meta.question, hint: meta.hint, currency, strip: null, source: "What is saved in the pot and the target date you set" };
+  if (pot.doneOn !== undefined) { // a done pot has no pace and draws no chart (D81)
+    const words = `${(pot.became ?? 0) > 0 ? "Bought" : "Done"} on ${dated(pot.doneOn, state.today)}.`, about = { type: "pot" as const, id: pot.id, name: pot.name };
+    return { ...base, data: null, table: null, line: words, aria: words, empty: { words, add: null, addLabel: null },
+      facts: [engineFact("pot_done_on", pot.doneOn, { from: "goal_pace", about }), engineFact("pot", toMinor(pot.saved, currency), { from: "goal_pace", currency, about })] };
+  }
   const goal = goalPace(pot, state);
   if (!goal) return { ...base, data: null, table: null, line: null, aria: "This pot has no goal.", facts: [] as Fact[], empty: { words: "Give this pot a target and a date to see its pace.", add: null, addLabel: null } };
   const day = (iso: string) => dated(iso, state.today);

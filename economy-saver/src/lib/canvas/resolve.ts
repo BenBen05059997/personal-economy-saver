@@ -26,7 +26,7 @@ import { VIEW_META } from "@/lib/views/catalogue";
 import { stepLine } from "@/lib/views/step-line";
 import { eventWords, ifCase, ifClientsPay, NOTHING_SCHEDULED, WAITS_FLAG } from "@/lib/views/words";
 import { ViewError, type FormData, type RankedRow, type TableTwin, type Tone, type ViewResult } from "@/lib/views/types";
-import type { IncomeRow, PotFill } from "@/lib/money/types";
+import type { IncomeRow, PotMove } from "@/lib/money/types";
 import { problemWords, RecipeSchema, ScenarioSchema, type Block, type Query, type Recipe, type Scenario, type ScenarioRef } from "./schema";
 import { storedId } from "@/lib/money/name-key";
 import { addDays, daysBetween } from "@/lib/money/dates";
@@ -35,7 +35,7 @@ import { addDays, daysBetween } from "@/lib/money/dates";
 export class CanvasError extends Error {}
 
 /** What the engine needs: the money state as the household's page loads it, and the spending read over the last twelve months through the end of this one. */
-export type CanvasContext = { state: MoneyState; spending: SpendingInput; foreignCosts?: FxCosts; periodBills?: PeriodBill[]; income?: IncomeRow[]; potFills?: PotFill[] };
+export type CanvasContext = { state: MoneyState; spending: SpendingInput; foreignCosts?: FxCosts; periodBills?: PeriodBill[]; income?: IncomeRow[]; moves?: PotMove[] };
 
 /** Whether any block of the recipe asks for the foreign costs (so the loader reads their inputs only then). */
 export const asksForeignCosts = (recipe: { blocks: readonly Block[] }): boolean => recipe.blocks.some(block => "query" in block && block.query.q === "foreign_costs");

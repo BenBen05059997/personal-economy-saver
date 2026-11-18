@@ -1,4 +1,4 @@
-// Will the pot cover the tax bills? (D77) Pure; integer minor units. The pot starts at what it holds today and steps up by its fill share of each
+// Will the pot cover the tax bills? (D77) Pure; integer minor units. The tax pot is the pot whose category is Government & tax (D81). It starts at what it holds today and steps up by its fill share (none when it has no fill rule) of each
 // open client invoice on its usual pay date (only invoices already sent: future work is never guessed). Its Government & tax bills due in the
 // window add up beside it. A pending bill is named and not counted. Never a judgement of the tax itself (D7).
 import { toMinor } from "./format";
@@ -19,14 +19,14 @@ type TaxAhead = {
   low: { index: number; short: boolean; shortMinor: number; marginMinor: number }; // the first day the bills exceed the pot, else the day with the least to spare on a bill day
 };
 
-/** The pot at `potId` against its tax bills; null when the pot does not exist or has no fill rule (the caller says so in words). */
+/** The pot at `potId` against its tax bills; null when the pot does not exist or is not the tax pot (the caller says so in words). */
 export function taxAhead(state: MoneyState, potId: string, days: number): TaxAhead | null {
   const pot = state.pots.find(row => row.id === potId);
-  if (!pot || pot.fillPct === undefined) return null;
-  const fillBp = Math.round(pot.fillPct * 100), minor = (amount: number) => toMinor(amount, state.homeCurrency);
+  if (!pot || pot.category !== "government_tax") return null;
+  const fillBp = Math.round((pot.fillPct ?? 0) * 100), minor = (amount: number) => toMinor(amount, state.homeCurrency);
   const delta = new Array<number>(days).fill(0), owed = new Array<number>(days).fill(0);
   const steps: TaxStep[] = [];
-  for (const arrival of arrivals(state)) {
+  for (const arrival of fillBp > 0 ? arrivals(state) : []) {
     const index = daysBetween(state.today, arrival.expectedOn);
     if (index < 0 || index >= days) continue;
     const invoiceMinor = minor(arrival.amountHome), addMinor = fillShare(invoiceMinor, fillBp);

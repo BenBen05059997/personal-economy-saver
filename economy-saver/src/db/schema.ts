@@ -259,6 +259,7 @@ export const invoices = pgTable(
     foreignKey({ columns: [t.householdId, t.payerMemberId], foreignColumns: [members.householdId, members.id], name: "invoices_payer_member_fk" }).onDelete("cascade"),
     check("invoices_client_xor_member", sql`(${t.clientId} is null) <> (${t.payerMemberId} is null)`),
     check("invoices_owed_with_member", sql`(${t.payerMemberId} is null) = (${t.owedMinor} is null)`),
+    unique("invoices_household_id_uq").on(t.householdId, t.id),
   ],
 ).enableRLS();
 
@@ -382,6 +383,7 @@ export const charges = pgTable(
     check("charges_business_valid", sql`${t.businessBp} between 0 and 10000`),
     // D75: an own category of this household and this category's kind; removing it clears only own_category_id (see migration 0032).
     foreignKey({ columns: [t.householdId, t.ownCategoryId, t.category], foreignColumns: [ownCategories.householdId, ownCategories.id, ownCategories.kind], name: "charges_own_category_fk" }).onDelete("set null"),
+    unique("charges_household_id_uq").on(t.householdId, t.id),
   ],
 ).enableRLS();
 
@@ -473,6 +475,8 @@ export const pots = pgTable(
     targetDate: date("target_date", { mode: "string" }),
     savedMinor: minor("saved_minor").notNull().default(0),
     fillBp: integer("fill_bp"),
+    category: text("category"), // D81: what the pot is for, a key from lib/money/categories.ts; government_tax makes it the tax pot
+    doneOn: date("done_on", { mode: "string" }), // D81: the day the person marked the pot done; set once, never cleared
     currency: char("currency", { length: 3 }).notNull(),
     status: confirmStatus("status").notNull().default("confirmed"),
     madeBy: madeByColumn(),
@@ -484,7 +488,93 @@ export const pots = pgTable(
     check("pots_target_positive", sql`${t.targetMinor} is null or ${t.targetMinor} > 0`),
     check("pots_saved_valid", sql`${t.savedMinor} >= 0`),
     check("pots_fill_valid", sql`${t.fillBp} is null or ${t.fillBp} between 1 and 10000`),
+    check("pots_category_valid", sql`${t.category} is null or ${t.category} in (${categoryList})`),
     foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "pots_member_household_fk" })],
+).enableRLS();
+
+// D81: something the person chose or the app found in their records, kept so a saving can name what it was about.
+export const choices = pgTable(
+  "choices",
+  {
+    id: id(),
+    householdId: householdId(),
+    memberId: uuid("member_id").references(() => members.id, { onDelete: "set null" }),
+    source: text("source", { enum: ["said", "found"] }).notNull(),
+    happenedOn: date("happened_on", { mode: "string" }).notNull(),
+    aboutMinor: minor("about_minor").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    words: text("words").notNull(),
+    category: text("category"),
+    foundKey: text("found_key"),
+    status: confirmStatus("status").notNull().default("confirmed"),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    withdrawnAt: timestamp("withdrawn_at", { withTimezone: true }),
+    madeBy: madeByColumn(),
+    askId: askIdColumn(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("choices_household_idx").on(t.householdId),
+    unique("choices_household_id_uq").on(t.householdId, t.id),
+    foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "choices_member_household_fk" }),
+    uniqueIndex("choices_found_key_uq").on(t.householdId, t.foundKey).where(sql`${t.foundKey} is not null`),
+    check("choices_source_valid", sql`${t.source} in ('said', 'found')`),
+    check("choices_about_positive", sql`${t.aboutMinor} > 0`),
+    check("choices_words_valid", sql`char_length(${t.words}) between 1 and 160`),
+    check("choices_category_valid", sql`${t.category} is null or ${t.category} in (${categoryList})`),
+    check("choices_found_key_valid", sql`(${t.foundKey} is not null) = (${t.source} = 'found')`),
+    check("choices_confirmed_valid", sql`(${t.confirmedAt} is not null) = (${t.status} = 'confirmed')`),
+    check("choices_withdrawn_valid", sql`${t.withdrawnAt} is null or ${t.status} = 'confirmed'`),
+  ],
+).enableRLS();
+
+// D81: every change to a pot's money, signed; a pot's saved_minor is the sum of its confirmed moves.
+export const potMoves = pgTable(
+  "pot_moves",
+  {
+    id: id(),
+    householdId: householdId(),
+    potId: uuid("pot_id").notNull(),
+    kind: text("kind", { enum: ["adjust", "fill", "add", "take_out", "spend", "carry"] }).notNull(),
+    amountMinor: minor("amount_minor").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    movedOn: date("moved_on", { mode: "string" }),
+    reason: text("reason"),
+    memberId: uuid("member_id").references(() => members.id, { onDelete: "set null" }),
+    invoiceId: uuid("invoice_id").references(() => invoices.id, { onDelete: "set null" }),
+    chargeId: uuid("charge_id").references(() => charges.id, { onDelete: "set null" }),
+    billId: uuid("bill_id").references(() => bills.id, { onDelete: "set null" }),
+    billOn: date("bill_on", { mode: "string" }),
+    choiceId: uuid("choice_id").references(() => choices.id, { onDelete: "set null" }),
+    pairId: uuid("pair_id"),
+    status: confirmStatus("status").notNull().default("confirmed"),
+    confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+    madeBy: madeByColumn(),
+    askId: askIdColumn(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("pot_moves_household_idx").on(t.householdId),
+    index("pot_moves_pot_idx").on(t.householdId, t.potId, t.movedOn),
+    unique("pot_moves_household_id_uq").on(t.householdId, t.id),
+    foreignKey({ columns: [t.householdId, t.potId], foreignColumns: [pots.householdId, pots.id], name: "pot_moves_pot_household_fk" }).onDelete("cascade"),
+    foreignKey({ columns: [t.householdId, t.memberId], foreignColumns: [members.householdId, members.id], name: "pot_moves_member_household_fk" }),
+    foreignKey({ columns: [t.householdId, t.invoiceId], foreignColumns: [invoices.householdId, invoices.id], name: "pot_moves_invoice_household_fk" }),
+    foreignKey({ columns: [t.householdId, t.chargeId], foreignColumns: [charges.householdId, charges.id], name: "pot_moves_charge_household_fk" }),
+    foreignKey({ columns: [t.householdId, t.billId], foreignColumns: [bills.householdId, bills.id], name: "pot_moves_bill_household_fk" }),
+    foreignKey({ columns: [t.householdId, t.choiceId], foreignColumns: [choices.householdId, choices.id], name: "pot_moves_choice_household_fk" }),
+    uniqueIndex("pot_moves_fill_invoice_uq").on(t.householdId, t.potId, t.invoiceId).where(sql`${t.kind} = 'fill' and ${t.invoiceId} is not null`),
+    uniqueIndex("pot_moves_spend_charge_uq").on(t.householdId, t.potId, t.chargeId).where(sql`${t.kind} = 'spend' and ${t.chargeId} is not null`),
+    uniqueIndex("pot_moves_spend_bill_uq").on(t.householdId, t.potId, t.billId, t.billOn).where(sql`${t.kind} = 'spend' and ${t.billId} is not null`),
+    uniqueIndex("pot_moves_carry_uq").on(t.householdId, t.pairId, t.potId).where(sql`${t.kind} = 'carry'`),
+    check("pot_moves_kind_valid", sql`${t.kind} in ('adjust', 'fill', 'add', 'take_out', 'spend', 'carry')`),
+    check("pot_moves_sign_valid", sql`(${t.kind} in ('fill', 'add') and ${t.amountMinor} > 0) or (${t.kind} in ('take_out', 'spend') and ${t.amountMinor} < 0) or (${t.kind} in ('adjust', 'carry') and ${t.amountMinor} <> 0)`),
+    check("pot_moves_one_link", sql`num_nonnulls(${t.invoiceId}, ${t.chargeId}, ${t.billId}, ${t.choiceId}, ${t.pairId}) <= 1`),
+    check("pot_moves_link_kind", sql`(${t.invoiceId} is null or ${t.kind} = 'fill') and ((${t.chargeId} is null and ${t.billId} is null) or ${t.kind} = 'spend') and (${t.choiceId} is null or ${t.kind} = 'add') and ((${t.pairId} is not null) = (${t.kind} = 'carry')) and (${t.billId} is null or ${t.billOn} is not null)`),
+    check("pot_moves_confirmed_valid", sql`(${t.confirmedAt} is not null) = (${t.status} = 'confirmed') and (${t.movedOn} is not null) = (${t.status} = 'confirmed')`),
+    check("pot_moves_pending_kind", sql`${t.status} = 'confirmed' or ${t.kind} not in ('adjust', 'fill')`),
+    check("pot_moves_reason_valid", sql`${t.reason} is null or char_length(${t.reason}) between 1 and 200`),
+  ],
 ).enableRLS();
 
 // D45: one row per transfer recorded by "Mark settled". `through` is the household's date when it was settled; the next
@@ -573,7 +663,7 @@ export const standingRules = pgTable("standing_rules", {
   foreignKey({ columns: [t.householdId, t.spaceId], foreignColumns: [spaces.householdId, spaces.id], name: "standing_rules_space_household_fk" }),
   unique("standing_rules_household_id_uq").on(t.householdId, t.id),
   unique("standing_rules_household_kind_uq").on(t.householdId, t.kind),
-  check("standing_rules_kind_valid", sql`${t.kind} in ('nudge_after', 'statement_ahead', 'bill_ahead', 'cost_up', 'safe_below', 'goal_behind')`),
+  check("standing_rules_kind_valid", sql`${t.kind} in ('nudge_after', 'statement_ahead', 'bill_ahead', 'cost_up', 'safe_below', 'goal_behind', 'saving_wins')`),
 ]).enableRLS();
 
 export const suggestions = pgTable("suggestions", {

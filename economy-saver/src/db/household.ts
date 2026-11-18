@@ -16,6 +16,8 @@ import { removeHouseholdDocuments } from "./document-cleanup";
 import { clockForHousehold, householdMoment, type ClockHousehold } from "./clock";
 import { addDays, daysBetween } from "@/lib/money/dates";
 import { Uuid } from "@/lib/stable-id";
+import { loadPendingChoices } from "./choices";
+import { loadPendingMoves, loadPotMoveTotals } from "./pot-moves";
 
 // Both the postgres.js client and PGlite (tests) fit this.
 export type Db = PgDatabase<PgQueryResultHKT, typeof s>;
@@ -217,7 +219,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
   const inUsd = (minor: number, currency: string) => fromMinor(convertMinor(minor, currency, "USD", fxPerUsd), "USD");
   const toHome = (minor: number, currency: string) => convertMinor(minor, currency, home, fxPerUsd);
 
-  const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows, balanceRows, potRows, split] = await Promise.all([
+  const [connections, billRows, cardRows, chargeRows, statementRows, clientRows, invoiceRows, balanceRows, potRows, potTotals, pendingMoves, pendingChoices, split] = await Promise.all([
     db.select().from(s.paypalConnections).where(eq(s.paypalConnections.householdId, hid)),
     // D75: the own category by a join scoped to the household (the same composite key the foreign key uses), so it costs no query of its own.
     db.select({ ...getTableColumns(s.bills), ownName: s.ownCategories.name }).from(s.bills)
@@ -240,6 +242,7 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     db.select().from(s.invoices).where(and(eq(s.invoices.householdId, hid), isNotNull(s.invoices.clientId))).orderBy(s.invoices.sentOn, s.invoices.createdAt),
     db.select().from(s.balanceUpdates).where(and(eq(s.balanceUpdates.householdId, hid), eq(s.balanceUpdates.status, "pending"))).orderBy(s.balanceUpdates.createdAt, s.balanceUpdates.id),
     db.select().from(s.pots).where(eq(s.pots.householdId, hid)).orderBy(s.pots.createdAt, s.pots.name, s.pots.id),
+    loadPotMoveTotals(db, hid), loadPendingMoves(db, hid), loadPendingChoices(db, hid),
     loadSplitState(db, hid, household.splitSince, today, toHome),
   ]);
 
@@ -325,6 +328,10 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
       targetDate: p.targetDate, startedOn: clockForHousehold({ ...household, fixedToday: null }, p.createdAt).today,
     }),
     ...(p.fillBp !== null && { fillPct: p.fillBp / 100 }),
+    ...(p.category !== null && { category: CategoryKey.parse(p.category) }),
+    ...(p.doneOn !== null && { doneOn: p.doneOn }),
+    ...((potTotals.get(p.id)?.became ?? 0) > 0 && { became: inHome(potTotals.get(p.id)!.became, p.currency) }),
+    ...(potTotals.get(p.id)?.lastMovedOn != null && { lastMovedOn: potTotals.get(p.id)!.lastMovedOn! }),
     ...(p.madeBy !== "form" && { madeBy: p.madeBy }),
   });
 
@@ -347,6 +354,8 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
     storedBills,
     balanceUpdates: balanceRows.map((u) => ({ id: u.id, amount: inHome(u.amountMinor, u.currency), ...(u.madeBy !== "form" && { madeBy: u.madeBy }) })),
     split,
+    pendingMoves,
+    pendingChoices,
   };
   // D41: monthly bills become their occurrences up to the last day the engine looks at. planWindow reads only cards,
   // charges and statements, so it can be computed before any bill is in the state.
@@ -357,8 +366,8 @@ export async function loadMoneyState(db: Db, householdId: string, today: string,
 // ---------------------------------------------------------------- events (D35)
 
 type MadeBy = (typeof s.madeBy.enumValues)[number];
-/** D50: who made a row or event; `askId` ties an Ask-made one to its question. Required wherever a row is written. */
-export type Maker = { madeBy: MadeBy; askId?: string };
+/** D50: who made a row or event; `askId` ties an Ask-made one to its question; `memberId` (D81) is the member a pot move or choice is for when the input names none. Required wherever a row is written. */
+export type Maker = { madeBy: MadeBy; askId?: string; memberId?: string };
 
 type NewEvent = {
   madeBy: MadeBy;

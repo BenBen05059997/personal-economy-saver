@@ -30,13 +30,13 @@ type GoalPace = {
 
 /** The target builds evenly from the day the pot was created. The forecast uses actual saving since that date. */
 export function goalPace(pot: Pot, state: GoalClock): GoalPace | null {
-  if (pot.target === undefined || !pot.targetDate) return null;
+  if (pot.target === undefined || !pot.targetDate || pot.doneOn !== undefined) return null; // a done pot has no pace (D81)
   const { today, homeCurrency: currency } = state;
   const startedOn = pot.startedOn ?? today;
   const targetDate = pot.targetDate;
   const unit = minorPerUnit(currency);
   const targetMinor = Math.round(pot.target * unit);
-  const savedMinor = Math.round(pot.saved * unit);
+  const savedMinor = Math.round((pot.saved + (pot.became ?? 0)) * unit); // what became a purchase still counts toward the goal
   const neededMinor = Math.max(0, targetMinor - savedMinor);
   const elapsed = Math.max(0, daysBetween(startedOn, today));
   const duration = Math.max(1, daysBetween(startedOn, targetDate));

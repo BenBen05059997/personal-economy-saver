@@ -74,7 +74,8 @@ import * as statementCharge from "@/db/statement-charge";
 import * as spendingMod from "@/db/spending"; // Spending (D53)
 import * as fxCostMod from "@/db/fx-cost"; // D62 foreign costs
 import * as incomeMod from "@/db/income"; // D77 money in
-import * as potFillsMod from "@/db/pot-fills"; // D77 what was set aside
+import * as potMovesMod from "@/db/pot-moves"; // D81 what happened to each pot's money
+import * as choicesMod from "@/db/choices"; // D81 choices
 import * as workspace from "@/db/workspace";
 import { billEditInput, billInput } from "@/db/bills";
 import { chargeInput } from "@/db/charges";
@@ -126,7 +127,7 @@ const covered = [
   // paypal-connection.ts
   "startConnect", "confirmConnection", "disconnect", "applyMerchantEvent", "paypalConnectionView", "payeeFor", "ownerPayPal",
   // people.ts, pots.ts
-  "memberCount", "memberByName", "addMember", "savePeople", "removeMember", "savePot", "confirmPot", "removePot", "fillPots",
+  "memberCount", "memberByName", "addMember", "savePeople", "removeMember", "savePot", "confirmPot", "removePot", "fillPots", "movePot", "confirmMove", "removePendingMove", "markPotDone",
   // rate-limit.ts, reader-inbox.ts, reader-job.ts, readings.ts, reference-rate.ts
   "consumeRequest", "consumeCanvasRequest", "spendAiBudget", "questionsLeft", "documentsLeft", "requireDocumentBudget", "readerInbox", "readDocument", "proposeReadings", "reviewReading", "setReadingWhose", "storeReferenceRate",
   // runway-events.ts, settings.ts, settle.ts, snapshot.ts, statement-charge.ts, workspace.ts
@@ -138,8 +139,9 @@ const covered = [
   "loadSpending", "loadPeriodBills",
   // D62 foreign costs: fx-cost.ts
   "foreignCostInputs", "foreignCosts",
-  // D77 income.ts, pot-fills.ts
-  "loadIncome", "loadPotFills",
+  // D77 income.ts; D81 pot-moves.ts and choices.ts
+  "loadIncome", "loadPotMoves", "loadPendingMoves", "loadPotMoveTotals",
+  "saveChoice", "confirmChoice", "withdrawChoice", "removePendingChoice", "loadChoices", "loadPendingChoices",
   // Amount varies (D54): bills.ts
   "linkToSeries", "previewLink",
   // Missing amounts (D55): bills.ts
@@ -223,7 +225,7 @@ const notApplicable: Record<string, string> = {
   splitNow: "reads the split of the one household it is given, under the lock the caller holds; reached through settleUp and removeMember (tested here)",
   removeHousehold: "deletes the one household id it is given; reached through deleteOwnedHousehold, deleteDemoHousehold and deleteHousehold (tested here)",
   removeStorageFiles: "removes Storage objects and refuses any path outside the household's own folder; reached through deleteDocument, deleteKind and removeExpiredFiles (data-test, limits-test)",
-  requireDateRange: "pure check of two dates passed in; loadSpending, loadIncome and loadPotFills, which call it, are covered above",
+  requireDateRange: "pure check of two dates passed in; loadSpending, loadIncome, which calls it, are covered above",
   proposedOf: "pure read of one reading's stored data passed in; reviewReading and readerInbox, which call it, are covered above",
 };
 
@@ -232,7 +234,7 @@ type Needles = { strings: string[]; numbers: number[] };
 type Outcome = { threw: boolean; error?: unknown; value?: unknown };
 type Ids = {
   owner: string; aki: string; card: string; client: string; billConfirmed: string; billPending: string; charge: string; chargePending: string;
-  pot: string; potPending: string; balanceConfirmed: string; balancePending: string; invoiceDraft: string; invoiceSent: string; approveKey: string;
+  pot: string; potPending: string; choice: string; choicePending: string; movePending: string; balanceConfirmed: string; balancePending: string; invoiceDraft: string; invoiceSent: string; approveKey: string;
   readPayment: string; readCapture: string; payToken: string; document: string; documentFailed: string; documentRead: string; reading: string; settlement: string; token: string;
   suggestion: string; statement: string; webhookEvent: string; secret: string; user: string; authUid: string; familyLink: string; memory: string; canvas: string; turn: string;
 };
@@ -268,7 +270,7 @@ async function main() {
     ...importChargesMod, // statement import
     ...spendingMod, // Spending (D53)
     ...fxCostMod, // D62 foreign costs
-    ...incomeMod, ...potFillsMod, // D77 money in, what was set aside
+    ...incomeMod, ...potMovesMod, ...choicesMod, // D77 money in; D81 pot moves and choices
     ...rulesMod, ...suggestionsMod, ...remindersMod, // D64–D66
     ...memoryMod, // D58 memory
     ...askMod, ...askReceiptsMod, ...canvasesMod, ...conversationMod, ...documentCardMod, // D57 pins, D60 conversation, D61 Ask documents
@@ -350,6 +352,10 @@ async function main() {
       const pot = randomUUID(), potPending = randomUUID();
       await F.savePot(db, hid, potInput.parse({ id: pot, name: `${T} pot`, target: "100000", targetDate: "2027-03-01", saved: "5000", fillPct: "10" }), "confirmed", { madeBy: "form" });
       await F.savePot(db, hid, potInput.parse({ id: potPending, name: `${T} pending pot` }), "pending", { madeBy: "form" });
+      const choice = randomUUID(), choicePending = randomUUID(), movePending = randomUUID();
+      await F.saveChoice(db, hid, { id: choice, source: "said", happenedOn: "2026-11-10", aboutMinor: 1800, words: `${T} skipped a taxi`, category: "transport", foundKey: null, memberId: null }, "confirmed", { madeBy: "form" });
+      await F.saveChoice(db, hid, { id: choicePending, source: "found", happenedOn: "2026-11-11", aboutMinor: 900, words: `${T} found a saving`, category: null, foundKey: `${T}-found-key`, memberId: null }, "pending", { madeBy: "form" });
+      await F.movePot(db, hid, { id: movePending, potId: pot, kind: "take_out", amountMinor: 100, toPotId: null, purchase: null, choiceId: null, reason: `${T} draft`, memberId: null, done: false }, "pending", { madeBy: "form" });
       const balancePending = randomUUID();
       await F.setBankBalance(db, hid, { id: balancePending, amount: String(bankYen + 1) }, "pending", { madeBy: "form" });
       const balanceConfirmed = one(await db.select().from(schema.balanceUpdates).where(and(eq(schema.balanceUpdates.householdId, hid), eq(schema.balanceUpdates.status, "confirmed")))).id;
@@ -411,7 +417,7 @@ async function main() {
       await db.insert(schema.reminders).values({ ...member, channel: "push", day: "2026-11-13", status: "sent", suggestionIds: [suggestion] });
       return {
         hid, tag, name: T, bankYen, rateMicro, key, tokenString: issued.token, familyToken: family.token, akiName,
-        ids: { owner: ownerRow.id, aki, card: card.id, client, billConfirmed, billPending, charge, chargePending, pot, potPending, balanceConfirmed, balancePending,
+        ids: { owner: ownerRow.id, aki, card: card.id, client, billConfirmed, billPending, charge, chargePending, pot, potPending, choice, choicePending, movePending, balanceConfirmed, balancePending,
           invoiceDraft, invoiceSent: sent.id, approveKey: sent.approveKey, readPayment, readCapture, payToken, document, documentFailed, documentRead, reading, settlement, token: issued.info.id,
           suggestion, statement, webhookEvent, secret, user, authUid, familyLink: family.info.id, memory, canvas, turn },
       };
@@ -521,7 +527,20 @@ async function main() {
         ["forgetEverything", hid => F.forgetEverything(store, hid, { madeBy: "form" })],
         ["setThumb", hid => F.setThumb(store, hid, randomUUID(), 1)],
         ["savePot", hid => F.savePot(store, hid, none, "confirmed", { madeBy: "form" })],
-        ["fillPots", hid => F.fillPots(store, hid, 1, "Isolation probe")],
+        ["fillPots", hid => F.fillPots(store, hid, 1, randomUUID(), "Isolation probe")],
+        ["movePot", hid => F.movePot(store, hid, { id: randomUUID(), potId: randomUUID(), kind: "add", amountMinor: 1, toPotId: null, purchase: null, choiceId: null, reason: null, memberId: null, done: false }, "confirmed", { madeBy: "form" })],
+        ["confirmMove", hid => F.confirmMove(store, hid, randomUUID())],
+        ["removePendingMove", hid => F.removePendingMove(store, hid, randomUUID())],
+        ["markPotDone", hid => F.markPotDone(store, hid, randomUUID())],
+        ["loadPotMoves", hid => F.loadPotMoves(store, hid)],
+        ["loadPendingMoves", hid => F.loadPendingMoves(store, hid)],
+        ["loadPotMoveTotals", hid => F.loadPotMoveTotals(store, hid)],
+        ["saveChoice", hid => F.saveChoice(store, hid, { id: randomUUID(), source: "said", happenedOn: "2026-11-10", aboutMinor: 1, words: "x", category: null, foundKey: null, memberId: null }, "confirmed", { madeBy: "form" })],
+        ["confirmChoice", hid => F.confirmChoice(store, hid, randomUUID())],
+        ["withdrawChoice", hid => F.withdrawChoice(store, hid, randomUUID())],
+        ["removePendingChoice", hid => F.removePendingChoice(store, hid, randomUUID())],
+        ["loadChoices", hid => F.loadChoices(store, hid)],
+        ["loadPendingChoices", hid => F.loadPendingChoices(store, hid)],
       ];
       for (const bad of ["", "not-a-uuid", null, undefined] as never[]) {
         for (const [name, call] of asked) await assert.rejects(call(bad), /household id is required/, `${name} with ${JSON.stringify(bad)}`);
@@ -864,6 +883,10 @@ async function main() {
         for (const id of [y.charge, y.chargePending]) await refuse("removeCharge " + id, () => F.removeCharge(store, X.hid, id));
         await refuse("removeCard " + y.card, () => F.removeCard(store, X.hid, y.card));
         for (const id of [y.pot, y.potPending]) await refuse("removePot " + id, () => F.removePot(store, X.hid, id));
+        await refuse("removePendingMove", () => F.removePendingMove(store, X.hid, y.movePending));
+        await refuse("removePendingChoice", () => F.removePendingChoice(store, X.hid, y.choicePending));
+        await refuse("withdrawChoice", () => F.withdrawChoice(store, X.hid, y.choice));
+        await refuse("markPotDone", () => F.markPotDone(store, X.hid, y.pot));
         for (const id of [y.billConfirmed, y.billPending]) await refuse("updateBill " + id, () => F.updateBill(store, X.hid, billEditInput.parse({ id, biller: "Isolation probe", amount: "1", due: "2026-11-20", category: "other" }), { madeBy: "form" }));
         for (const id of [y.aki, y.owner]) await refuse("removeMember " + id, () => F.removeMember(store, X.hid, { id }));
       });
@@ -874,6 +897,8 @@ async function main() {
         await refuse("confirmPending pot", () => F.confirmPending(store, X.hid, "pot", y.potPending));
         await refuse("confirmBalanceUpdate", () => db.transaction(tx => F.confirmBalanceUpdate(tx as unknown as Db, X.hid, y.balancePending)));
         await refuse("confirmPot", () => db.transaction(tx => F.confirmPot(tx as unknown as Db, X.hid, y.potPending)));
+        await refuse("confirmMove", () => db.transaction(tx => F.confirmMove(tx as unknown as Db, X.hid, y.movePending)));
+        await refuse("confirmChoice", () => db.transaction(tx => F.confirmChoice(tx as unknown as Db, X.hid, y.choicePending)));
         await mustThrow("syncClosedStatementCharge", () => db.transaction(tx => F.syncClosedStatementCharge(tx as unknown as Db, X.hid, y.charge)), /not found/);
         await mustThrow("unsyncClosedStatementCharge", () => db.transaction(tx => F.unsyncClosedStatementCharge(tx as unknown as Db, X.hid, y.charge)), /not found/);
         await refuse("confirmed charge is not a pending one either", () => F.confirmPending(store, X.hid, "bill", y.billConfirmed));
@@ -896,6 +921,18 @@ async function main() {
         const pot = (over: object) => potInput.parse({ id: randomUUID(), name: "Isolation probe", ...over });
         await mustThrow("savePot with the other's pot id (confirmed)", () => F.savePot(store, X.hid, pot({ id: y.pot }), "confirmed", { madeBy: "form" }));
         await mustThrow("savePot with the other's pot id (pending)", () => F.savePot(store, X.hid, pot({ id: y.potPending }), "pending", { madeBy: "form" }));
+        const mv = (over: object) => ({ id: randomUUID(), potId: x.pot, kind: "add" as const, amountMinor: 100, toPotId: null, purchase: null, choiceId: null, reason: null, memberId: null, done: false, ...over });
+        await mustThrow("movePot on the other's pot", () => F.movePot(store, X.hid, mv({ potId: y.pot }), "confirmed", { madeBy: "form" }), /Choose one of your pots/);
+        await mustThrow("movePot (pending) on the other's pot", () => F.movePot(store, X.hid, mv({ potId: y.pot, kind: "take_out" }), "pending", { madeBy: "form" }), /Choose one of your pots/);
+        await mustThrow("movePot carrying into the other's pot", () => F.movePot(store, X.hid, mv({ kind: "carry", toPotId: y.pot }), "confirmed", { madeBy: "form" }), /Choose one of your pots/);
+        await mustThrow("movePot with the other's move id", () => F.movePot(store, X.hid, mv({ id: y.movePending, potId: x.pot, kind: "take_out" }), "pending", { madeBy: "form" }));
+        await mustThrow("movePot naming the other's choice", () => F.movePot(store, X.hid, mv({ choiceId: y.choice }), "confirmed", { madeBy: "form" }), /Choose one of your choices/);
+        await mustThrow("movePot spending the other's charge", () => F.movePot(store, X.hid, mv({ kind: "spend", purchase: { kind: "charge", id: y.charge, on: null } }), "confirmed", { madeBy: "form" }), /Choose one of your charges/);
+        await mustThrow("movePot spending the other's bill", () => F.movePot(store, X.hid, mv({ kind: "spend", purchase: { kind: "bill", id: y.billConfirmed, on: "2026-11-27" } }), "confirmed", { madeBy: "form" }), /Choose one of your bills/);
+        await mustThrow("movePot for the other's member", () => F.movePot(store, X.hid, mv({ memberId: y.aki }), "confirmed", { madeBy: "form" }), /member of this household/);
+        const choiceOf = (over: object) => ({ id: randomUUID(), source: "said" as const, happenedOn: "2026-11-10", aboutMinor: 100, words: "Isolation probe", category: null, foundKey: null, memberId: null, ...over });
+        await mustThrow("saveChoice with the other's choice id", () => F.saveChoice(store, X.hid, choiceOf({ id: y.choice }), "confirmed", { madeBy: "form" }));
+        await mustThrow("saveChoice with the other's member", () => F.saveChoice(store, X.hid, choiceOf({ memberId: y.aki }), "confirmed", { madeBy: "form" }), /member of this household/);
         await mustThrow("savePot owned by the other's member", () => F.savePot(store, X.hid, pot({ memberId: y.aki }), "confirmed", { madeBy: "form" }), /member of this household/);
         await mustThrow("savePeople with the other's members", () => F.savePeople(store, X.hid, { people: [{ id: y.owner, name: "Probe one", percent: "50" }, { id: y.aki, name: "Probe two", percent: "50" }] }), /every person in this household/);
         await mustThrow("savePeople mixing in one of the other's members", () => F.savePeople(store, X.hid, { people: [{ id: x.owner, name: "Probe one", percent: "50" }, { id: y.aki, name: "Probe two", percent: "50" }] }), /every person in this household/);
@@ -1144,7 +1181,7 @@ async function main() {
         await untouched("requireDocumentBudget");
         assert.ok([null, aiCap.DAILY_DOCUMENTS].includes(await F.documentsLeft(store, Y.hid)), `${Y.name}'s documents are untouched by another household's spending`);
         await own("storeReferenceRate", () => F.storeReferenceRate(store, X.hid, { date: "2026-11-13", rateMicro: 148_000_000 }));
-        await own("fillPots", async () => assert.equal(await db.transaction(tx => F.fillPots(tx as unknown as Db, X.hid, 100_000, "Isolation probe")), 1, "only the caller's one pot with a fill rule"));
+        await own("fillPots", async () => assert.equal(await db.transaction(tx => F.fillPots(tx as unknown as Db, X.hid, 100_000, X.ids.invoiceSent, "Isolation probe")), 1, "only the caller's one pot with a fill rule"));
         await own("lockRunway", () => F.lockRunway(store, X.hid));
         await own("beginMoneyChange", () => F.beginMoneyChange(store, X.hid));
         await own("observeRunway", () => F.observeRunway(store, X.hid));
@@ -1412,10 +1449,9 @@ async function main() {
       }
     });
 
-    await check("loadIncome and loadPotFills (D77): each household's rows hold its own paid invoices and pot fills and none of the other's; a household id is required; reading changes nothing", async () => {
+    await check("loadIncome (D77), loadPotMoves and loadChoices (D81): each household's rows hold its own paid invoices, moves and choices and none of the other's; a household id is required; reading changes nothing", async () => {
       const range = { from: "2026-01-01", to: "2026-12-31" };
       await assert.rejects(F.loadIncome(store, "", range), /household id is required/);
-      await assert.rejects(F.loadPotFills(store, "", range), /household id is required/);
       for (const [X, Y] of [[A, B], [B, A]] as const) {
         const own = new Set((await db.select({ id: schema.invoices.id }).from(schema.invoices).where(eq(schema.invoices.householdId, X.hid))).map(row => row.id));
         const yStart = await fingerprint(Y.hid);
@@ -1423,12 +1459,19 @@ async function main() {
         assert.ok(income.length >= 16 && income.every(row => row.paidOn >= range.from), "Ben's sixteen paid invoices and any this household's tests settled");
         assert.ok(income.every(row => own.has(row.id)), `${X.name}'s income holds only ${X.name}'s invoices`);
         assert.deepEqual(leaks(JSON.stringify(income), await needlesOf(Y)), [], `${X.name}'s income shows ${Y.name}'s data`);
-        await db.transaction(tx => F.fillPots(tx as unknown as Db, X.hid, 50_000, "Isolation fills"));
-        const fills = await F.loadPotFills(store, X.hid, { from: "2026-01-01", to: "2027-12-31" });
-        assert.ok(fills.length > 0 && fills.every(fill => Number.isInteger(fill.minor) && fill.minor > 0));
+        const invoice = (await db.insert(schema.invoices).values({ householdId: X.hid, clientId: X.ids.client, status: "sent", item: "Isolation fills", amountMinor: 100, currency: "USD", sentOn: DEMO_DATE }).returning({ id: schema.invoices.id }))[0].id;
+        await db.transaction(tx => F.fillPots(tx as unknown as Db, X.hid, 50_000, invoice, "Isolation fills"));
+        const moves = await F.loadPotMoves(store, X.hid);
+        assert.ok(moves.some(move => move.kind === "fill" && move.invoiceId === invoice) && moves.every(move => Number.isInteger(move.minor) && move.minor !== 0));
         const pots = new Set((await db.select({ id: schema.pots.id }).from(schema.pots).where(eq(schema.pots.householdId, X.hid))).map(row => row.id));
-        assert.ok(fills.every(fill => pots.has(fill.potId)), `${X.name}'s fills are of ${X.name}'s pots`);
-        assert.deepEqual(leaks(JSON.stringify(fills), await needlesOf(Y)), [], `${X.name}'s fills show ${Y.name}'s data`);
+        assert.ok(moves.every(move => pots.has(move.potId)), `${X.name}'s moves are of ${X.name}'s pots`);
+        assert.deepEqual(leaks(JSON.stringify(moves), await needlesOf(Y)), [], `${X.name}'s moves show ${Y.name}'s data`);
+        assert.deepEqual((await F.loadPendingMoves(store, X.hid)).map(move => move.id), [X.ids.movePending]);
+        assert.ok([...(await F.loadPotMoveTotals(store, X.hid)).keys()].every(id => pots.has(id)));
+        const choices = await F.loadChoices(store, X.hid);
+        assert.deepEqual(choices.map(choice => choice.id), [X.ids.choice], "the confirmed choice only; the pending one waits");
+        assert.deepEqual((await F.loadPendingChoices(store, X.hid)).map(choice => choice.id), [X.ids.choicePending]);
+        assert.deepEqual(leaks(JSON.stringify([choices, await F.loadPendingChoices(store, X.hid)]), await needlesOf(Y)), [], `${X.name}'s choices show ${Y.name}'s data`);
         assert.equal((await fingerprint(Y.hid)).text, yStart.text, "a read of X's rows changed nothing of Y's");
       }
     });

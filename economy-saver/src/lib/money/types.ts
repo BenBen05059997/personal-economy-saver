@@ -122,6 +122,10 @@ export type Pot = {
   targetDate?: string; // YYYY-MM-DD
   startedOn?: string; // D66: the calendar day the dated goal pot was created
   fillPct?: number; // 25 = a quarter of each client payment
+  category?: CategoryKey; // D81: what the pot is for; government_tax makes it the tax pot
+  doneOn?: string; // D81: the day the person marked it done; set once
+  became?: number; // D81: home major units spent from the pot; only when > 0
+  lastMovedOn?: string; // D81: the day of the latest move other than an adjust
   madeBy?: MadeBy;
 };
 
@@ -171,10 +175,25 @@ export type MoneyState = {
   balanceUpdates: { id: string; amount: number; madeBy?: MadeBy }[]; // new bank balances waiting in To check (D42), home currency
   storedBills: StoredBill[]; // the bills as stored (a repeating bill once): lets the checks see a series whose next date is past the plan window, and `stateThrough` expand a later day. Set by loadMoneyState
   split: SplitState; // D45: members, shares and the shared items since the last settlement
+  pendingMoves: PendingMove[]; // D81: pot moves waiting in To check
+  pendingChoices: PendingChoice[]; // D81: choices waiting in To check
 };
 
 /** One paid client invoice as income: the day it was paid, the day it was sent (null for a payment read from a connected PayPal) and its value in the home currency's minor units (null when no rate is known; it is named, never counted as zero). */
 export type IncomeRow = { id: string; clientId: string | null; clientName: string; paidOn: string; sentOn: string | null; homeMinor: number | null };
 
-/** One fill of a pot, from its `pot_filled` event: the household day and the integer minor units set aside. */
-export type PotFill = { potId: string; potName: string; date: string; minor: number };
+export type MoveKind = "adjust" | "fill" | "add" | "take_out" | "spend" | "carry";
+export type Purchase = { kind: "charge" | "bill"; id: string; on: string | null; label: string };
+/** D81: one signed change to a pot's money, in the household's minor units. */
+export type PotMove = {
+  id: string; potId: string; potName: string; potCategory: CategoryKey | null; kind: MoveKind; minor: number; on: string;
+  memberId: string | null; reason: string | null; invoiceId: string | null; purchase: Purchase | null; choiceId: string | null; pairId: string | null;
+};
+export type Choice = {
+  id: string; source: "said" | "found"; happenedOn: string; minor: number; words: string; category: CategoryKey | null;
+  foundKey: string | null; memberId: string | null; confirmedOn: string; withdrawnOn: string | null;
+};
+/** Confirmed rows, all time. */
+export type SavingRecord = { moves: PotMove[]; choices: Choice[] };
+export type PendingMove = Omit<PotMove, "on"> & { madeBy?: MadeBy };
+export type PendingChoice = Omit<Choice, "confirmedOn" | "withdrawnOn"> & { madeBy?: MadeBy };

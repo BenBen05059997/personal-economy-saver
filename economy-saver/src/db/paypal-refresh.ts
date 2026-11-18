@@ -189,7 +189,7 @@ async function storeSlice(db: Db, hid: string, connection: { connectedAt: Date; 
       const homeCredit = payment.currency === connection.home ? payment.amountMinor
         : convertMinor(payment.amountMinor, payment.currency, connection.home,
           fromRateMicro(await usdRateMicro(tx, hid, connection.home, dayFormat.format(payment.at))));
-      await fillPots(tx, hid, homeCredit, `${client.name}'s payment`);
+      await fillPots(tx, hid, homeCredit, row.id, `${client.name}'s payment`);
     }
     await tx.update(paypalConnections).set({ transactionsReadUntil: end }).where(ownsLease);
     await observeRunway(tx, hid);

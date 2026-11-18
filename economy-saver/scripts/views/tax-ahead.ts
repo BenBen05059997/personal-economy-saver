@@ -22,7 +22,7 @@ async function main() {
   try {
     const ben = await seedBen(db, { isDemo: true });
     const base = await loadMoneyState(db, ben, DEMO_DATE);
-    const tax: Pot = { id: "pot-tax", name: "Tax", saved: 10_000, fillPct: 20 };
+    const tax: Pot = { id: "pot-tax", name: "Tax", saved: 10_000, fillPct: 20, category: "government_tax" };
     const bill = (over: Partial<Bill> = {}): Bill => ({ id: "tax-1", biller: "Resident tax", amount: 40_000, due: "2026-12-20", category: "government_tax", businessBp: 0, status: "confirmed", ...over });
     const world = (bills: Bill[], pots: Pot[] = [tax]): MoneyState => ({ ...base, pots, bills: [...base.bills, ...bills] });
     const ctxOf = (s: MoneyState) => ({ state: s });
@@ -86,10 +86,17 @@ async function main() {
       assert.equal(taxAhead(world([bill({ due: "2027-03-01" })]), "pot-tax", 180)!.taxBills.length, 1);
     });
 
-    await check("empty: a pot with no fill rule asks for one; no tax bill in the window asks for one", () => {
-      const noRule = resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([bill()], [{ ...tax, fillPct: undefined }])));
-      assert.equal(noRule.data, null);
-      assert.equal(noRule.empty!.words, "Set a fill rule on this pot to see the tax ahead.");
+    await check("the tax pot is the category: a fill-rule saving pot has no tax picture, a rule-less tax pot has one with no steps", () => {
+      const saving = resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([bill()], [{ ...tax, category: undefined }])));
+      assert.equal(saving.data, null);
+      assert.equal(saving.empty!.words, "Set this pot's category to Government & tax to see the tax ahead.");
+      assert.equal(taxAhead(world([bill()], [{ ...tax, category: undefined }]), "pot-tax", 90), null);
+      const ruleless = taxAhead(world([bill()], [{ ...tax, fillPct: undefined }]), "pot-tax", 90)!;
+      assert.deepEqual(ruleless.steps, []);
+      assert.ok(ruleless.pot.every(value => value === 10_000));
+    });
+
+    await check("empty: no tax bill in the window asks for one", () => {
       const noBill = resolveView("tax_ahead", { potId: "pot-tax" }, ctxOf(world([])));
       assert.equal(noBill.empty!.words, "Add your tax bills (Government & tax) to see whether this pot covers them.");
       assert.equal(noBill.empty!.add, "bill");

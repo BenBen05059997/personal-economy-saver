@@ -68,7 +68,7 @@ export const TERMS = [
   term("safe_to_spend_for_period", "safe to spend for a period", "money", "late", "Safe to spend, tested over the number of days you ask about instead of 30."),
   term("safe_to_spend_as_usual", "safe to spend as usual", "money", "as_usual", "The lowest balance in the next 30 days if clients pay as usual, never below 0. It always carries its case; it is not \"safe to spend\"."),
   term("business_share", "business share", "money", "none", "The part of the month's spending marked as business."),
-  term("pot", "pot", "money", "none", "Money set aside for one purpose, taken out of cash to spend."),
+  term("pot", "pot", "money", "none", "Money set aside for one purpose, out of cash to spend. The tax pot is ready for its bills, never called saved."),
   term("regular_costs", "regular costs", "money", "none", "Costs that come back month after month, with how each changed."),
   term("foreign_cost", "foreign cost", "money", "none", "What receiving payments and card purchases in another currency cost you in fees and rate."),
   term("tax_ahead", "tax ahead", "money", "none", "How much the tax pot falls short of the tax bills coming; tax_short_on is the day."),
@@ -108,9 +108,9 @@ export const TERMS = [
   term("paid_in", "paid in", "money", "none", "What clients paid in a period, in yen at the rate on each invoice; the current month counts what has come in so far."),
   term("lowest_paid_in", "lowest month paid in", "money", "none", "The completed month with the least paid in, over the months shown; its period is that month."),
   term("money_spent", "money spent", "money", "none", "What went out on bills and card charges in a period, with nothing set aside counted."),
-  term("money_set_aside", "money set aside", "money", "none", "What went into pots out of the payments that came in, in a period."),
+  term("money_set_aside", "money set aside", "money", "none", "What went into pots in a period from fills and money put in by hand; never a start, a correction, a move between pots or what choices saved."),
   term("left_over_in_month", "left over in the month", "money", "none", "A month's money in less what was spent and set aside, when something is left."),
-  term("from_earlier_money", "from earlier money", "money", "none", "How much more went out in a month than came in, so that much came from money held before."),
+  term("from_earlier_money", "from earlier money", "money", "none", "How much more went out in a month than came in and came out of pots."),
   term("spent_and_set_aside", "spent and set aside", "money", "none", "A month's spending and what was put into pots, together."),
   term("days_open", "days open", "days", "none", "Days from the day an invoice's payment link was made to today, while it is still unpaid."),
   term("goal_expected_by_today", "expected by today", "money", "none", "What a pot should hold today for its target on its date, building evenly from the day it was created."),
@@ -145,6 +145,11 @@ export const TERMS = [
   term("cancel_by", "cancel by", "date", "none", "The last day to cancel a regular cost before it renews."),
   term("low_point_change", "change in the low point", "money", "named", "How much the change moves the low point: after less before."),
   term("to_check_amount", "to check", "money", "none", "The amount of an item that waits for your yes; it counts for nothing until you confirm it."),
+  // D81: what went into and came out of pots.
+  term("set_aside_for_goals", "put toward your goals", "money", "none", "Set aside into pots other than the tax pot."),
+  term("ready_for_tax", "ready for tax", "money", "none", "What went into the tax pot; never called saved."),
+  term("from_pot", "from your pot", "money", "none", "What came out of a pot in a month: spent from it or taken out."),
+  term("pot_done_on", "done on", "date", "none", "The day the person said a pot is done."),
 ] as const satisfies readonly Term[];
 
 export type TermName = (typeof TERMS)[number]["name"];

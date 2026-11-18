@@ -1,4 +1,4 @@
-// What you keep (D77): money_flow, savings_rate and buffer_months on Ben's sample and a fixture of income and pot fills. Fictional data only.
+// What you keep (D77): money_flow, savings_rate and buffer_months on Ben's sample and a fixture of income and pot moves. Fictional data only.
 import assert from "node:assert/strict";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -9,7 +9,7 @@ import { minorMoney } from "@/lib/money/format";
 import { keptByMonth } from "@/lib/money/kept";
 import { lookBy, monthTrend } from "@/lib/money/look-by";
 import { availableCash } from "@/lib/money/runway";
-import type { Charge, IncomeRow, PotFill } from "@/lib/money/types";
+import type { Charge, IncomeRow, PotMove } from "@/lib/money/types";
 import { benMoney } from "@/lib/sample/ben";
 import { RunwayBar } from "@/components/views/forms/RunwayBar";
 import { Sankey } from "@/components/views/forms/Sankey";
@@ -28,10 +28,20 @@ const income: IncomeRow[] = [
   row("p3", "c-acme", "Acme", "2026-10-10", 120_000), row("p4", "c-northwind", "Northwind", "2026-10-20", 80_000), row("p5", "c-beacon", "Beacon Studio", "2026-10-05", null),
   row("p6", "c-acme", "Acme", "2026-11-06", 20_000),
 ];
-const potFills: PotFill[] = [{ potId: "pot-tax", potName: "Tax", date: "2026-10-12", minor: 30_000 }];
+const move = (id: string, potId: string, potName: string, potCategory: PotMove["potCategory"], kind: PotMove["kind"], on: string, minor: number): PotMove =>
+  ({ id, potId, potName, potCategory, kind, minor, on, memberId: null, reason: null, invoiceId: null, purchase: null, choiceId: null, pairId: null });
+const moves: PotMove[] = [
+  move("m1", "pot-tax", "Tax", "government_tax", "fill", "2026-10-12", 30_000),
+  move("m2", "pot-tax", "Tax", "government_tax", "adjust", "2026-10-13", 50_000), // never counts
+  move("m3", "pot-trip", "Trip", null, "add", "2026-10-14", 5_000),
+  move("m4", "pot-trip", "Trip", null, "carry", "2026-10-15", 9_000), // never counts
+  move("m5", "pot-trip", "Trip", null, "take_out", "2026-10-16", -2_000),
+  move("m6", "pot-car", "Car", null, "spend", "2026-10-17", -3_000),
+  move("m7", "pot-car", "Car", null, "fill", "2026-09-17", 7_000), // another month
+];
 // A card charge added in October to prove it is counted once.
 const extra: Charge = { id: "ch-x", cardId: "card-a", merchant: "Fixture Shop", amount: 7_777, date: "2026-10-15", category: "food", businessBp: 0, source: "manual", status: "confirmed" };
-const ctx: ViewContext = { state: benMoney, spending: benMoney, income, potFills };
+const ctx: ViewContext = { state: benMoney, spending: benMoney, income, moves };
 const withCharge: ViewContext = { ...ctx, spending: { ...benMoney, charges: [...benMoney.charges, extra] } };
 
 const october = lookBy(benMoney, benMoney.today, "category", [], "2026-10");
@@ -51,14 +61,24 @@ check("the default month is October; the flow balances at every node", () => {
   const inMinor = Number(fact(flowView.facts, "paid_in")!.value), spentMinor = Number(fact(flowView.facts, "money_spent")!.value), setAsideMinor = Number(fact(flowView.facts, "money_set_aside")!.value), leftOverMinor = Number(fact(flowView.facts, "left_over_in_month")!.value);
   assert.equal(inMinor, 200_000);
   assert.equal(spentMinor, october.spent);
-  assert.equal(inMinor, spentMinor + setAsideMinor + leftOverMinor);
+  assert.equal(inMinor + 5_000, spentMinor + setAsideMinor + leftOverMinor, "the money that came out of pots is money in too");
 });
 
-check("a pot fill event is under Set aside; the unrated payment is named and not counted", () => {
-  assert.equal(node("p:pot-tax").label, "Set aside: Tax");
+check("the month's fills and puts-in are set aside, the tax pot reads Ready for tax, pots give money back in column 0; adjusts and carries never count", () => {
+  assert.equal(node("p:pot-tax").label, "Ready for tax: Tax");
   assert.equal(node("p:pot-tax").minor, 30_000);
-  assert.equal(fact(flowView.facts, "money_set_aside")!.value, 30_000);
-  assert.equal(flow.nodes.filter(n => n.column === 0).reduce((s, n) => s + n.minor, 0), 200_000);
+  assert.equal(node("p:pot-trip").label, "Set aside: Trip");
+  assert.equal(node("p:pot-trip").minor, 5_000);
+  assert.equal(fact(flowView.facts, "money_set_aside")!.value, 35_000);
+  assert.equal(flowView.facts.find(x => x.name === "ready_for_tax")!.value, 30_000);
+  assert.equal(flowView.facts.find(x => x.name === "set_aside_for_goals")!.value, 5_000);
+  assert.equal(node("f:pot-trip").label, "From your Trip");
+  assert.equal(node("f:pot-car").label, "From your Car");
+  assert.equal(node("f:pot-car").column, 0);
+  assert.equal(flowView.facts.find(x => x.name === "from_pot" && x.about?.id === "pot-car")!.value, 3_000);
+  assert.equal(flowView.facts.find(x => x.name === "from_pot" && !x.about)!.value, 5_000);
+  assert.match(flowView.line!, /¥5,000 came out of your pots\./);
+  assert.equal(flow.nodes.filter(n => n.column === 0).reduce((s, n) => s + n.minor, 0), flow.nodes.find(n => n.id === "month")!.minor);
   assert.match(flowView.line!, /Beacon Studio paid in a currency with no rate/);
 });
 
@@ -71,7 +91,7 @@ check("the top five categories and Other make up the month's spending", () => {
 check("a card charge appears once", () => {
   const more = moneyFlowView({}, withCharge) as ViewResult<"sankey">;
   assert.equal(fact(more.facts, "money_spent")!.value, october.spent + 7_777);
-  assert.equal(more.data!.links.reduce((s, l) => s + (l.to === "month" ? l.minor : 0), 0), 200_000);
+  assert.equal(more.data!.links.reduce((s, l) => s + (l.to === "month" ? l.minor : 0), 0), 205_000);
 });
 
 check("spending higher than money in draws From earlier money; flows still balance", () => {
@@ -81,7 +101,7 @@ check("spending higher than money in draws From earlier money; flows still balan
   const earlier = poor.nodes.find(n => n.id === "earlier")!;
   assert.equal(earlier.label, "From earlier money");
   assert.equal(poor.links.filter(l => l.to === "month").reduce((s, l) => s + l.minor, 0), poor.nodes.find(n => n.id === "month")!.minor);
-  const view = moneyFlowView({ month: "2026-10" }, { ...ctx, income: [row("q", "c-acme", "Acme", "2026-10-10", 50_000)], potFills: [] });
+  const view = moneyFlowView({ month: "2026-10" }, { ...ctx, income: [row("q", "c-acme", "Acme", "2026-10-10", 50_000)], moves: [] });
   assert.match(view.line!, /came from earlier money/);
 });
 
@@ -146,7 +166,7 @@ check("the sankey draws a node and a flow per row, with labels", () => {
   const html = renderToStaticMarkup(createElement(Sankey, { result: flowView }));
   assert.equal((html.match(/class="sk-node/g) ?? []).length, flow.nodes.length);
   assert.equal((html.match(/class="sk-link/g) ?? []).length, flow.links.length);
-  assert.ok(html.includes("Set aside: Tax") && html.includes("Left over") && html.includes("Money in"));
+  assert.ok(html.includes("Ready for tax: Tax") && html.includes("Left over") && html.includes("Money in"));
 });
 
 check("empty states: no income, no spending history", () => {

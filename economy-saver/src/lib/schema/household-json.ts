@@ -7,7 +7,7 @@ import { HouseholdSnapshot } from "./household";
 import { MemoryItem } from "./memory";
 import { ConversationTurn } from "./turn";
 
-export const SCHEMA_FILE = "schema/household.v4.json";
+export const SCHEMA_FILE = "schema/household.v5.json";
 
 function titled(schema: z.ZodType, title: string): string {
   const { $schema, description, ...rest } = z.toJSONSchema(schema, { target: "draft-07", io: "input", reused: "inline", unrepresentable: "any" }) as Record<string, unknown>;

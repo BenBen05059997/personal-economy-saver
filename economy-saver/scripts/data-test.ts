@@ -5,7 +5,7 @@
 // Run from the project root: npx tsx --tsconfig ./tsconfig.json scripts/data-test.ts
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { createChecks, openDb } from "./fixtures/harness";
 import * as schema from "@/db/schema";
 import { listCanvases, pinCanvas } from "@/db/canvases";
@@ -282,6 +282,24 @@ async function main() {
     const [anyClient] = await db.select().from(schema.clients).where(eq(schema.clients.householdId, a)).limit(1);
     const pinSliders = { clientId: anyClient.id, ...(await pinCanvas(db, a, { title: "Sliders", recipe: { version: 1, title: "Sliders", blocks: [{ type: "sliders", controls: [{ clientId: anyClient.id, maxDays: 14 }] }] } }, form)) };
     await saveTurn(db, a, turn(convOne, "Am I OK this month?"), new Date(Date.UTC(2026, 10, 6, 2, 0)));
+    // D81: pot moves and a choice. A confirmed pot holds the sum of its confirmed moves, so top up any pot the seed left without moves, then add a pot with a said choice, an add, a take-out and a carry.
+    const have = await db.select({ id: schema.pots.id, saved: schema.pots.savedMinor, currency: schema.pots.currency, status: schema.pots.status }).from(schema.pots).where(eq(schema.pots.householdId, a));
+    for (const p of have.filter(x => x.status === "confirmed")) {
+      const [{ sum }] = await db.select({ sum: sql<number>`coalesce(sum(${schema.potMoves.amountMinor}), 0)::int` }).from(schema.potMoves).where(and(eq(schema.potMoves.householdId, a), eq(schema.potMoves.potId, p.id), eq(schema.potMoves.status, "confirmed")));
+      if (sum !== p.saved) await db.insert(schema.potMoves).values({ householdId: a, potId: p.id, kind: "adjust", amountMinor: p.saved - sum, currency: p.currency, movedOn: "2026-11-01", confirmedAt: new Date() });
+    }
+    const [movesPot] = await db.insert(schema.pots).values({ householdId: a, name: "Fictional Moves Pot", savedMinor: 1300, category: "government_tax", doneOn: "2026-11-12", currency: "JPY" }).returning();
+    const [otherPot] = await db.insert(schema.pots).values({ householdId: a, name: "Fictional Carry Pot", savedMinor: 300, currency: "JPY" }).returning();
+    const [aChoice] = await db.insert(schema.choices).values({ householdId: a, memberId: aOwner.id, source: "said", happenedOn: "2026-11-05", aboutMinor: 700, currency: "JPY", words: "Skipped the taxi", category: "transport", status: "confirmed", confirmedAt: new Date() }).returning();
+    const pair = randomUUID(), done = { householdId: a, currency: "JPY", movedOn: "2026-11-06", confirmedAt: new Date() };
+    await db.insert(schema.potMoves).values([
+      { ...done, potId: movesPot.id, kind: "adjust", amountMinor: 1000 },
+      { ...done, potId: movesPot.id, kind: "add", amountMinor: 700, choiceId: aChoice.id, memberId: aOwner.id },
+      { ...done, potId: movesPot.id, kind: "take_out", amountMinor: -200, reason: "Fictional top-up" },
+      { ...done, potId: movesPot.id, kind: "carry", amountMinor: -200, pairId: pair },
+      { ...done, potId: otherPot.id, kind: "carry", amountMinor: 200, pairId: pair },
+      { ...done, potId: otherPot.id, kind: "adjust", amountMinor: 100 },
+    ]);
     const exported = await loadHouseholdSnapshot(db, a, { events: true, stored: true });
     const file = JSON.parse(JSON.stringify(exported));
 
@@ -301,7 +319,7 @@ async function main() {
 
     // Ids are new on import; references are mapped. Compare two snapshots with every id (and every reference to one) taken out, and
     // check the references separately.
-    const ID_KEYS = new Set(["id", "memberId", "paidByMemberId", "fromMemberId", "toMemberId", "cardId", "clientId", "seriesBillId", "conversationId", "spaceId", "documentId", "billId", "madeBy"]);
+    const ID_KEYS = new Set(["id", "memberId", "paidByMemberId", "fromMemberId", "toMemberId", "cardId", "clientId", "seriesBillId", "conversationId", "spaceId", "documentId", "billId", "madeBy", "potId", "choiceId", "pairId", "invoiceId", "chargeId"]);
     const bare = (value: unknown): unknown => Array.isArray(value) ? value.map(bare) : value && typeof value === "object"
       ? Object.fromEntries(Object.entries(value).filter(([k]) => !ID_KEYS.has(k)).map(([k, v]) => [k, bare(v)])) : value;
     // D75: an own category is compared by what it is, not by its id (every id is new after Import).
@@ -325,10 +343,10 @@ async function main() {
       for (const snap of [back, back2]) {
         assert.deepEqual(
           { household: [snap.household.bankBalanceMinor, snap.household.paypalBalanceMinor, snap.household.splitSince, snap.household.homeCurrency], members: sorted(snap.members), cards: sorted(snap.cards), statements: sorted(snap.statements), clients: sorted(snap.clients),
-            pots: sorted(snap.pots), balanceUpdates: sorted(snap.balanceUpdates), charges: sorted(snap.charges.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(snap, x.ownCategoryId) }))), bills: sorted(snap.bills.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(snap, x.ownCategoryId) }))),
+            pots: sorted(snap.pots), potMoves: sorted(snap.potMoves!), choices: sorted(snap.choices!), balanceUpdates: sorted(snap.balanceUpdates), charges: sorted(snap.charges.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(snap, x.ownCategoryId) }))), bills: sorted(snap.bills.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(snap, x.ownCategoryId) }))),
             invoices: sorted(snap.invoices.map(x => ({ ...x, paypalInvoiceId: null, paypalStatus: null }))), settlements: sorted(snap.settlements), memory: sorted(snap.memory!), canvases: sorted(snap.canvases!), journal: sorted(snap.journal!), ownCategories: sorted(snap.ownCategories!) },
           { household: [exported.household.bankBalanceMinor, exported.household.paypalBalanceMinor, exported.household.splitSince, exported.household.homeCurrency], members: sorted(exported.members), cards: sorted(exported.cards), statements: sorted(exported.statements), clients: sorted(exported.clients),
-            pots: sorted(exported.pots), balanceUpdates: sorted(exported.balanceUpdates), charges: sorted(exported.charges.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(exported, x.ownCategoryId) }))), bills: sorted(exported.bills.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(exported, x.ownCategoryId) }))),
+            pots: sorted(exported.pots), potMoves: sorted(exported.potMoves!), choices: sorted(exported.choices!), balanceUpdates: sorted(exported.balanceUpdates), charges: sorted(exported.charges.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(exported, x.ownCategoryId) }))), bills: sorted(exported.bills.map(x => ({ ...x, documentId: null, ownCategoryId: ownName(exported, x.ownCategoryId) }))),
             invoices: sorted(exported.invoices.map(x => ({ ...x, paypalInvoiceId: null, paypalStatus: null }))), settlements: sorted(exported.settlements), memory: sorted(exported.memory!), canvases: sorted(exported.canvases!), journal: sorted(exported.journal!), ownCategories: sorted(exported.ownCategories!) },
         );
       }
@@ -420,6 +438,8 @@ async function main() {
       for (const row of [...old.memory, ...old.canvases]) delete row.spaceId;
       for (const card of old.cards) delete card.foreignFeeBp;
       for (const charge of old.charges) delete charge.fxEstimated;
+      delete old.potMoves; delete old.choices; delete old.ownCategories;
+      for (const row of [...old.charges, ...old.bills]) delete row.ownCategoryId;
       const c = await emptyHousehold("Fictional Importer Old File");
       await restoreHousehold(db, c.id, old);
       const back = await loadHouseholdSnapshot(db, c.id, { events: true, stored: true });
@@ -430,7 +450,7 @@ async function main() {
     await check("a version 3 file has no own categories (D75) and still imports; the restored version 4 file brought its own categories, filed items and all", async () => {
       const old = JSON.parse(JSON.stringify(file));
       old.version = 3;
-      delete old.ownCategories;
+      delete old.ownCategories; delete old.potMoves; delete old.choices;
       for (const row of [...old.charges, ...old.bills]) delete row.ownCategoryId;
       const c = await emptyHousehold("Fictional Importer V3");
       await restoreHousehold(db, c.id, old);
@@ -443,6 +463,46 @@ async function main() {
       assert.equal(full.charges.filter(x => x.ownCategoryId).length, 7);
       assert.ok(full.ownCategories!.every(o => !exported.ownCategories!.some(e => e.id === o.id)), "the own categories have new ids");
       await assert.rejects(restoreHousehold(db, (await emptyHousehold("Fictional Importer Bad Own")).id, { ...file, charges: file.charges.map((x: { category: string; ownCategoryId?: string }) => (x.ownCategoryId ? { ...x, category: "travel" } : x)) }), (e: unknown) => e instanceof InputError && /not consistent with itself/.test(e.message));
+    });
+
+    await check("D81: a version 4 file (no pot moves) imports with one adjust per confirmed pot that holds money; a version 5 file brings its moves and choices with new ids and every link mapped", async () => {
+      const old = JSON.parse(JSON.stringify(file));
+      old.version = 4;
+      delete old.potMoves; delete old.choices;
+      for (const pot of old.pots) { delete pot.category; delete pot.doneOn; }
+      const c = await emptyHousehold("Fictional Importer V4");
+      await restoreHousehold(db, c.id, old);
+      const back = await loadHouseholdSnapshot(db, c.id, { events: true, stored: true });
+      const holding = exported.pots.filter(p => p.status === "confirmed" && p.savedMinor > 0);
+      assert.ok(holding.length >= 2);
+      assert.deepEqual(back.potMoves!.map(m => m.kind), holding.map(() => "adjust"));
+      for (const p of holding) {
+        const mine = back.pots.find(x => x.name === p.name)!;
+        assert.deepEqual(back.potMoves!.filter(m => m.potId === mine.id).map(m => m.amountMinor), [p.savedMinor]);
+      }
+      assert.ok(back.pots.every(p => p.category === null && p.doneOn === null) && back.choices!.length === 0);
+      await assert.rejects(restoreHousehold(db, (await emptyHousehold("Fictional Importer V4 Moves")).id, { ...old, potMoves: [] }), (e: unknown) => e instanceof InputError && /not a household file/.test(e.message));
+
+      const [filled] = await db.select().from(schema.households).where(eq(schema.households.name, "Fictional Importer Three"));
+      const full = await loadHouseholdSnapshot(db, filled.id, { events: true, stored: true });
+      assert.equal(full.potMoves!.length, exported.potMoves!.length);
+      assert.ok(full.potMoves!.every(m => !exported.potMoves!.some(e => e.id === m.id)) && full.choices!.every(x => !exported.choices!.some(e => e.id === x.id)), "moves and choices have new ids");
+      const pot = full.pots.find(p => p.name === "Fictional Moves Pot")!, carry = full.pots.find(p => p.name === "Fictional Carry Pot")!;
+      assert.deepEqual([pot.category, pot.doneOn, pot.savedMinor], ["government_tax", "2026-11-12", 1300]);
+      const mine = full.potMoves!.filter(m => m.potId === pot.id);
+      assert.equal(mine.reduce((sum, m) => sum + m.amountMinor, 0), 1300);
+      const add = mine.find(m => m.kind === "add")!, choice = full.choices!.find(x => x.id === add.choiceId)!;
+      const [filledOwner] = await db.select().from(schema.members).where(and(eq(schema.members.householdId, filled.id), eq(schema.members.role, "owner")));
+      assert.deepEqual([choice.words, choice.memberId, add.memberId, choice.madeBy], ["Skipped the taxi", filledOwner.id, filledOwner.id, "import"]);
+      const out = mine.find(m => m.kind === "carry")!, into = full.potMoves!.find(m => m.kind === "carry" && m.potId === carry.id)!;
+      assert.ok(out.pairId && out.pairId === into.pairId && out.pairId !== exported.potMoves!.find(m => m.kind === "carry")!.pairId, "a carry keeps its pair under a new id");
+      // Moves that do not add up to what the pot holds are refused, and so is a move on a pot the file does not list.
+      const bad = JSON.parse(JSON.stringify(file));
+      bad.potMoves.find((m: { kind: string }) => m.kind === "take_out").amountMinor = -150;
+      await assert.rejects(restoreHousehold(db, (await emptyHousehold("Fictional Importer V5 Sum")).id, bad), (e: unknown) => e instanceof InputError && /do not add up/.test(e.message));
+      const lost = JSON.parse(JSON.stringify(file));
+      lost.potMoves[0].potId = randomUUID();
+      await assert.rejects(restoreHousehold(db, (await emptyHousehold("Fictional Importer V5 Lost")).id, lost), (e: unknown) => e instanceof InputError && /not consistent with itself/.test(e.message));
     });
 
     await check("the restored household's own data is its own: deleting its kinds works like any other", async () => {

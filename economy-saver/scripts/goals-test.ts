@@ -38,6 +38,14 @@ check("the Goals list includes only confirmed pots with both a target amount and
   assert.deepEqual(goalPaces(state), [], "Ben has no goal pots on Nov 14");
 });
 
+check("a done pot has no pace and goal progress counts what became a purchase", () => {
+  assert.equal(goalPace({ ...goal, doneOn: "2026-11-10" }, state), null);
+  assert.deepEqual(goalPaces({ ...state, pots: [{ ...goal, doneOn: "2026-11-10" }] }), []);
+  const pace = goalPace({ ...goal, became: 20_000 }, state)!;
+  assert.equal(pace.savedMinor, 60_000);
+  assert.equal(pace.deltaMinor, 0);
+});
+
 check("an on-pace goal reaches its target date and an ahead goal reaches it sooner", () => {
   const onPace = goalPace({ ...goal, saved: 60_000 }, state);
   const ahead = goalPace({ ...goal, saved: 75_000 }, state);

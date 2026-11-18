@@ -49,7 +49,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
 
     const today = clockForHousehold(household, now).today;
     const rate = await usdRate(tx, hid, household.homeCurrency, today);
-    const [paypalRows, members, cards, statements, charges, bills, clients, invoices, pots, settlements, balanceUpdates, documents, events, ownRows] = await Promise.all([
+    const [paypalRows, members, cards, statements, charges, bills, clients, invoices, pots, settlements, balanceUpdates, documents, events, ownRows, moveRows, choiceRows] = await Promise.all([
       tx.select({ balanceMinor: s.paypalConnections.balanceMinor, balanceCurrency: s.paypalConnections.balanceCurrency }).from(s.paypalConnections)
         .where(eq(s.paypalConnections.householdId, hid)),
       tx.select({ id: s.members.id, displayName: s.members.displayName, role: s.members.role, shareBp: s.members.shareBp }).from(s.members)
@@ -85,7 +85,7 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
       }).from(s.invoices).where(and(eq(s.invoices.householdId, hid), isNotNull(s.invoices.clientId))).orderBy(desc(s.invoices.createdAt), desc(s.invoices.id)).$dynamic()),
       tx.select({
         id: s.pots.id, memberId: s.pots.memberId, name: s.pots.name, targetMinor: s.pots.targetMinor, targetDate: s.pots.targetDate,
-        savedMinor: s.pots.savedMinor, fillBp: s.pots.fillBp, currency: s.pots.currency, status: s.pots.status, madeBy: s.pots.madeBy,
+        savedMinor: s.pots.savedMinor, fillBp: s.pots.fillBp, category: s.pots.category, doneOn: s.pots.doneOn, currency: s.pots.currency, status: s.pots.status, madeBy: s.pots.madeBy,
       }).from(s.pots).where(eq(s.pots.householdId, hid)).orderBy(s.pots.createdAt, s.pots.id),
       tx.select({
         id: s.settlements.id, fromMemberId: s.settlements.fromMemberId, toMemberId: s.settlements.toMemberId, amountMinor: s.settlements.amountMinor,
@@ -106,6 +106,17 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
         : Promise.resolve(undefined),
       tx.select({ id: s.ownCategories.id, kind: s.ownCategories.kind, name: s.ownCategories.name, businessBp: s.ownCategories.businessBp }).from(s.ownCategories)
         .where(eq(s.ownCategories.householdId, hid)).orderBy(s.ownCategories.createdAt, s.ownCategories.id),
+      tx.select({
+        id: s.potMoves.id, potId: s.potMoves.potId, kind: s.potMoves.kind, amountMinor: s.potMoves.amountMinor, currency: s.potMoves.currency,
+        movedOn: s.potMoves.movedOn, reason: s.potMoves.reason, memberId: s.potMoves.memberId, invoiceId: s.potMoves.invoiceId, chargeId: s.potMoves.chargeId,
+        billId: s.potMoves.billId, billOn: s.potMoves.billOn, choiceId: s.potMoves.choiceId, pairId: s.potMoves.pairId, status: s.potMoves.status,
+        confirmedAt: s.potMoves.confirmedAt, madeBy: s.potMoves.madeBy,
+      }).from(s.potMoves).where(eq(s.potMoves.householdId, hid)).orderBy(s.potMoves.createdAt, s.potMoves.id),
+      tx.select({
+        id: s.choices.id, memberId: s.choices.memberId, source: s.choices.source, happenedOn: s.choices.happenedOn, aboutMinor: s.choices.aboutMinor,
+        currency: s.choices.currency, words: s.choices.words, category: s.choices.category, foundKey: s.choices.foundKey, status: s.choices.status,
+        confirmedAt: s.choices.confirmedAt, withdrawnAt: s.choices.withdrawnAt, madeBy: s.choices.madeBy,
+      }).from(s.choices).where(eq(s.choices.householdId, hid)).orderBy(s.choices.createdAt, s.choices.id),
     ]);
 
     const stored = options.stored
@@ -125,6 +136,8 @@ export async function loadHouseholdSnapshot(db: Db, householdId: string, options
       members, cards, statements: st.rows, charges: ch.rows, bills: bi.rows, clients,
       invoices: inv.rows.map(i => ({ ...i, remindedAt: isoOrNull(i.remindedAt) })),
       pots,
+      potMoves: moveRows.map(m => ({ ...m, confirmedAt: isoOrNull(m.confirmedAt) })),
+      choices: choiceRows.map(c => ({ ...c, confirmedAt: isoOrNull(c.confirmedAt), withdrawnAt: isoOrNull(c.withdrawnAt) })),
       ownCategories: ownRows,
       settlements: settlements.map(x => ({ ...x, settledAt: iso(x.settledAt), createdAt: iso(x.createdAt) })),
       balanceUpdates: bu.rows.map(u => ({ ...u, createdAt: iso(u.createdAt) })),

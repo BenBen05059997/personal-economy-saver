@@ -53,7 +53,7 @@ const small: MoneyState = {
   cards: [], charges: [], statements: [],
   clients: [{ id: "maple", name: "Maple Studio", email: "ap@maple.example", termsDays: 7, daysToPay: [5, 9, 12] }],
   invoices: [{ id: "inv-1", clientId: "maple", number: "1", item: "Posters", amountUsd: 400, status: "sent", hasLink: true, sentOn: DEMO_DATE, dueOn: "2026-11-21" }],
-  pots: [], pendingPots: [], cancelNotices: [], balanceUpdates: [],
+  pots: [], pendingPots: [], pendingMoves: [], pendingChoices: [], cancelNotices: [], balanceUpdates: [],
   split: { members: [{ id: "m1", name: "Mina", shareBp: 10_000 }], since: null, settledThrough: null, settledAt: null, bills: [], charges: [] },
 };
 const lowOf = (state: MoneyState, kind: "expected" | "worst") => low(series(state, kind));
@@ -264,15 +264,15 @@ async function main() {
       assert.equal(RecipeSchema.safeParse({ version: 1, title: "x", blocks: [{ type: "view", view: "forecast", args: { amountMinor: 100 } }] }).success, false);
     });
 
-    await check("loadCanvasContext loads what a recipe's views need: income and pot fills only when a view asks, foreign costs only for the foreign query", async () => {
+    await check("loadCanvasContext loads what a recipe's views need: income and pot moves only when a view asks, foreign costs only for the foreign query", async () => {
       assert.deepEqual(needsOf([{ type: "view", view: "income_months" }]), ["income"]);
-      assert.deepEqual(needsOf([{ type: "view", view: "money_flow" }, { type: "view", view: "savings_rate" }]).sort(), ["income", "potFills", "spending"]);
+      assert.deepEqual(needsOf([{ type: "view", view: "money_flow" }, { type: "view", view: "savings_rate" }]).sort(), ["income", "moves", "spending"]);
       assert.deepEqual(needsOf([{ type: "sentence" }, { type: "view", view: "forecast" }]), []);
       const plain = await loadCanvasContext(db, a, { blocks: [{ type: "view", view: "month_trend", args: {} }] });
-      assert.ok(plain.income === undefined && plain.potFills === undefined && plain.foreignCosts === undefined);
+      assert.ok(plain.income === undefined && plain.moves === undefined && plain.foreignCosts === undefined);
       const asked = await loadViewContext(db, a, needsOf([{ type: "view", view: "money_flow" }]));
       assert.equal(asked.income?.length, 16);
-      assert.deepEqual(asked.potFills, []);
+      assert.deepEqual(asked.moves, []);
     });
 
     await check("every starter recipe is valid, resolves, and says in words what each block is", () => {
@@ -663,7 +663,7 @@ async function main() {
       assert.deepEqual((await draw(goalsHome)).data, { rows: [], empty: "No dated goals yet." });
 
       const camera = { id: crypto.randomUUID(), name: "Camera", target: "120000", targetDate: "2027-06-30",
-        saved: "20000", fillPct: null, memberId: null };
+        saved: "20000", fillPct: null, category: null, memberId: null };
       await savePot(db, goalsHome, camera, "confirmed", { madeBy: "form" });
       await savePot(db, goalsHome, { ...camera, id: crypto.randomUUID(), name: "Trip", target: "50000", saved: "50000" }, "confirmed", { madeBy: "form" });
       await savePot(db, goalsHome, { ...camera, id: crypto.randomUUID(), name: "No date", targetDate: null }, "confirmed", { madeBy: "form" });

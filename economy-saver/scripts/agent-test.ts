@@ -659,7 +659,7 @@ async function main() {
       assert.equal(planTool.scope, "read");
       assert.equal(addTool.scope, "draft");
       assert.deepEqual([...(toolInputSchema(planTool) as unknown as { required: string[] }).required].sort(), ["monthly_minor", "pot_id", "target_date", "target_minor"]);
-      assert.deepEqual([...(toolInputSchema(addTool) as unknown as { required: string[] }).required].sort(), ["fillPct", "name", "target", "targetDate"]);
+      assert.deepEqual([...(toolInputSchema(addTool) as unknown as { required: string[] }).required].sort(), ["category", "fillPct", "name", "target", "targetDate"]);
       const request = { target: 1_200_000, saved: 0, targetDate: "2027-03-31" };
       const plan = transport([
         () => reply("tool_use", [toolUse("p", "plan_for", { target_minor: 1_200_000, target_date: "2027-03-31", monthly_minor: null, pot_id: null })]),
@@ -676,7 +676,7 @@ async function main() {
       assert.ok(plan.bodies[0].system.includes("never unprompted"), "the prompt says when to offer a pot");
 
       const potId = crypto.randomUUID();
-      await savePot(db, a, { id: potId, name: "Car", target: "1200000", targetDate: "2027-03-31", saved: "200000", fillPct: null, memberId: null }, "confirmed", { madeBy: "form" });
+      await savePot(db, a, { id: potId, name: "Car", target: "1200000", targetDate: "2027-03-31", saved: "200000", fillPct: null, memberId: null, category: null }, "confirmed", { madeBy: "form" });
       const existing = transport([
         () => reply("tool_use", [toolUse("e", "plan_for", { target_minor: null, target_date: null, monthly_minor: 100_000, pot_id: potId })]),
         () => reply("end_turn", [text("ok")]),
@@ -1741,7 +1741,7 @@ async function main() {
     await check("Keep this suppresses existing memory and goals and rejects long numbers, excessive text and invalid targets", async () => {
       const c = await seedBen(db, { isDemo: true });
       await addMemory(db, c, { kind: "preference", text: "Use short answers" }, { madeBy: "form" });
-      await savePot(db, c, { id: crypto.randomUUID(), name: "Camera", target: "120000", targetDate: "2027-06-30", saved: "0", fillPct: null, memberId: null }, "confirmed", { madeBy: "form" });
+      await savePot(db, c, { id: crypto.randomUUID(), name: "Camera", target: "120000", targetDate: "2027-06-30", saved: "0", fillPct: null, memberId: null, category: null }, "confirmed", { madeBy: "form" });
       const t = transport([
         () => reply("tool_use", [
           toolUse("long-number", "offer_keep", { offer: { kind: "memory", memoryKind: "fact", text: "A number １２３４ ５６７８ ９０１２" } }),

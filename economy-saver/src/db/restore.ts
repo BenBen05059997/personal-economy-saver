@@ -1,4 +1,4 @@
-// D59, D44: import. Reads a version 2, 3 or 4 file into a household that has nothing in it yet, assigning new ids.
+// D59, D44: import. Reads a version 2, 3, 4 or 5 file into a household that has nothing in it yet, assigning new ids.
 // Every restored row is marked made_by = import (memory items keep the maker they had, because a memory item can only be form, ask or mcp),
 // and one event records it. Anything else is refused in words; a refused import changes nothing (one transaction).
 //
@@ -24,26 +24,28 @@ import * as s from "./schema";
 import { canHavePayLink } from "@/lib/paypal/pay-link";
 
 export const NOT_EMPTY = "Import works on an empty household. Start with my numbers first.";
-export const OLD_VERSION = "This file is an older export (version 1). Import reads version 2, 3 or 4 files. Export again from the app that made it, then import that file.";
+export const OLD_VERSION = "This file is an older export (version 1). Import reads version 2, 3, 4 or 5 files. Export again from the app that made it, then import that file.";
 
 type RestoreCounts = { members: number; cards: number; bills: number; charges: number; clients: number; invoices: number; pots: number; memory: number; canvases: number; journal: number; other: number };
 
 /** The file's text, parsed with the schema. Anything else is refused with a sentence. */
-function readSnapshotFile(input: unknown): Snapshot {
+function readSnapshotFile(input: unknown): { file: Snapshot; from: number } {
   if (input && typeof input === "object" && (input as { version?: unknown }).version === 1) throw new InputError(OLD_VERSION);
   // Older files lack what the newer versions added (version 3: ownCategories and ownCategoryId; version 2: also spaces); those fields are optional, so only the version number differs.
   const version = input && typeof input === "object" ? (input as { version?: unknown }).version : undefined;
+  // Version 5 added pot moves and choices (D81); older files hold neither, and a key they should not have is refused.
+  const before = HouseholdSnapshot.omit({ potMoves: true, choices: true });
   const parsed = version === 2
-    ? HouseholdSnapshot.omit({ spaces: true }).extend({ version: z.literal(2) }).safeParse(input)
-    : version === 3
-      ? HouseholdSnapshot.extend({ version: z.literal(3) }).safeParse(input)
+    ? before.omit({ spaces: true }).extend({ version: z.literal(2) }).safeParse(input)
+    : version === 3 || version === 4
+      ? before.extend({ version: z.literal(version) }).safeParse(input)
       : HouseholdSnapshot.safeParse(input);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
     const path = issue?.path.map(part => (typeof part === "number" ? `#${part + 1}` : String(part))).join(" > ");
     throw new InputError(`This is not a household file Import can read${path ? ` (${path}: ${issue.message})` : ""}.`);
   }
-  return { ...parsed.data, version: SNAPSHOT_VERSION };
+  return { file: { ...parsed.data, version: SNAPSHOT_VERSION }, from: parsed.data.version };
 }
 
 function dbCode(error: unknown): string | undefined {
@@ -61,7 +63,7 @@ async function insertChunks<T>(tx: Db, table: PgTable, rows: T[]) {
 /** Restores `input` (the parsed file) into household `householdId`. Returns what was added. */
 export async function restoreHousehold(db: Db, householdId: string, input: unknown): Promise<RestoreCounts> {
   const hid = requireHousehold(householdId);
-  const file = readSnapshotFile(input);
+  const { file, from } = readSnapshotFile(input);
   if (Object.values(file.truncated).some(Boolean)) throw new InputError("This file holds only part of a household (it was cut to the most recent rows). Import needs a full export.");
   const owners = file.members.filter(m => m.role === "owner");
   if (owners.length !== 1) throw new InputError("This file needs exactly one owner among its people.");
@@ -89,13 +91,15 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       for (const x of file.statements) wrong("card statement", x.currency);
       for (const i of file.invoices) wrong("invoice", i.currency, "USD");
       for (const p of file.pots) wrong("pot", p.currency);
+      for (const m of file.potMoves ?? []) wrong("pot move", m.currency);
+      for (const c of file.choices ?? []) wrong("choice", c.currency);
       for (const x of file.settlements) wrong("settlement", x.currency);
       for (const u of file.balanceUpdates) wrong("balance update", u.currency);
 
       const existing = await tx.select({ id: s.members.id }).from(s.members).where(eq(s.members.householdId, hid));
       if (existing.length !== 1) throw new InputError(NOT_EMPTY);
       const ownerId = existing[0].id;
-      for (const table of [s.ownCategories, s.bills, s.charges, s.cardStatements, s.clients, s.invoices, s.pots, s.settlements, s.balanceUpdates, s.memories, s.canvases, s.conversationTurns, s.documents] as const) {
+      for (const table of [s.ownCategories, s.bills, s.charges, s.cardStatements, s.clients, s.invoices, s.pots, s.choices, s.potMoves, s.settlements, s.balanceUpdates, s.memories, s.canvases, s.conversationTurns, s.documents] as const) {
         const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(table).where(eq(table.householdId, hid));
         if (n > 0) throw new InputError(NOT_EMPTY);
       }
@@ -125,7 +129,7 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
         if (!sourceSpaceIds.has(id)) throw new InputError("This file refers to a space it does not list.");
         return ref(id);
       };
-      for (const list of [spaces, file.ownCategories ?? [], file.members, file.cards, file.clients, file.bills, file.statements, file.charges, file.invoices, file.pots, file.settlements, file.balanceUpdates, memory, pins, journal]) for (const row of list) next(row.id);
+      for (const list of [spaces, file.ownCategories ?? [], file.members, file.cards, file.clients, file.bills, file.statements, file.charges, file.invoices, file.pots, file.choices ?? [], file.potMoves ?? [], file.settlements, file.balanceUpdates, memory, pins, journal]) for (const row of list) next(row.id);
       for (const t of journal) next(t.conversationId);
       const briefFor = (raw: unknown) => {
         if (!raw || typeof raw !== "object" || Object.keys(raw).length === 0) return {};
@@ -189,6 +193,27 @@ export async function restoreHousehold(db: Db, householdId: string, input: unkno
       for (const b of file.bills) if (b.seriesBillId) await tx.update(s.bills).set({ seriesBillId: ref(b.seriesBillId) }).where(and(eq(s.bills.householdId, hid), eq(s.bills.id, ref(b.id))));
       await insertChunks(tx, s.invoices, file.invoices.map(i => ({ ...i, id: ref(i.id), clientId: ref(i.clientId), ...made, paypalInvoiceId: null, paypalStatus: null, payToken: i.status === "sent" && canHavePayLink(i) ? newToken() : null, remindedAt: i.remindedAt ? new Date(i.remindedAt) : null })));
       await insertChunks(tx, s.pots, file.pots.map(p => ({ ...p, id: ref(p.id), ...made, memberId: who(p.memberId) })));
+      await insertChunks(tx, s.choices, (file.choices ?? []).map(c => ({
+        ...c, id: ref(c.id), ...made, memberId: who(c.memberId),
+        confirmedAt: c.confirmedAt ? new Date(c.confirmedAt) : null, withdrawnAt: c.withdrawnAt ? new Date(c.withdrawnAt) : null,
+      })));
+      if (from <= 4) {
+        // An older file keeps a pot's money as one number: it becomes the pot's first move, so the pot still equals the sum of its moves.
+        await insertChunks(tx, s.potMoves, file.pots.filter(p => p.status === "confirmed" && p.savedMinor > 0).map(p => ({
+          id: crypto.randomUUID(), ...made, potId: ref(p.id), kind: "adjust" as const, amountMinor: p.savedMinor, currency: p.currency,
+          movedOn: file.household.today, status: "confirmed" as const, confirmedAt: new Date(),
+        })));
+      } else {
+        for (const m of file.potMoves ?? []) ref(m.potId);
+        const sums = new Map<string, number>();
+        for (const m of file.potMoves ?? []) if (m.status === "confirmed") sums.set(m.potId, (sums.get(m.potId) ?? 0) + m.amountMinor);
+        for (const p of file.pots) if ((sums.get(p.id) ?? 0) !== (p.status === "confirmed" ? p.savedMinor : 0)) throw new InputError(`The moves of the pot "${p.name}" in this file do not add up to the money it holds.`);
+        await insertChunks(tx, s.potMoves, (file.potMoves ?? []).map(m => ({
+          ...m, id: ref(m.id), ...made, potId: ref(m.potId), memberId: who(m.memberId), invoiceId: ownRef(m.invoiceId), chargeId: ownRef(m.chargeId),
+          billId: ownRef(m.billId), choiceId: ownRef(m.choiceId), pairId: m.pairId ? next(m.pairId) : null,
+          confirmedAt: m.confirmedAt ? new Date(m.confirmedAt) : null,
+        })));
+      }
       await insertChunks(tx, s.settlements, file.settlements.map(x => ({ ...x, id: ref(x.id), householdId: hid, fromMemberId: who(x.fromMemberId)!, toMemberId: who(x.toMemberId)!, settledAt: new Date(x.settledAt), createdAt: new Date(x.createdAt) })));
       await insertChunks(tx, s.balanceUpdates, file.balanceUpdates.map(u => ({ ...u, id: ref(u.id), ...made, createdAt: new Date(u.createdAt) })));
       await insertChunks(tx, s.memories, memory.map(m => ({ ...m, id: ref(m.id), householdId: hid, spaceId: spaceRef(m.spaceId), createdAt: new Date(m.createdAt), updatedAt: new Date(m.updatedAt) })));

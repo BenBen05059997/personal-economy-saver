@@ -639,6 +639,64 @@ async function main() {
       }
     });
 
+    await check("migration 0036 links fills to their invoice only when one invoice shares the moment, skips a deleted pot, makes every confirmed pot sum to saved_minor, gives only fill-rule pots the tax category and adds saving_wins", async () => {
+      const old = new PGlite({ extensions: { pg_trgm } });
+      try {
+        const files = readdirSync("./drizzle").filter(f => /^\d{4}_.*\.sql$/.test(f)).sort();
+        const target = files.find(f => f.startsWith("0036_"))!;
+        const statements = (file: string) => readFileSync(`./drizzle/${file}`, "utf8").split("--> statement-breakpoint").map(x => x.trim()).filter(Boolean);
+        for (const file of files.slice(0, files.indexOf(target))) for (const statement of statements(file)) await old.exec(statement);
+        const one = async <T>(sql: string, params: unknown[] = []) => (await old.query<T & object>(sql, params)).rows[0];
+        const household = (await one<{ id: string }>("insert into households (name, home_currency) values ('Old', 'JPY') returning id")).id;
+        const bare = (await one<{ id: string }>("insert into households (name, home_currency) values ('No rules', 'JPY') returning id")).id;
+        for (const kind of ["nudge_after", "goal_behind"]) await old.query("insert into standing_rules (household_id, kind, enabled) values ($1, $2, true)", [household, kind]);
+        const client = (await one<{ id: string }>("insert into clients (household_id, name, email) values ($1, 'Fictional client', 'c@example.test') returning id", [household])).id;
+        const invoice = async (item: string) => (await one<{ id: string }>("insert into invoices (household_id, client_id, status, item, amount_minor) values ($1, $2, 'paid', $3, 10000) returning id", [household, client, item])).id;
+        const [i1, i2, i3] = [await invoice("One"), await invoice("Two"), await invoice("Three")];
+        const pot = async (name: string, saved: number, fillBp: number | null, status = "confirmed") =>
+          (await one<{ id: string }>("insert into pots (household_id, name, saved_minor, fill_bp, currency, status) values ($1, $2, $3, $4, 'JPY', $5) returning id", [household, name, saved, fillBp, status])).id;
+        const [tax, plain, double, pending] = [await pot("Tax", 10000, 2500), await pot("Plain", 5000, null), await pot("Double", 3000, 1000), await pot("Pending", 0, null, "pending")];
+        const ghost = randomUUID();
+        const event = async (kind: string, refType: string, refId: string, amount: number | null, at: string) =>
+          (await one<{ id: string }>("insert into events (household_id, kind, title, amount_minor, ref_type, ref_id, occurred_at, created_at) values ($1, $2, 'x', $3, $4, $5, $6, $6) returning id", [household, kind, amount, refType, refId, at])).id;
+        await event("invoice_paid", "invoice", i1, 10000, "2026-10-01T03:00:00Z");
+        const taxFill = await event("pot_filled", "pot", tax, 4000, "2026-10-01T03:00:00Z");
+        await event("invoice_paid", "invoice", i2, 10000, "2026-10-05T03:00:00Z");
+        await event("invoice_paid", "invoice", i3, 10000, "2026-10-05T03:00:00Z");
+        const doubleFills = [await event("pot_filled", "pot", double, 1000, "2026-10-05T03:00:00Z"), await event("pot_filled", "pot", double, 2000, "2026-10-05T03:00:00Z")];
+        const ghostFill = await event("pot_filled", "pot", ghost, 777, "2026-10-06T03:00:00Z");
+        for (const statement of statements(target)) await old.exec(statement);
+        const moves = (await old.query<{ id: string; pot_id: string; kind: string; amount_minor: string; invoice_id: string | null; moved_on: string; status: string }>("select id, pot_id, kind, amount_minor::text, invoice_id, moved_on::text, status from pot_moves order by created_at, id")).rows;
+        const fill = (id: string) => moves.find(m => m.id === id)!;
+        assert.equal(fill(taxFill).invoice_id, i1, "one invoice shares the moment: linked");
+        assert.equal(fill(taxFill).kind, "fill");
+        assert.equal(fill(taxFill).moved_on, "2026-10-01");
+        assert.deepEqual(doubleFills.map(id => fill(id).invoice_id), [null, null], "two invoices share the moment: no link");
+        assert.equal(moves.some(m => m.id === ghostFill), false, "the fill of a deleted pot is skipped");
+        for (const row of (await old.query<{ id: string; saved_minor: string }>("select id, saved_minor::text from pots where status = 'confirmed'")).rows) {
+          const total = moves.filter(m => m.pot_id === row.id && m.status === "confirmed").reduce((sum, m) => sum + Number(m.amount_minor), 0);
+          assert.equal(total, Number(row.saved_minor), "every confirmed pot's moves add up to saved_minor");
+        }
+        assert.equal(moves.filter(m => m.pot_id === double).length, 2, "the fills already sum to saved: no adjust");
+        assert.deepEqual(moves.filter(m => m.pot_id === plain).map(m => [m.kind, m.amount_minor]), [["adjust", "5000"]], "a hand-typed saved becomes one adjust");
+        assert.equal(moves.filter(m => m.pot_id === pending).length, 0, "a pending pot has no moves");
+        const categories = (await old.query<{ name: string; category: string | null }>("select name, category from pots order by name")).rows;
+        assert.deepEqual(categories.map(c => [c.name, c.category]), [["Double", "government_tax"], ["Pending", null], ["Plain", null], ["Tax", "government_tax"]], "only fill-rule pots take the tax category");
+        const rules = (await old.query<{ household_id: string; kind: string; enabled: boolean }>("select household_id, kind, enabled from standing_rules where kind = 'saving_wins'")).rows;
+        assert.deepEqual(rules.map(r => [r.household_id, r.enabled]), [[household, true]], "saving_wins for every household that had rules, and none made for one without");
+        assert.equal(rules.some(r => r.household_id === bare), false);
+        const policies = (await old.query<{ tablename: string }>("select tablename from pg_policies where policyname = 'pes_app_household' and tablename in ('choices', 'pot_moves') order by tablename")).rows;
+        assert.deepEqual(policies.map(r => r.tablename), ["choices", "pot_moves"], "both new tables carry the household policy");
+        const grants = (await old.query<{ table_name: string }>("select distinct table_name from information_schema.role_table_grants where grantee = 'pes_app' and table_name in ('choices', 'pot_moves') order by table_name")).rows;
+        assert.deepEqual(grants.map(r => r.table_name), ["choices", "pot_moves"], "pes_app can use both");
+        await assert.rejects(old.query("insert into pot_moves (household_id, pot_id, kind, amount_minor, currency, moved_on, confirmed_at) values ($1, $2, 'fill', -5, 'JPY', '2026-10-01', now())", [household, tax]), /pot_moves_sign_valid/);
+        await assert.rejects(old.query("insert into pot_moves (household_id, pot_id, kind, amount_minor, currency, moved_on, confirmed_at, invoice_id) values ($1, $2, 'fill', 5, 'JPY', '2026-10-01', now(), $3)", [household, tax, i1]).then(() =>
+          old.query("insert into pot_moves (household_id, pot_id, kind, amount_minor, currency, moved_on, confirmed_at, invoice_id) values ($1, $2, 'fill', 5, 'JPY', '2026-10-01', now(), $3)", [household, tax, i1])), /pot_moves_fill_invoice_uq/, "a second fill for one invoice and pot is refused");
+      } finally {
+        await old.close();
+      }
+    });
+
     await check("card room and safe to spend count a repeating subscription that falls inside the window", async () => {
       const base = await seedBen(db, { isDemo: true }), repeating = await seedBen(db, { isDemo: true }), once = await seedBen(db, { isDemo: true });
       await insertBill(db, repeating, bill({ biller: "Fictional streaming", amount: "5000", due: "2026-11-16", repeat: "month" }), "confirmed", { madeBy: "form" });

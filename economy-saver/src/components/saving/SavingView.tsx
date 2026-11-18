@@ -27,13 +27,13 @@ import { PotFields } from "./PotFields";
 import "@/components/household/household.css";
 import "./saving.css";
 
-/** A pot's own panel (D77): only the questions that apply to it, its pace when it has a target and a date and the tax ahead when it has a fill rule; the switch only when both do (D73). */
+/** A pot's own panel (D77): only the questions that apply to it, its pace when it has a target and a date and the tax ahead when it is the tax pot (category Government & tax); the switch only when both do (D73). */
 async function PotViews({ state, pot }: { state: MoneyState; pot: Pot }) {
   const hid = await currentHouseholdId();
   if (!hid) return null;
   const ctx = { state }, questions: PanelQuestion[] = [];
-  if (goalPace(pot, state)) { const pace = goalPaceView({ potId: pot.id }, ctx) as ViewResult<"goal_line">; questions.push({ key: "pace", label: "Its pace", heading: "Its pace", result: pace, figure: <GoalLine key="pace" result={pace} /> }); }
-  if (pot.fillPct !== undefined) { const tax = taxAheadView({ potId: pot.id }, ctx) as ViewResult<"step_line">; questions.push({ key: "tax", label: "Tax ahead", heading: "Tax ahead", result: tax, figure: <StepLine key="tax" result={tax} /> }); }
+  if (goalPace(pot, state) || pot.doneOn !== undefined) { const pace = goalPaceView({ potId: pot.id }, ctx) as ViewResult<"goal_line">; questions.push({ key: "pace", label: "Its pace", heading: "Its pace", result: pace, figure: <GoalLine key="pace" result={pace} /> }); }
+  if (pot.category === "government_tax") { const tax = taxAheadView({ potId: pot.id }, ctx) as ViewResult<"step_line">; questions.push({ key: "tax", label: "Tax ahead", heading: "Tax ahead", result: tax, figure: <StepLine key="tax" result={tax} /> }); }
   if (questions.length === 0) return null;
   const places = await withHousehold(db(), hid, tx => readPlaces(tx, hid), { isolationLevel: "repeatable read", accessMode: "read only" });
   return <ViewPanel id={`pot-${pot.id}`} questions={questions} switchLabel="Look at" device={places.canvases === "device" ? { householdId: hid } : undefined} />;
@@ -67,7 +67,7 @@ async function WhatYouKeep({ state }: { state: MoneyState }) {
   const hid = await currentHouseholdId();
   if (!hid) return null;
   const [ctx, places] = await Promise.all([
-    loadViewContext(db(), hid, ["spending", "income", "potFills"], { state }),
+    loadViewContext(db(), hid, ["spending", "income", "moves"], { state }),
     withHousehold(db(), hid, tx => readPlaces(tx, hid), { isolationLevel: "repeatable read", accessMode: "read only" }),
   ]);
   const heading = "What you keep";

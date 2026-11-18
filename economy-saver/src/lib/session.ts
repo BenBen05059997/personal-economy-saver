@@ -7,7 +7,7 @@ import { COOKIE_AGE, cookiePolicy, hasAuthCookie, HOUSEHOLD_COOKIE } from "./sup
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { db } from "@/db/client";
-import { withHousehold } from "@/db/household";
+import { householdOwner, withHousehold } from "@/db/household";
 import { demoHouseholdForToken, issueDemoToken } from "@/db/demo";
 import { noteHousehold } from "./request-log";
 
@@ -48,6 +48,16 @@ export async function hasHouseholdOwnerAccess(hid: string): Promise<boolean> {
   if (!uid) return await householdForRender() === hid;
   const member = await withHousehold(db(), hid, tx => accountMembership(tx, uid));
   return member?.householdId === hid && member.role === "owner";
+}
+
+/** The member the current request acts as (D81): the signed-in account's own member, or, in a Try it household, its owner. Null when the session has none in this household. */
+export async function currentMemberId(hid: string): Promise<string | null> {
+  const uid = await verifiedUid();
+  if (uid) {
+    const member = await withHousehold(db(), hid, tx => accountMembership(tx, uid));
+    return member?.householdId === hid ? member.memberId : null;
+  }
+  return (await withHousehold(db(), hid, tx => householdOwner(tx, hid)))?.id ?? null;
 }
 
 export async function ownerRequest(request: Request): Promise<string | Response> {

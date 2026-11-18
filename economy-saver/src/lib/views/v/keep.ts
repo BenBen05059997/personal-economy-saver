@@ -16,10 +16,10 @@ const NO_SPENDING = "Add your bills and card charges to see how long your money 
 const missing = (what: string) => new ViewError(`${what} is not loaded for this view.`);
 
 export const moneyFlowView: Resolver<"money_flow"> = (args, ctx): ViewResult => {
-  const { spending, income, potFills, state } = ctx;
+  const { spending, income, moves, state } = ctx;
   if (!spending) throw missing("Spending");
   if (!income) throw missing("Income");
-  if (!potFills) throw missing("Pot fills");
+  if (!moves) throw missing("Pot moves");
   const meta = VIEW_META.money_flow, currency = spending.homeCurrency, format = (minor: number) => minorMoney(minor, currency);
   const current = state.today.slice(0, 7), oldest = monthsBack(current, HISTORY_MONTHS);
   if (args.month !== undefined && (args.month > current || args.month < oldest)) throw new ViewError(`Where each payment went covers ${monthLabel(oldest, state.today)} to ${monthLabel(current, state.today)}.`);
@@ -30,26 +30,33 @@ export const moneyFlowView: Resolver<"money_flow"> = (args, ctx): ViewResult => 
   const base = { view: "money_flow" as const, args: args as Record<string, unknown>, form: meta.form as "sankey", question: meta.question, hint: meta.hint, currency, strip: null, source: "Your clients' payments, what you set aside and your bills and card charges" };
   const none = (words: string, add: "client" | "bill" | null, addLabel: string | null) => ({ ...base, title: "Where each payment went", data: null, table: null, line: null, aria: "Nothing to draw yet.", facts: [] as Fact[], empty: { words, add, addLabel } });
   if (income.length === 0) return none(NO_INCOME, "client", "Add a client");
-  const flow = moneyFlow(income, potFills, lookBy(spending, state.today, "category", [], month), month);
+  const flow = moneyFlow(income, moves, lookBy(spending, state.today, "category", [], month), month);
   if (!flow) return none(`Nothing came in or went out in ${monthLabel(month, state.today)}.`, null, null);
 
-  const tone = (kind: (typeof flow.nodes)[number]["kind"]): Tone => kind === "left" ? "in" : kind === "pot" ? "soft" : kind === "earlier" || kind === "other" ? "quiet" : "main";
+  const tone = (kind: (typeof flow.nodes)[number]["kind"]): Tone => kind === "left" ? "in" : kind === "pot" || kind === "from_pot" ? "soft" : kind === "earlier" || kind === "other" ? "quiet" : "main";
   const nodes = flow.nodes.map(node => ({ id: node.id, label: node.label, column: node.column, minor: node.minor, amountLabel: format(node.minor), tone: tone(node.kind) }));
   const label = new Map(nodes.map(node => [node.id, node.label]));
   const through = flow.nodes.find(node => node.id === "month")!.minor;
   const parts = [`${format(flow.spentMinor)} went on spending`, ...(flow.setAsideMinor > 0 ? [`${format(flow.setAsideMinor)} was set aside`] : []), ...(flow.leftOverMinor > 0 ? [`${format(flow.leftOverMinor)} is left over`] : [])];
-  const line = flow.fromEarlierMinor > 0
-    ? `In ${flow.name} you spent and set aside ${format(through)}, ${format(flow.fromEarlierMinor)} more than the ${format(flow.inMinor)} that came in, so that much came from earlier money.`
-    : `In ${flow.name}, ${format(flow.inMinor)} came in: ${parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0]}.`;
+  const fromPotsNote = flow.fromPotsMinor > 0 ? ` ${format(flow.fromPotsMinor)} came out of your pots.` : "";
+  const line = (flow.fromEarlierMinor > 0
+    ? flow.fromPotsMinor > 0
+      ? `In ${flow.name} you spent and set aside ${format(through)}, ${format(flow.fromEarlierMinor)} of it from earlier money.`
+      : `In ${flow.name} you spent and set aside ${format(through)}, ${format(flow.fromEarlierMinor)} more than the ${format(flow.inMinor)} that came in, so that much came from earlier money.`
+    : `In ${flow.name}, ${format(flow.inMinor)} came in: ${parts.length > 1 ? `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}` : parts[0]}.`) + fromPotsNote;
   const period = monthPeriod(flow.month), money = (name: "paid_in" | "money_spent" | "money_set_aside" | "left_over_in_month" | "from_earlier_money" | "spent_and_set_aside", minor: number) => engineFact(name, minor, { from: "money_flow", currency, period });
+  const potFact = (name: "set_aside_for_goals" | "ready_for_tax" | "from_pot", minor: number, pot?: { potId: string; label: string }) =>
+    engineFact(name, minor, { from: "money_flow", currency, period, ...(pot && { about: { type: "pot" as const, id: pot.potId, name: pot.label } }) });
   const facts: Fact[] = [money("paid_in", flow.inMinor), money("money_spent", flow.spentMinor), money("money_set_aside", flow.setAsideMinor), money("spent_and_set_aside", through), money("left_over_in_month", flow.leftOverMinor), money("from_earlier_money", flow.fromEarlierMinor),
+    ...flow.setAside.map(pot => potFact(pot.tax ? "ready_for_tax" : "set_aside_for_goals", pot.minor, pot)),
+    ...flow.fromPots.map(pot => potFact("from_pot", pot.minor, pot)), ...(flow.fromPots.length > 1 ? [potFact("from_pot", flow.fromPotsMinor)] : []),
     ...flow.unrated.map(name => engineFact("not_counted", 1, { from: "money_flow", about: { type: "client", id: name, name } }))];
   return {
     ...base, title: `Where ${flow.name}'s money went`, data: { nodes, links: flow.links }, empty: null, facts,
     table: { caption: `Where ${flow.name}'s money went`, head: ["From", "To", "Amount"], align: ["start", "end"], foot: ["Money in", "", format(through)],
       rows: flow.links.map(link => ({ key: `${link.from}>${link.to}`, cells: [label.get(link.from)!, label.get(link.to)!, format(link.minor)] })) },
     line: flow.unrated.length ? `${line} ${flow.unrated.join(" and ")} paid in a currency with no rate, so that payment is not counted.` : line,
-    aria: `Where ${flow.name}'s money went: ${format(flow.inMinor)} in, ${format(flow.spentMinor)} spent${flow.setAsideMinor ? `, ${format(flow.setAsideMinor)} set aside` : ""}.`,
+    aria: `Where ${flow.name}'s money went: ${format(flow.inMinor)} in, ${format(flow.spentMinor)} spent${flow.setAsideMinor ? `, ${format(flow.setAsideMinor)} set aside` : ""}${flow.fromPotsMinor ? `, ${format(flow.fromPotsMinor)} from your pots` : ""}.`,
   };
 };
 

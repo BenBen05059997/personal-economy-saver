@@ -25,7 +25,7 @@ export function toCheck(state: MoneyState) {
     ...state.pendingPots.map(pot => ({
       kind: "pot" as const, id: pot.id, amount: null, madeBy: pot.madeBy,
       title: `New pot: ${pot.name}${pot.target === undefined ? "" : `, ${minorMoney(minor(pot.target), state.homeCurrency)}${pot.targetDate ? ` by ${monthYear(pot.targetDate)}` : ""}`}`,
-      detail: pot.fillPct === undefined ? "Money set aside is not spendable" : `Sets aside ${pot.fillPct}% of each client payment`,
+      detail: pot.category === "government_tax" ? "Ready for tax bills" : pot.fillPct === undefined ? "Money set aside is not spendable" : `Sets aside ${pot.fillPct}% of each client payment`,
     })),
     ...state.bills.filter(bill => bill.status === "pending").map(bill => {
       const gap = gaps.get(bill.id) ?? null;

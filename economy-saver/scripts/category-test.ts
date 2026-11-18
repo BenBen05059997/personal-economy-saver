@@ -225,7 +225,7 @@ async function main() {
     });
 
     await check("US household: every dollar-to-cents factor (To check, options, the pot and family rows) keeps $12.50 as 1250", () => {
-      const usd: MoneyState = { ...benMoney, homeCurrency: "USD", fxPerUsd: 1, paypal: 0, bank: 1_200, cards: [], charges: [], statements: [], cancelNotices: [], pots: [], pendingPots: [], balanceUpdates: [{ id: "u", amount: 1_250.5, madeBy: "form" } as never], bills: [] };
+      const usd: MoneyState = { ...benMoney, homeCurrency: "USD", fxPerUsd: 1, paypal: 0, bank: 1_200, cards: [], charges: [], statements: [], cancelNotices: [], pots: [], pendingPots: [], pendingMoves: [], pendingChoices: [], balanceUpdates: [{ id: "u", amount: 1_250.5, madeBy: "form" } as never], bills: [] };
       const pending: Bill = { ...benMoney.bills[0], id: "pb", biller: "Fictional rent", amount: 900, due: "2026-11-20", status: "pending", repeatUnit: "month", repeatDay: 20, nextAmount: 12.5, nextAmountFrom: "2027-01-20", cancelBy: undefined, businessBp: 0 };
       const rows = toCheck({ ...usd, bills: [pending] });
       assert.equal(rows.find(r => r.kind === "balance")!.title, "Bank balance → $1,250.50", "a USD balance update keeps its cents");

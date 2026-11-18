@@ -90,7 +90,7 @@ export const benMoney: MoneyState = {
     { id: "c-acme", name: "Acme Corp", email: "ap@acme.example", termsDays: 10, daysToPay: [12, 14, 13, 25, 16] },
   ],
   pots: [], // D43: Ben has no pots, so every demo number stays as it is
-  pendingPots: [],
+  pendingPots: [], pendingMoves: [], pendingChoices: [],
   cancelNotices: [],
   split: { members: [{ id: "m-ben", name: "Ben", shareBp: 10_000 }], since: null, settledThrough: null, settledAt: null, bills: [], charges: [] },
   balanceUpdates: [],

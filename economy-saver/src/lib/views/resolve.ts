@@ -22,7 +22,7 @@ export function resolveView(view: string, args: unknown, ctx: ViewContext): View
   const parsed = VIEW_ARGS[view].safeParse(args ?? {});
   if (!parsed.success) throw new ViewError(argWords(view, parsed.error));
   for (const need of VIEW_META[view].needs) {
-    if ((need === "spending" && !ctx.spending) || (need === "income" && !ctx.income) || (need === "potFills" && !ctx.potFills) || (need === "fx" && !ctx.foreignCosts)) throw new Error(`The ${need} was not loaded for ${view}`);
+    if ((need === "spending" && !ctx.spending) || (need === "income" && !ctx.income) || (need === "moves" && !ctx.moves) || (need === "choices" && !ctx.choices) || (need === "fx" && !ctx.foreignCosts)) throw new Error(`The ${need} was not loaded for ${view}`);
   }
   return resolver(parsed.data as ViewArgs[ViewId], ctx);
 }

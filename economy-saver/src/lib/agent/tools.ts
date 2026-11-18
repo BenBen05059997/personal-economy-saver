@@ -558,8 +558,8 @@ export const tools: Tool[] = [
     },
   }),
   defineTool({
-    name: "add_pot", words: "Setting up the pot", scope: "draft", input: potInput.pick({ name: true, target: true, targetDate: true, fillPct: true }),
-    description: "Draft a savings pot for To check. target in home currency; fillPct: % of each client payment.",
+    name: "add_pot", words: "Setting up the pot", scope: "draft", input: potInput.pick({ name: true, target: true, targetDate: true, fillPct: true, category: true }),
+    description: "Draft a pot for To check. target in home currency. category government_tax makes the tax pot; fillPct: % of each client payment.",
     run: async (ctx, input) => {
       await savePot(ctx.db, ctx.householdId, { ...input, id: await draftId(ctx, "add_pot", input), saved: "0", memberId: null }, "pending", by(ctx));
       ctx.onPending?.();

@@ -52,7 +52,7 @@ function walk(value: unknown, visit: (key: string, value: unknown) => void) {
 async function main() {
   const { check, tally } = createChecks();
 
-  await check("schema/household.v4.json equals the schema generated from the zod definition, and so do the recipe, memory, turn and cash-flow schemas (drift for all five files)", () => {
+  await check("schema/household.v5.json equals the schema generated from the zod definition, and so do the recipe, memory, turn and cash-flow schemas (drift for all five files)", () => {
     const committed = readFileSync(SCHEMA_FILE, "utf8");
     assert.equal(committed, householdJsonSchema(), `${SCHEMA_FILE} is out of date. Run \`npm run schema\` and commit the result.`);
     const files = schemaFiles();
@@ -63,6 +63,8 @@ async function main() {
     assert.equal(json.additionalProperties, false);
     assert.equal(json.properties.version.const, SNAPSHOT_VERSION);
     assert.equal(json.required.includes("ownCategories"), false, "ownCategories is optional: version 2 and 3 files have none");
+    for (const key of ["potMoves", "choices"]) assert.ok(key in json.properties && !json.required.includes(key), `${key} is optional: version 2 to 4 files have none`);
+    assert.ok("category" in json.properties.pots.items.properties && "doneOn" in json.properties.pots.items.properties);
     assert.ok("ownCategories" in json.properties && "ownCategoryId" in json.properties.bills.items.properties && "ownCategoryId" in json.properties.charges.items.properties);
     for (const optional of ["events", "memory", "canvases", "journal", "spaces"]) assert.deepEqual(json.required.includes(optional), false, `${optional} is optional`);
     for (const key of ["memory", "canvases", "journal", "spaces"]) assert.ok(key in json.properties, key);
@@ -204,6 +206,22 @@ async function main() {
       await assert.rejects(insertBill(db, a, { ...monthBill, id: randomUUID(), periodEnd: "2026-10-01" }, "confirmed", { madeBy: "form" }), /must start on or before/);
       await assert.rejects(insertBill(db, a, { ...monthBill, id: randomUUID(), periodEnd: null }, "confirmed", { madeBy: "form" }), /both the first and the last day/);
       await assert.rejects(insertBill(db, a, { ...monthBill, id: randomUUID(), repeat: "month" }, "confirmed", { madeBy: "form" }), /different month each time/);
+    });
+
+    await check("D81: the snapshot carries a pot's category and done day, its moves and the choices, and a confirmed pot equals the sum of its confirmed moves", async () => {
+      const [pot] = await db.insert(schema.pots).values({ householdId: a, name: "Fictional Tax Pot", savedMinor: 900, category: "government_tax", doneOn: "2026-11-10", currency: "JPY" }).returning();
+      const [choice] = await db.insert(schema.choices).values({ householdId: a, source: "found", foundKey: "fictional-key", happenedOn: "2026-11-03", aboutMinor: 400, currency: "JPY", words: "Cooked at home", status: "confirmed", confirmedAt: new Date() }).returning();
+      const done = { householdId: a, potId: pot.id, currency: "JPY", movedOn: "2026-11-04", confirmedAt: new Date() };
+      await db.insert(schema.potMoves).values([{ ...done, kind: "adjust", amountMinor: 500 }, { ...done, kind: "add", amountMinor: 400, choiceId: choice.id }]);
+      const v5 = await loadHouseholdSnapshot(db, a, { events: false });
+      const mine = v5.pots.find(p => p.id === pot.id)!;
+      assert.deepEqual([mine.category, mine.doneOn], ["government_tax", "2026-11-10"]);
+      const moves = v5.potMoves!.filter(m => m.potId === pot.id);
+      assert.equal(moves.reduce((sum, m) => sum + m.amountMinor, 0), mine.savedMinor);
+      assert.deepEqual(moves.map(m => [m.kind, m.status, m.movedOn, m.choiceId === choice.id]).sort(), [["add", "confirmed", "2026-11-04", true], ["adjust", "confirmed", "2026-11-04", false]]);
+      assert.deepEqual(v5.choices!.map(c => [c.source, c.foundKey, c.words, c.withdrawnAt]), [["found", "fictional-key", "Cooked at home", null]]);
+      await db.delete(schema.pots).where(eq(schema.pots.id, pot.id));
+      await db.delete(schema.choices).where(eq(schema.choices.id, choice.id));
     });
 
     await check("pots and the pending balance update appear with their status", () => {

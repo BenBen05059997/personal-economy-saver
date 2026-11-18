@@ -1,12 +1,12 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "HouseholdSnapshot",
-  "description": "A whole household at one moment: version 4 of the Personal Economy Saver household schema, including the person's own categories and, in the export, spaces.",
+  "description": "A whole household at one moment: version 5 of the Personal Economy Saver household schema, including the person's own categories, pot moves and choices and, in the export, spaces.",
   "type": "object",
   "properties": {
     "version": {
       "type": "number",
-      "const": 4
+      "const": 5
     },
     "generatedAt": {
       "type": "string",
@@ -1069,6 +1069,48 @@
             ],
             "description": "Share of each client payment added to the pot, in basis points (2500 = 25%)."
           },
+          "category": {
+            "description": "What the pot is for; government_tax makes it the tax pot. Absent in a version 2 to 4 file.",
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "housing",
+                  "utilities",
+                  "phone_internet",
+                  "subscriptions",
+                  "food",
+                  "transport",
+                  "travel",
+                  "health",
+                  "insurance",
+                  "family_shared",
+                  "government_tax",
+                  "business_tools",
+                  "debt",
+                  "other"
+                ],
+                "description": "One of the fourteen fixed categories; the key, not the label."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "doneOn": {
+            "description": "The day the person marked the pot done; null = not done. Absent in a version 2 to 4 file.",
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "currency": {
             "type": "string",
             "pattern": "^[A-Z]{3}$",
@@ -1106,6 +1148,366 @@
           "fillBp",
           "currency",
           "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "potMoves": {
+      "description": "Every move of every pot's money (D81); a confirmed pot's `savedMinor` is the sum of its confirmed moves. Absent in a version 2 to 4 file.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "potId": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "adjust",
+              "fill",
+              "add",
+              "take_out",
+              "spend",
+              "carry"
+            ],
+            "description": "adjust = a start or correction, either sign; fill = a share of a client payment; add = money put in; take_out = money taken out; spend = a purchase paid from the pot; carry = money moved between pots, one row in each, joined by `pairId`."
+          },
+          "amountMinor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "Signed: fill and add are above zero, take_out and spend below, adjust and carry are never zero."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "movedOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The day it happened; null while it is pending."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "memberId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who made it."
+          },
+          "invoiceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The client payment a fill came from."
+          },
+          "chargeId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The charge a spend paid."
+          },
+          "billId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The bill a spend paid; with `billOn`, the occurrence."
+          },
+          "billOn": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+                "description": "A calendar day, YYYY-MM-DD."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "choiceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The choice an add was about."
+          },
+          "pairId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Joins the two rows of a carry."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "pending"
+            ],
+            "description": "pending = waiting in To check; it counts for nothing until the user confirms it."
+          },
+          "confirmedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "description": "An instant, ISO 8601 in UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "madeBy": {
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import.",
+            "type": "string",
+            "enum": [
+              "form",
+              "ask",
+              "mcp",
+              "reader",
+              "cron",
+              "paypal",
+              "import"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "potId",
+          "kind",
+          "amountMinor",
+          "currency",
+          "movedOn",
+          "reason",
+          "memberId",
+          "invoiceId",
+          "chargeId",
+          "billId",
+          "billOn",
+          "choiceId",
+          "pairId",
+          "status",
+          "confirmedAt"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "choices": {
+      "description": "The choices savings can name (D81). Absent in a version 2 to 4 file.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "memberId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Who chose; null = unknown."
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "said",
+              "found"
+            ],
+            "description": "said = the person told the assistant; found = the app found it in their records."
+          },
+          "happenedOn": {
+            "type": "string",
+            "format": "date",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$",
+            "description": "A calendar day, YYYY-MM-DD."
+          },
+          "aboutMinor": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991,
+            "description": "What it was about, always above zero."
+          },
+          "currency": {
+            "type": "string",
+            "pattern": "^[A-Z]{3}$",
+            "description": "ISO 4217 code, for example JPY or USD."
+          },
+          "words": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "housing",
+                  "utilities",
+                  "phone_internet",
+                  "subscriptions",
+                  "food",
+                  "transport",
+                  "travel",
+                  "health",
+                  "insurance",
+                  "family_shared",
+                  "government_tax",
+                  "business_tools",
+                  "debt",
+                  "other"
+                ],
+                "description": "One of the fourteen fixed categories; the key, not the label."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "foundKey": {
+            "description": "Set exactly when source is found; one choice per key.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "pending"
+            ],
+            "description": "pending = waiting in To check; it counts for nothing until the user confirms it."
+          },
+          "confirmedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "description": "An instant, ISO 8601 in UTC."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "withdrawnAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time",
+                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$",
+                "description": "An instant, ISO 8601 in UTC."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "When the person withdrew it; only a confirmed choice can be withdrawn."
+          },
+          "madeBy": {
+            "description": "Who made the row: form = typed in or confirmed in the app, ask = the in-app assistant, mcp = a connected assistant, reader = read from a document, cron = the daily job, paypal = PayPal, import = an import.",
+            "type": "string",
+            "enum": [
+              "form",
+              "ask",
+              "mcp",
+              "reader",
+              "cron",
+              "paypal",
+              "import"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "memberId",
+          "source",
+          "happenedOn",
+          "aboutMinor",
+          "currency",
+          "words",
+          "category",
+          "foundKey",
+          "status",
+          "confirmedAt",
+          "withdrawnAt"
         ],
         "additionalProperties": false
       }
